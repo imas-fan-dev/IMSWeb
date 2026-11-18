@@ -3,7 +3,10 @@ import { useParams } from "react-router"
 
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
 import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
-import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import {
+  PlatformSessionProvider,
+  useOptionalPlatformSession,
+} from "~/components/platform/platform-session-provider"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import {
   commitCardShare,
@@ -33,8 +36,19 @@ export function meta() {
  *
  * 取数照抄主页那一套（`alova` + `useEffect`，不用 loader）：卡片不存在 / 未认领 /
  * 被下线时接口一律 404，这里只渲染一句「这张名片当前不开放交换」，不解释原因。
+ *
+ * 分享页走 `standalone` 布局（没有 `PlatformSessionProvider`），所以登录态由页面自己包：
+ * 否则 `useOptionalPlatformSession()` 会回落成匿名，已登录访客也会被反复要求「去登录」。
  */
 export default function CardSharePage() {
+  return (
+    <PlatformSessionProvider>
+      <CardSharePageContent />
+    </PlatformSessionProvider>
+  )
+}
+
+function CardSharePageContent() {
   const { slug = "" } = useParams<{ slug: string }>()
   const platform = useOptionalPlatformSession()
   const [share, setShare] = useState<NamecardCardShare | null>(null)

@@ -175,7 +175,7 @@ describe("AccountMePage", () => {
     const expectedSections = [
       ["个人资料", "/account/me/profile"],
       ["名片管理", "/account/me/namecards"],
-      ["收藏夹", "/account/me/favorites"],
+      ["名片册", "/account/me/collection"],
       ["事务所与位置", "/account/me/offices"],
       ["消息", "/account/me/claims"],
     ] as const

@@ -70,7 +70,7 @@ describe("AccountMeSectionPage", () => {
     vi.clearAllMocks()
   })
 
-  it.each(["profile", "namecards", "favorites", "offices", "claims"])(
+  it.each(["profile", "namecards", "collection", "offices", "claims"])(
     "accepts the %s account section",
     (section) => {
       render(<TestRoutes initialEntry={`/account/me/${section}`} />)

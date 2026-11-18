@@ -3,7 +3,10 @@ import { useParams } from "react-router"
 
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
 import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
-import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import {
+  PlatformSessionProvider,
+  useOptionalPlatformSession,
+} from "~/components/platform/platform-session-provider"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import {
   commitQuickExchange,
@@ -32,8 +35,19 @@ export function meta() {
  * 快速交换清单分享页 `/exchange/<handle>`：清单里当前仍可交换的名片（每张只出正面）+ 分享人信息。
  *
  * `handle` 可以是 uid、主页地址或账号 ID；找不到这位制作人时接口 404。
+ *
+ * 分享页走 `standalone` 布局（没有 `PlatformSessionProvider`），所以登录态由页面自己包：
+ * 否则 `useOptionalPlatformSession()` 会回落成匿名，已登录访客也会被反复要求「去登录」。
  */
 export default function QuickSharePage() {
+  return (
+    <PlatformSessionProvider>
+      <QuickSharePageContent />
+    </PlatformSessionProvider>
+  )
+}
+
+function QuickSharePageContent() {
   const { handle = "" } = useParams<{ handle: string }>()
   const platform = useOptionalPlatformSession()
   const [share, setShare] = useState<NamecardQuickExchange | null>(null)

@@ -40,7 +40,7 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
 import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
 import { PlatformAccountsEditor } from "./platform-accounts-editor"
-import { FavoriteCollection } from "./favorites/favorite-collection"
+import { NamecardCollection } from "./collection/namecard-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
 import { OfficeLocationWorkspace } from "./offices/office-location-workspace"
 import { ProfileEditor } from "./profile/profile-editor"
@@ -726,12 +726,12 @@ function ProfileWorkspace({
           </section>
 
           <section
-            id="profile-workspace-section-favorites"
+            id="profile-workspace-section-collection"
             className={sectionReadOnlyReason ? "mt-6" : undefined}
-            aria-labelledby="profile-workspace-favorites-title"
-            hidden={activeSection !== "favorites"}
+            aria-labelledby="profile-workspace-collection-title"
+            hidden={activeSection !== "collection"}
           >
-            <FavoriteCollection series={state.series} />
+            <NamecardCollection />
           </section>
 
           <div

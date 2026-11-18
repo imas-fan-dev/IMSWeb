@@ -1,6 +1,7 @@
 import {
   CircleAlertIcon,
   CircleUserRoundIcon,
+  CreditCardIcon,
   LoaderCircleIcon,
   LogInIcon,
   LogOutIcon,
@@ -194,6 +195,17 @@ export function PlatformAccountMenu() {
                 aria-hidden="true"
               />
               {t("platformAccount.myCards")}
+            </NavigationLink>
+            <NavigationLink
+              to="/account/me/namecards"
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "w-full",
+              })}
+            >
+              <CreditCardIcon data-icon="inline-start" aria-hidden="true" />
+              {t("platformAccount.namecards")}
             </NavigationLink>
             <NavigationLink
               to="/account/me/claims"

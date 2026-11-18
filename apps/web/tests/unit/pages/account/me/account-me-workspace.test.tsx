@@ -1262,7 +1262,7 @@ describe("AccountMeWorkspace", () => {
     ).toBeDisabled()
   })
 
-  it.each(["namecards", "favorites", "offices", "claims"])(
+  it.each(["namecards", "collection", "offices", "claims"])(
     "renders the %s App section while the other panels stay hidden",
     async (section) => {
       renderAccountSection(section)
@@ -1275,7 +1275,7 @@ describe("AccountMeWorkspace", () => {
       for (const other of [
         "profile",
         "namecards",
-        "favorites",
+        "collection",
         "offices",
         "claims",
       ]) {

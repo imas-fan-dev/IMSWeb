@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -7,6 +7,7 @@ import type { NamecardExchangeDetail } from "@imsweb/contracts/namecards"
 import { ExchangeRequestDialog } from "~/components/community/exchange/exchange-request-dialog"
 import { ApiError } from "~/lib/api"
 import { makeNamecard } from "@/mocks/data/namecards"
+import { renderPage } from "@/tests/unit/support/harness"
 
 const apiMocks = vi.hoisted(() => ({
   getExchangeDetail: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getExchangeDetail: apiMocks.getExchangeDetail,
     acceptExchange: apiMocks.acceptExchange,
     declineExchange: apiMocks.declineExchange,
+    // 只读名片窗挂载时读企划目录；用例不关心，给一份空目录即可。
+    getFudabaSeries: () => ({
+      send: () => Promise.resolve({ items: [] }),
+    }),
   }
 })
 
@@ -57,7 +62,7 @@ function renderDialog(
 ) {
   const onOpenChange = vi.fn()
   const onDecided = vi.fn()
-  const result = render(
+  const result = renderPage(
     <ExchangeRequestDialog
       open
       onOpenChange={onOpenChange}
@@ -131,6 +136,42 @@ describe("ExchangeRequestDialog content", () => {
       await screen.findByText("天海春香 希望与你交换名片")
     ).toBeInTheDocument()
     expect(apiMocks.sendDetail).toHaveBeenCalledTimes(2)
+  })
+
+  it("opens a thumbnail as a read-only card above the exchange window", async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    await screen.findByText("天海春香 希望与你交换名片")
+    const lists = screen.getAllByRole("list")
+    await user.click(
+      within(lists[0]!).getByRole("button", { name: "查看名片 #11" })
+    )
+
+    // 完整名片用的是交换详情里那一侧的公开投影（卡号 11），叠在交换窗之上。
+    const card = await screen.findByRole("dialog", {
+      name: /制作人名片\s*1$/,
+    })
+    expect(within(card).getByText(/名片 #11/)).toBeInTheDocument()
+    expect(within(card).getByLabelText("名片公开参数")).toBeInTheDocument()
+    // 只读：反应区 / 交换 / 分享都不渲染，只留【反馈】。
+    expect(within(card).getByRole("button", { name: "反馈" })).toBeInTheDocument()
+    expect(within(card).queryByText("全部反应")).toBeNull()
+    expect(within(card).queryByRole("button", { name: "交换名片" })).toBeNull()
+    expect(within(card).queryByRole("button", { name: "分享" })).toBeNull()
+    // 交换窗没被顶掉：只读名片窗在上层，下层内容仍在（被上层设为 aria-hidden）。
+    expect(screen.getByText("对方希望交换的名片")).toBeInTheDocument()
+
+    // 关掉上层，下层原样留着。
+    await user.keyboard("{Escape}")
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: /制作人名片/ })
+      ).toBeNull()
+    })
+    expect(
+      screen.getByRole("dialog", { name: "名片交换请求" })
+    ).toBeInTheDocument()
   })
 })
 

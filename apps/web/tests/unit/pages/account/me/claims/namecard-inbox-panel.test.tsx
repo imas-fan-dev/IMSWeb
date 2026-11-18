@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
+import { renderPage } from "@/tests/unit/support/harness"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NamecardNotification } from "@imsweb/contracts/fudaba/card-claims"
@@ -81,7 +82,7 @@ function renderPanel(notifications: NamecardNotification[]) {
     items: notifications,
     unread: notifications.filter((item) => !item.readAt).length,
   })
-  return render(<NamecardInboxPanel readOnly={false} />)
+  return renderPage(<NamecardInboxPanel readOnly={false} />)
 }
 
 beforeEach(() => {

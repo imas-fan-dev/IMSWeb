@@ -58,7 +58,7 @@ vi.mock(
       onOpenChange: (open: boolean) => void
     }) =>
       open ? (
-        <div role="dialog" aria-label="交换名片">
+        <div role="dialog" aria-label="交换名片" data-testid="exchange-picker">
           <span data-testid="picker-target">{target}</span>
           <span data-testid="picker-target-card">{targetCard}</span>
           <button
@@ -648,6 +648,60 @@ describe("UserProfilePage", () => {
     expect(body.giveCardNumbers).toEqual([202])
     expect(body.clientExchangeId.length).toBeGreaterThanOrEqual(8)
     expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
+  })
+
+  it("keeps the detail dialog open when the picker opens from it", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      ...anonymousSession(),
+      status: "authenticated",
+      session: { account: { id: "acct-9" } },
+    })
+    apiMocks.sendProfile.mockResolvedValue(profile({ accountId: "acct-2" }))
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [
+          card({
+            id: 202,
+            cardNumber: 202,
+            claimerUid: null,
+            claimStatus: "claimed",
+          }),
+        ],
+        total: 1,
+        totalPage: 1,
+      })
+    )
+    renderProfile("acct-2")
+
+    await user.click(
+      await screen.findByRole("button", { name: "查看制作人名片 202 正面" })
+    )
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*202/,
+    })
+    const detailExchange = within(detail).getByRole("button", {
+      name: "交换名片",
+    })
+    expect(detailExchange).toBeEnabled()
+    await user.click(detailExchange)
+
+    const picker = await screen.findByTestId("exchange-picker")
+    expect(within(picker).getByTestId("picker-target")).toHaveTextContent(
+      "acct-2"
+    )
+    // 选卡窗口叠在详情窗之上：详情窗不跟着关（下层被设为 aria-hidden）。
+    expect(screen.getByText("全部反应")).toBeInTheDocument()
+
+    await user.click(within(picker).getByText("确定"))
+
+    // 提交结束也不替用户关窗；页面自己刷新列表。
+    await waitFor(() => {
+      expect(screen.queryByTestId("exchange-picker")).toBeNull()
+    })
+    expect(
+      screen.getByRole("dialog", { name: /制作人名片\s*202/ })
+    ).toBeInTheDocument()
   })
 
   it("offers a visitor disabled exchange buttons and empty-field copy", async () => {

@@ -1858,7 +1858,10 @@ describe("CommunityCardsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "查看制作人名片 42 正面" })
     )
-    await user.click(await screen.findByRole("button", { name: "交换名片" }))
+    const detail = await screen.findByRole("dialog", {
+      name: /制作人名片\s*42/,
+    })
+    await user.click(within(detail).getByRole("button", { name: "交换名片" }))
 
     // 名片墙拿不到账号 ID：选卡窗口用卡号反查卡主（`?targetCard=`）。
     const picker = await screen.findByRole("dialog", { name: "交换名片" })
@@ -1866,6 +1869,10 @@ describe("CommunityCardsPage", () => {
       "42"
     )
     expect(within(picker).getByTestId("picker-target")).toBeEmptyDOMElement()
+
+    // 【交换】不再顺手关掉详情窗：两层窗口同时在，选卡未结束前下层保持打开
+    // （下层被上层设为 aria-hidden，改用内容断言）。
+    expect(screen.getByText("全部反应")).toBeInTheDocument()
 
     await user.click(within(picker).getByRole("button", { name: "确定" }))
 
@@ -1877,5 +1884,12 @@ describe("CommunityCardsPage", () => {
     expect(body.giveCardNumbers).toEqual([42])
     expect(body.clientExchangeId.length).toBeGreaterThanOrEqual(8)
     expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
+    // 提交（无论成败）也不替用户关窗：详情还在，数据由页面自己刷新。
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "交换名片" })).toBeNull()
+    })
+    expect(
+      screen.getByRole("dialog", { name: /制作人名片\s*42/ })
+    ).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import {
-  BookmarkIcon,
+  LibraryIcon,
   Building2Icon,
   CreditCardIcon,
   MailIcon,
@@ -19,7 +19,7 @@ import { useNamecardUnread } from "~/lib/use-namecard-unread"
 export type ProfileWorkspaceSection =
   | "profile"
   | "namecards"
-  | "favorites"
+  | "collection"
   | "offices"
   | "claims"
 
@@ -43,13 +43,13 @@ export const profileWorkspaceSections = [
     icon: CreditCardIcon,
   },
   {
-    id: "favorites",
-    label: "收藏夹",
-    labelKey: "platformAccount.app.sections.favorites.label",
-    shortLabel: "收藏",
-    description: "收藏的交换名片",
-    descriptionKey: "platformAccount.app.sections.favorites.description",
-    icon: BookmarkIcon,
+    id: "collection",
+    label: "名片册",
+    labelKey: "platformAccount.app.sections.collection.label",
+    shortLabel: "名片册",
+    description: "交换得来的名片",
+    descriptionKey: "platformAccount.app.sections.collection.description",
+    icon: LibraryIcon,
   },
   {
     id: "offices",

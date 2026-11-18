@@ -509,6 +509,8 @@ export default function UserProfilePage() {
         busy={busyReaction}
         exchangeTarget={profile?.accountId}
         onOpenChange={(open) => {
+          // 选卡窗口叠在详情窗上时，只有上层收。
+          if (!open && exchangeRequest !== null) return
           if (!open) setOpenCard(null)
         }}
         onOpenPreview={(index, trigger) => {
@@ -518,14 +520,14 @@ export default function UserProfilePage() {
         onClaim={() => undefined}
         onSupplement={() => undefined}
         onExchange={(card, target) => {
-          // 选卡窗口盖在详情窗上会叠两层弹窗：先收起详情，再打开选卡。
-          setOpenCard(null)
+          // 详情窗保持打开：选卡窗口叠在它上面，选完还能继续看这张卡。
           setExchangeRequest({
             cardNumber: card.cardNumber,
             target: "accountId" in target ? target.accountId : undefined,
             targetCard: "cardNumber" in target ? target.cardNumber : undefined,
           })
         }}
+        dismissible={exchangeRequest === null}
         onReact={(emoji) =>
           openCard ? reactTo(openCard.id, emoji) : Promise.resolve(false)
         }

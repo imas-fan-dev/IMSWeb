@@ -109,6 +109,7 @@ export const resources = {
         login: "登录",
         register: "注册",
         myCards: "个人档案",
+        namecards: "名片管理",
         messages: "消息通知",
         messagesUnread: "{{count}} 条未读消息",
         logout: "退出帐号",
@@ -131,7 +132,7 @@ export const resources = {
           cityMissing: "未填写常驻城市",
           restrictedTitle: "帐号当前为只读",
           restrictedDescription:
-            "个人资料、名片、收藏夹、事务所和认领消息仍可查看，但不能修改。",
+            "个人资料、名片、名片册、事务所和认领消息仍可查看，但不能修改。",
           profileGroup: "我的资料",
           securityGroup: "帐号与安全",
           sessionGroup: "当前会话",
@@ -144,9 +145,9 @@ export const resources = {
               label: "名片管理",
               description: "名片与交换状态",
             },
-            favorites: {
-              label: "收藏夹",
-              description: "收藏的交换名片",
+            collection: {
+              label: "名片册",
+              description: "交换得来的名片",
             },
             offices: {
               label: "事务所与位置",
@@ -692,6 +693,7 @@ export const resources = {
         login: "Sign in",
         register: "Register",
         myCards: "Profile",
+        namecards: "Namecard manager",
         messages: "Messages",
         messagesUnread: "{{count}} unread messages",
         logout: "Sign out",
@@ -716,7 +718,7 @@ export const resources = {
           cityMissing: "Home city not set",
           restrictedTitle: "Account is read-only",
           restrictedDescription:
-            "You can still view your profile, cards, favorites, offices, and claims, but you cannot make changes.",
+            "You can still view your profile, cards, namecard album, offices, and claims, but you cannot make changes.",
           profileGroup: "My profile",
           securityGroup: "Account and security",
           sessionGroup: "Current session",
@@ -729,9 +731,9 @@ export const resources = {
               label: "Namecard manager",
               description: "Card media and exchange status",
             },
-            favorites: {
-              label: "Favorites",
-              description: "Saved exchange cards",
+            collection: {
+              label: "Namecard album",
+              description: "Cards you collected through exchanges",
             },
             offices: {
               label: "Offices and location",

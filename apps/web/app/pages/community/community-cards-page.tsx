@@ -248,7 +248,8 @@ export default function CommunityCardsPage() {
   )
   const { fallbackRef, remember, prepareRestore, restore } =
     useNamecardDetailReturn(searchParams.toString())
-  // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它（避免多层弹窗）。
+  // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它——详情窗保持打开，
+  // 选卡窗口叠在上面。
   const [exchangeRequest, setExchangeRequest] = useState<{
     cardNumber: number
     target?: string | undefined
@@ -512,21 +513,26 @@ export default function CommunityCardsPage() {
             : { reactions: {}, loading: false }
         }
         onOpenChange={(open) => {
+          // 选卡窗口叠在详情窗上时，只有上层收：下层的关闭请求一律忽略。
+          if (!open && exchangeRequest !== null) return
           if (!open) closeDetail()
         }}
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
         onSupplement={setSupplementCard}
         onExchange={(card, target) => {
-          // 选卡窗口盖在详情窗上会叠两层弹窗：先收起详情（含 ?card= 清参），再打开选卡。
-          closeDetail()
+          // 详情窗不收起：选卡窗口叠在它上面，关掉选卡后还能继续看这张卡。
           setExchangeRequest({
             cardNumber: card.cardNumber,
             target: "accountId" in target ? target.accountId : undefined,
             targetCard: "cardNumber" in target ? target.cardNumber : undefined,
           })
         }}
-        dismissible={claimCard === null && supplementCard === null}
+        dismissible={
+          claimCard === null &&
+          supplementCard === null &&
+          exchangeRequest === null
+        }
         onReact={(emoji) =>
           detail.card
             ? reactToCard(detail.card.id, emoji)

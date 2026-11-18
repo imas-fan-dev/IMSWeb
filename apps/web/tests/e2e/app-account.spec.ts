@@ -362,7 +362,7 @@ test.describe("app account", () => {
       for (const [name, href] of [
         ["个人资料", "/account/me/profile"],
         ["名片管理", "/account/me/namecards"],
-        ["收藏夹", "/account/me/favorites"],
+        ["名片册", "/account/me/collection"],
         ["事务所与位置", "/account/me/offices"],
         ["消息", "/account/me/claims"],
       ] as const) {
@@ -661,7 +661,7 @@ test.describe("app account", () => {
         const sections = [
           ["profile", "个人资料"],
           ["namecards", "名片管理"],
-          ["favorites", "收藏夹"],
+          ["collection", "名片册"],
           ["offices", "事务所与位置"],
           ["claims", "消息"],
         ] as const

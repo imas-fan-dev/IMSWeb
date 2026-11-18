@@ -425,7 +425,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
         tab: "account",
         parent: "/account/me",
         private: true,
-        sections: ["profile", "namecards", "favorites", "offices", "claims"],
+        sections: ["profile", "namecards", "collection", "offices", "claims"],
       },
     }
   ),

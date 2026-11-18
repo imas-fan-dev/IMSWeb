@@ -100,20 +100,6 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       route.fulfill({ json: { items: [] } })
     )
   }
-  await api.mock(
-    {
-      method: "GET",
-      path: "/api/community/exchange/me/favorites",
-      times: workspaceTimes,
-    },
-    (route) =>
-      route.fulfill({
-        json: {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
-  )
   await page.goto("/account/me")
   for (const [path, json] of [
     ["/api/platform/me/sessions", { success: true, sessions: [] }],
@@ -209,7 +195,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   for (const [section, label] of [
     ["profile", "个人资料"],
     ["namecards", "名片管理"],
-    ["favorites", "收藏夹"],
+    ["collection", "名片册"],
     ["offices", "事务所与位置"],
     ["claims", "消息"],
   ]) {
@@ -414,13 +400,6 @@ test("desktop root and section preserve pending, failed, retry and successful lo
       route.fulfill({ json: { items: [] } })
     )
   }
-  await api.mock(
-    { method: "GET", path: "/api/community/exchange/me/favorites", times: 2 },
-    (route) =>
-      route.fulfill({
-        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-      })
-  )
   const releases: Array<() => void> = []
   const gates = Array.from(
     { length: 4 },
@@ -518,15 +497,10 @@ for (const section of ["offices", "namecards"] as const) {
       "/api/community/exchange/me/series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
-        "/api/community/exchange/me/favorites",
     ]
     for (const path of ownerPaths)
       await api.mock({ method: "GET", path, times: 1 }, (route) =>
-        route.fulfill({
-          json: path.endsWith("favorites")
-            ? { items: [], pageInfo: { hasNextPage: false, nextCursor: null } }
-            : { items: [] },
-        })
+        route.fulfill({ json: { items: [] } })
       )
     if (section === "namecards")
       await api.mock(

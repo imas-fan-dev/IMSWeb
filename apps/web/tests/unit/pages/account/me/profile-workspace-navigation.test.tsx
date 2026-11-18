@@ -76,7 +76,7 @@ describe("ProfileWorkspaceNavigation", () => {
 
   it("accepts only the five supported section identifiers", () => {
     expect(
-      ["profile", "namecards", "favorites", "offices", "claims"].every(
+      ["profile", "namecards", "collection", "offices", "claims"].every(
         isProfileWorkspaceSection
       )
     ).toBe(true)

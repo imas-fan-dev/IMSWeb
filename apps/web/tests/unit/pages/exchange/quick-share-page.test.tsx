@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -17,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const sessionMocks = vi.hoisted(() => ({
   useOptionalPlatformSession: vi.fn(),
+  provider: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => {
@@ -34,6 +37,10 @@ vi.mock("~/lib/api", async (importOriginal) => ({
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
+  PlatformSessionProvider: (props: { children?: ReactNode }) => {
+    sessionMocks.provider(props)
+    return props.children
+  },
   useOptionalPlatformSession: sessionMocks.useOptionalPlatformSession,
 }))
 
@@ -123,6 +130,7 @@ function renderShare() {
 }
 
 beforeEach(() => {
+  sessionMocks.provider.mockClear()
   sessionMocks.useOptionalPlatformSession.mockReturnValue(session("anonymous"))
   apiMocks.getQuickExchangePage.mockReturnValue({ send: apiMocks.send })
   apiMocks.send.mockResolvedValue(quickShare())
@@ -141,6 +149,9 @@ describe("QuickSharePage", () => {
     )
     renderShare()
 
+    // 分享页自己包登录态 provider：standalone 布局里没有外层 provider。
+    expect(sessionMocks.provider).toHaveBeenCalledTimes(1)
+
     expect(await screen.findByRole("link", { name: "春香P" })).toHaveAttribute(
       "href",
       `/user/${HANDLE}`
@@ -156,6 +167,19 @@ describe("QuickSharePage", () => {
       "href",
       `/account/login?returnTo=${encodeURIComponent(`/exchange/${HANDLE}`)}`
     )
+  })
+
+  it("enables the exchange button for a signed-in visitor on an exchangeable list", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    renderShare()
+
+    const exchange = await screen.findByRole("button", { name: "交换" })
+    expect(exchange).toBeEnabled()
+    expect(exchange).not.toHaveAttribute("title")
+    expect(screen.getByText("选择你要给出的名片即可交换")).toBeTruthy()
+    expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })
 
   it("only disables the exchange pitch when every card is already owned", async () => {

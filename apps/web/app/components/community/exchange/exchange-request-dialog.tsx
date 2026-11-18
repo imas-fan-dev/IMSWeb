@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import { Skeleton } from "~/components/ui/skeleton"
+import { NamecardDetailDialog } from "~/pages/community/components/namecard-detail-dialog"
 import {
   acceptExchange,
   declineExchange,
@@ -102,6 +103,8 @@ function RequestContent({
   const [state, setState] = useState<DetailState>({ kind: "loading" })
   const [attempt, setAttempt] = useState(0)
   const [deciding, setDeciding] = useState<"accept" | "decline" | null>(null)
+  // 缩略图点开的完整名片：只读，叠在交换窗之上（关掉它不动下面这一层）。
+  const [inspected, setInspected] = useState<Namecard | null>(null)
 
   useEffect(() => {
     let active = true
@@ -187,11 +190,13 @@ function RequestContent({
               title={TARGET_SECTION_TITLE}
               cards={state.detail.targetCards}
               emptyLabel="对方没有指定名片"
+              onInspect={setInspected}
             />
             <ExchangeCardSection
               title={INITIATOR_SECTION_TITLE}
               cards={state.detail.initiatorCards}
               emptyLabel={EMPTY_INITIATOR_COPY}
+              onInspect={setInspected}
             />
           </>
         )}
@@ -238,19 +243,32 @@ function RequestContent({
           </>
         )}
       </DialogFooter>
+      {/*
+        缩略图点开的完整名片：只读（反应/交换/分享等交互件全不渲染，只留【反馈】），
+        叠在交换窗之上；数据就是这一侧的公开投影，不再多拉一次接口。
+      */}
+      <NamecardDetailDialog
+        readOnly
+        card={inspected}
+        onOpenChange={(open) => {
+          if (!open) setInspected(null)
+        }}
+      />
     </DialogContent>
   )
 }
 
-/** 一块 1:1 网格：标题 + 纯图瓦片（卡号在 `alt` 里）；没有卡时留一行说明。 */
+/** 一块 1:1 网格：标题 + 可点的图瓦片（卡号在 `aria-label` 与 `alt` 里）；没有卡时留一行说明。 */
 function ExchangeCardSection({
   title,
   cards,
   emptyLabel,
+  onInspect,
 }: {
   title: string
   cards: readonly Namecard[]
   emptyLabel: string
+  onInspect: (card: Namecard) => void
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -258,16 +276,21 @@ function ExchangeCardSection({
       {cards.length ? (
         <ul className="grid grid-cols-4 gap-2">
           {cards.map((card) => (
-            <li
-              key={card.cardId}
-              className="flex aspect-square min-w-0 items-center justify-center overflow-hidden rounded-lg border bg-background p-2"
-            >
-              <CardImage
-                src={namecardPages(card)[0]?.thumb}
-                alt={`名片 #${card.cardNumber}`}
-                loading="lazy"
-                className="max-h-full max-w-full border border-foreground/25 object-contain"
-              />
+            <li key={card.cardId} className="min-w-0">
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={`查看名片 #${card.cardNumber}`}
+                className="flex aspect-square h-auto w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border-border bg-background p-2 hover:bg-background dark:hover:bg-background"
+                onClick={() => onInspect(card)}
+              >
+                <CardImage
+                  src={namecardPages(card)[0]?.thumb}
+                  alt={`名片 #${card.cardNumber}`}
+                  loading="lazy"
+                  className="max-h-full max-w-full border border-foreground/25 object-contain"
+                />
+              </Button>
             </li>
           ))}
         </ul>

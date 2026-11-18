@@ -194,4 +194,26 @@ describe("NamecardDetailDialog", () => {
     expect(screen.queryByRole("button", { name: "分享" })).toBeNull()
     expect(apiMocks.getCardShareLink).not.toHaveBeenCalled()
   })
+
+  it("drops every interaction but the feedback entry in read-only mode", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    renderDialog({}, { readOnly: true })
+
+    // 只留【反馈】：反应区、交换、分享、编辑/认领/补充一律不渲染。
+    expect(await screen.findByRole("button", { name: "反馈" })).toBeEnabled()
+    expect(screen.queryByText("全部反应")).toBeNull()
+    expect(screen.queryByLabelText("名片全部反应")).toBeNull()
+    expect(screen.queryByRole("button", { name: "添加反应" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "交换名片" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "分享" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "编辑" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "认领" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "补充" })).toBeNull()
+
+    // 卡片信息与公开参数照旧。
+    expect(screen.getByLabelText("名片公开参数")).toBeInTheDocument()
+    expect(screen.getByText("制作人名称")).toBeInTheDocument()
+  })
 })

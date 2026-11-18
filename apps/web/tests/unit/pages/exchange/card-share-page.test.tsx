@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -17,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
 
 const sessionMocks = vi.hoisted(() => ({
   useOptionalPlatformSession: vi.fn(),
+  provider: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => {
@@ -34,6 +37,10 @@ vi.mock("~/lib/api", async (importOriginal) => ({
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
+  PlatformSessionProvider: (props: { children?: ReactNode }) => {
+    sessionMocks.provider(props)
+    return props.children
+  },
   useOptionalPlatformSession: sessionMocks.useOptionalPlatformSession,
 }))
 
@@ -124,6 +131,7 @@ function renderShare() {
 }
 
 beforeEach(() => {
+  sessionMocks.provider.mockClear()
   sessionMocks.useOptionalPlatformSession.mockReturnValue(session("anonymous"))
   apiMocks.getCardSharePage.mockReturnValue({ send: apiMocks.send })
   apiMocks.send.mockResolvedValue(cardShare())
@@ -133,6 +141,9 @@ beforeEach(() => {
 describe("CardSharePage", () => {
   it("previews every page and keeps the exchange button disabled for anonymous visitors", async () => {
     renderShare()
+
+    // 分享页自己包登录态 provider：standalone 布局里没有外层 provider。
+    expect(sessionMocks.provider).toHaveBeenCalledTimes(1)
 
     // 分享人 + 主页链接（优先公开地址）。
     expect(await screen.findByRole("link", { name: "春香P" })).toHaveAttribute(
@@ -150,6 +161,19 @@ describe("CardSharePage", () => {
     expect(exchange).toBeDisabled()
     expect(exchange).toHaveAttribute("title", "登录后才能交换")
     expect(screen.getByText("登录后才能交换")).toBeTruthy()
+  })
+
+  it("enables the exchange button for a signed-in visitor on an available card", async () => {
+    sessionMocks.useOptionalPlatformSession.mockReturnValue(
+      session("authenticated")
+    )
+    renderShare()
+
+    const exchange = await screen.findByRole("button", { name: "交换" })
+    expect(exchange).toBeEnabled()
+    expect(exchange).not.toHaveAttribute("title")
+    expect(screen.getByText("选择你要给出的名片即可交换")).toBeTruthy()
+    expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })
 
   it("sends anonymous visitors back to the share page after login", async () => {

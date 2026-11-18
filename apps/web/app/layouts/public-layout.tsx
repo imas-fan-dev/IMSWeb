@@ -51,7 +51,7 @@ export default function PublicLayout() {
             isModernStory ? "z-20" : "z-10",
             isAccountAuthPage && "flex flex-col",
             isExchangeMap && "min-h-0 bg-[#e8f2f4] sm:bg-[#e8f2f4]",
-            /^\/account\/me(?:\/(?:profile|namecards|favorites|offices|claims))?\/?$/.test(
+            /^\/account\/me(?:\/(?:profile|namecards|collection|offices|claims))?\/?$/.test(
               normalizedPathname
             ) && "lg:flex lg:flex-col"
           )}
