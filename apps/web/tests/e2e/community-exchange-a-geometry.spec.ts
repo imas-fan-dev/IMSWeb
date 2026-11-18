@@ -32,20 +32,18 @@ test.describe("exchange Web search geometry", () => {
         "GET",
         1
       )
-      for (const directory of ["offices", "cards"]) {
-        await api.mockRoute(
-          `**/api/community/exchange/${directory}?*`,
-          (route) =>
-            route.fulfill({
-              json: {
-                items: [],
-                pageInfo: { hasNextPage: false, nextCursor: null },
-              },
-            }),
-          "GET",
-          1
-        )
-      }
+      await api.mockRoute(
+        "**/api/community/exchange/offices?*",
+        (route) =>
+          route.fulfill({
+            json: {
+              items: [],
+              pageInfo: { hasNextPage: false, nextCursor: null },
+            },
+          }),
+        "GET",
+        1
+      )
       await api.mockRoute(
         "/api/community/exchange/map/config",
         (route) =>
