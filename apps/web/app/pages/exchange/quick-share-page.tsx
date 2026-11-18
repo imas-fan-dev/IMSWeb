@@ -12,7 +12,11 @@ import {
   SharePageShell,
   SharePageSkeleton,
 } from "./share-page-shell"
-import { QUICK_SHARE_MISSING_MESSAGE, quickShareStatus } from "./share-status"
+import {
+  QUICK_SHARE_MISSING_MESSAGE,
+  quickShareStatus,
+  shareCountDescription,
+} from "./share-status"
 
 export function meta() {
   return [{ title: "快速交换 | IMSWeb" }]
@@ -78,7 +82,7 @@ export default function QuickSharePage() {
     <SharePageShell
       displayName={share.displayName}
       profileHref={shareOwnerProfileHref({ pageSlug: handle, uid: share.uid })}
-      description="分享了快速交换清单"
+      description={shareCountDescription(share.cards.length)}
       preview={
         slides.length > 0 ? (
           <CardCarousel slides={slides} />

@@ -81,7 +81,7 @@ describe("QuickSharePage", () => {
       "href",
       `/user/${HANDLE}`
     )
-    expect(screen.getByText("分享了快速交换清单")).toBeTruthy()
+    expect(screen.getByText("向你分享了 2 张名片")).toBeTruthy()
     expect(screen.getByRole("img", { name: "制作人名片 101 正面" })).toBeTruthy()
     expect(screen.getByText("1/2")).toBeTruthy()
     expect(
@@ -109,10 +109,10 @@ describe("QuickSharePage", () => {
     renderShare()
 
     expect(await screen.findByText("你已经拥有这些名片")).toBeTruthy()
-    // 轮播一次只渲染当前那张：两张卡的角标各自在自己那一页上。
-    expect(screen.getAllByText("已拥有")).toHaveLength(1)
+    // 轨道挂载当前页 ±1：两张卡都在，各自带自己的角标；切到第二张也一样。
+    expect(screen.getAllByText("已拥有")).toHaveLength(2)
     fireEvent.click(screen.getByRole("button", { name: "下一张" }))
-    expect(screen.getAllByText("已拥有")).toHaveLength(1)
+    expect(screen.getAllByText("已拥有")).toHaveLength(2)
     expect(screen.getByText("2/2")).toBeTruthy()
     expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })

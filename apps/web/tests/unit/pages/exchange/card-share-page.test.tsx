@@ -76,7 +76,7 @@ describe("CardSharePage", () => {
       "href",
       "/user/haruka"
     )
-    expect(screen.getByText("分享了这张名片")).toBeTruthy()
+    expect(screen.getByText("向你分享了 1 张名片")).toBeTruthy()
 
     // 正面 + 背面各一页：轮播控件与 1/2 角标都在。
     expect(screen.getByRole("img", { name: "制作人名片 101 正面" })).toBeTruthy()
@@ -109,7 +109,8 @@ describe("CardSharePage", () => {
     renderShare()
 
     expect(await screen.findByText("你已经拥有这张名片")).toBeTruthy()
-    expect(screen.getByText("已拥有")).toBeTruthy()
+    // 轨道挂载当前页 ±1，这张卡正/背面各一页：两页都带「已拥有」。
+    expect(screen.getAllByText("已拥有")).toHaveLength(2)
     expect(screen.queryByRole("link", { name: "去登录" })).toBeNull()
   })
 

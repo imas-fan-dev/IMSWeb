@@ -36,7 +36,9 @@ export interface CardCarouselSlide {
  *
  * 自动播放 4s 一张；指针悬停或触摸按下时暂停；`prefers-reduced-motion: reduce` 不自动。
  * 手动切换：指针横向划动 / 触摸滑动、左右箭头、指示点、键盘 `←`/`→`（容器可聚焦）。
- * 只有 1 张（或 0 张）时不渲染任何控件。**不做** FLIP / 过渡动画：这里只有一张图在渲染。
+ * 只有 1 张（或 0 张）时不渲染任何控件。
+ *
+ * 切换用整条轨道的 `translate3d` 过渡（300ms），自动与手动共用同一处；减少动态效果时不做过渡。
  */
 export function CardCarousel({
   slides,
@@ -100,8 +102,6 @@ export function CardCarousel({
     }
   }
 
-  const slide = slides[current]
-
   return (
     <div
       className={cn("min-w-0 space-y-3", className)}
@@ -121,18 +121,42 @@ export function CardCarousel({
       onPointerUp={endPointerInteraction}
       onPointerCancel={endPointerInteraction}
     >
-      <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border bg-border touch-pan-y">
-        <CardImage
-          src={slide?.url}
-          alt={slide?.alt ?? ""}
-          draggable={false}
-          className="max-h-full max-w-full border border-foreground/25 object-contain"
-        />
-        {slide?.badge ? (
-          <Badge className="absolute bottom-2 left-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
-            {slide.badge}
-          </Badge>
-        ) : null}
+      <div className="relative aspect-square overflow-hidden rounded-xl border bg-border touch-pan-y">
+        {/*
+          整条轨道横向平移一页的位置，切换（自动 / 划动 / 箭头 / 指示点 / 键盘）都走这一处过渡；
+          `prefers-reduced-motion: reduce` 时不加过渡，直接落位。
+        */}
+        <div
+          className="flex size-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+          style={{ transform: `translate3d(${-current * 100}%, 0, 0)` }}
+        >
+          {slides.map((item, position) => {
+            // 只挂载当前页与左右各一页：轨道要它们来做过渡，其余留空占位。
+            // 否则 20 张的快速清单会在打开瞬间把 20 张原图一起拉下来。
+            const mounted = Math.abs(position - current) <= 1
+            return (
+              <div
+                key={item.key}
+                className="relative flex size-full shrink-0 items-center justify-center"
+                aria-hidden={mounted ? undefined : true}
+              >
+                {mounted ? (
+                  <CardImage
+                    src={item.url}
+                    alt={item.alt}
+                    draggable={false}
+                    className="max-h-full max-w-full border border-foreground/25 object-contain"
+                  />
+                ) : null}
+                {mounted && item.badge ? (
+                  <Badge className="absolute bottom-2 left-2 z-10 gap-1 border-border bg-background/90 text-foreground shadow-sm">
+                    {item.badge}
+                  </Badge>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
         {interactive ? (
           <>
             <Button

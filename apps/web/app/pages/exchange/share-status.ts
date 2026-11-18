@@ -25,6 +25,11 @@ export interface ShareStatus {
 /** 【交换】按钮的文案：按钮永远渲染，本期固定 disabled。 */
 export const SHARE_EXCHANGE_SOON = "交换功能即将开放"
 
+/** 分享按钮上方的文案：`向你分享了 X 张名片`（X = 这次分享里可预览的名片张数）。 */
+export function shareCountDescription(count: number): string {
+  return `向你分享了 ${count} 张名片`
+}
+
 /** 单卡分享 404（不存在 / 未认领 / 下架）时页面整页渲染的文案。 */
 export const CARD_SHARE_UNAVAILABLE_MESSAGE = "这张名片当前不开放交换"
 

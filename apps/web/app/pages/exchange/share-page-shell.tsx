@@ -30,17 +30,17 @@ export function SharePageShell({
   currentPath: string
 }) {
   return (
-    <PageShell width="wide" className="py-6 sm:py-8">
-      <section className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <PageShell width="read" className="py-8 sm:py-10">
+      <section className="mx-auto flex w-full max-w-sm flex-col gap-5">
         <div className="min-w-0">{preview}</div>
         <aside className="space-y-4">
-          <div className="space-y-1">
+          <div className="space-y-1 text-center">
             <h1 className="text-lg font-semibold">
               <NavigationLink to={profileHref} className="hover:underline">
                 {displayName}
               </NavigationLink>
             </h1>
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="text-sm/5 text-muted-foreground">{description}</p>
           </div>
           <div className="space-y-2">
             {/*
@@ -49,7 +49,11 @@ export function SharePageShell({
             <Button type="button" size="lg" className="w-full" disabled>
               {SHARE_EXCHANGE_SOON}
             </Button>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            {/*
+              状态行里普通文字与链接共用同一套字号 / 行高 / 基线（`items-baseline` + `text-sm leading-5`）：
+              连接不再是 `buttonVariants` 的按钮外观，避免两者高度与基线对不齐。
+            */}
+            <p className="flex flex-wrap items-baseline justify-center gap-x-2 gap-y-1 text-sm/5">
               <span className="text-muted-foreground">{status.message}</span>
               {status.action ? (
                 <NavigationLink
@@ -58,7 +62,7 @@ export function SharePageShell({
                       ? accountAuthPath("login", currentPath)
                       : NAMECARD_MANAGE_HREF
                   }
-                  className={buttonVariants({ variant: "link", size: "sm" })}
+                  className="font-medium text-primary underline decoration-from-font underline-offset-4 hover:no-underline"
                 >
                   {status.action.label}
                 </NavigationLink>

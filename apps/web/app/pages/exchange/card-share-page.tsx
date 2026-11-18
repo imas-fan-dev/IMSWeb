@@ -15,7 +15,11 @@ import {
   SharePageShell,
   SharePageSkeleton,
 } from "./share-page-shell"
-import { CARD_SHARE_UNAVAILABLE_MESSAGE, cardShareStatus } from "./share-status"
+import {
+  CARD_SHARE_UNAVAILABLE_MESSAGE,
+  cardShareStatus,
+  shareCountDescription,
+} from "./share-status"
 
 export function meta() {
   return [{ title: "名片分享 | IMSWeb" }]
@@ -77,7 +81,7 @@ export default function CardSharePage() {
     <SharePageShell
       displayName={share.owner.displayName}
       profileHref={shareOwnerProfileHref(share.owner)}
-      description="分享了这张名片"
+      description={shareCountDescription(1)}
       preview={<CardCarousel slides={slides} />}
       status={cardShareStatus({ state: share.state, loggedIn, collected })}
       currentPath={cardSharePath(slug)}
