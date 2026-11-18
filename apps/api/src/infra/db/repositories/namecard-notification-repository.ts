@@ -68,6 +68,48 @@ export async function insertNamecardNotification(
     return id;
 }
 
+/**
+ * 重复发起覆盖同一笔待确认交换时，目标方那条请求通知原地刷新：仍是同一行，
+ * 正文与卡号换成最新一次，重新变成未读，时间也跟着刷新（收件箱把它排到最前）。
+ * 通知行不在了（被保留策略裁掉）才补一条新的。
+ */
+export async function refreshNamecardExchangeRequestNotification(
+    database: SqlDatabase,
+    input: {
+        recipientAccountId: string;
+        exchangeId: string;
+        cardNumber: number | null;
+        title: string;
+        body: string;
+        at: string;
+    }
+): Promise<void> {
+    const result = await sqlStatement(
+        database,
+        `UPDATE public.namecard_notifications
+            SET card_number = ?, title = ?, body = ?, read_at = NULL, created_at = ?
+          WHERE recipient_account_id = ? AND exchange_id = ?
+            AND kind = 'card-exchange-requested'`,
+        [
+            input.cardNumber,
+            input.title,
+            input.body,
+            input.at,
+            input.recipientAccountId,
+            input.exchangeId
+        ]
+    ).run();
+    if ((result.meta.changes ?? 0) > 0) return;
+    await insertNamecardNotification(database, {
+        recipientAccountId: input.recipientAccountId,
+        kind: 'card-exchange-requested',
+        cardNumber: input.cardNumber,
+        exchangeId: input.exchangeId,
+        title: input.title,
+        body: input.body
+    });
+}
+
 /** 只保留每个账号最新的 {@link NAMECARD_NOTIFICATION_LIMIT} 条。 */
 export async function trimNamecardNotifications(
     database: SqlDatabase,

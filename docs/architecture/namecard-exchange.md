@@ -114,8 +114,13 @@ stateDiagram-v2
   两侧卡片与分享页同一份投影（含 `pages[].thumbUrl`），并给出 `status` 与 `expiresAt`。
 - **过期**：有效期 7 天。读取侧（历史、详情）把超期 `pending` 呈现为 `expired`；
   超期后再裁决会让该行落成 `expired`（同时写 `resolved_at`）并回 409，对方需要重新发起。
-- **重复发起**：同一发起方、同一目标方、**同一批目标卡**且仍在一周内的 `pending` 只保留一笔——
-  再次提交拿回同一笔（幂等），不会再发一条通知；换一批卡是合法的新请求。
+  落成 `expired` 的同一事务里给发起方写一条 `card-exchange-expired` 通知
+  「〈目标方〉 未及时处理您的交换申请，本次名片交换自动关闭。」（带 `exchangeId`）。
+- **重复发起**：同一发起方、同一目标方、仍在一周内的 `pending` 只保留一笔。
+  两次发起两侧卡号**完全相同**才是同一次申请——再次提交拿回同一笔（幂等），不再发通知；
+  任一侧卡号有变化就用新的内容**原地覆盖**：交换 id 不变，换掉两侧卡号与 `skipped`，
+  `created_at` 刷新（有效期随之重置 7 天），`resolved_at` 保持空；目标方那条请求通知
+  复用同一行（改正文与卡号、`read_at` 置空、时间刷新），不会新增第二封。
 
 ## 3. 数据模型
 
@@ -238,10 +243,12 @@ CREATE TABLE public.namecard_profile_layouts (
 5. **跳过**：目标卡已在发起方名片册、给出卡已在目标方名片册，都记入 `skipped` 且不写入。
 6. **判定确认**：除扫码外，目标卡中存在 `manual` → `pending`；其余 → `completed`。
 7. **写入**：`completed` 时双向插入名片册条目；`pending` 时只写通知，等待目标方接受。
+   已有一笔有效 `pending` 时先比较两侧卡号：完全相同则直接返回旧行；不同则原地覆盖该行
+   （`SELECT ... FOR UPDATE` 与裁决互斥），并刷新它的请求通知。
 8. **扫码语义**：无论模式一律 `completed` 且不发通知；全部被跳过也返回成功，并消费二维码。
 
 确认与拒绝：`POST /exchanges/:id/accept` 把 `pending` 转 `completed` 并写入双向条目；
-`decline` 转 `declined`；超时转 `expired`。两种结果都通知申请者。
+`decline` 转 `declined`；超时转 `expired`。三种结果都通知申请者。
 
 ## 5. 名片册读取
 

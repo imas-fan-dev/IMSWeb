@@ -103,6 +103,8 @@ const UUID = {
     notifyRequested: '5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e',
     notifyDeclined: '5f5f5f5f-5f5f-4f5f-8f5f-5f5f5f5f5f5f',
     noneReject: '6a6a6a6a-6a6a-4a6a-8a6a-6a6a6a6a6a6a',
+    overwriteFirst: '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b',
+    overwriteSecond: '6c6c6c6c-6c6c-4c6c-8c6c-6c6c6c6c6c6c',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -2203,7 +2205,7 @@ describe('namecard exchange lifecycle', () => {
         assert.equal(settled?.status, 'expired');
         assert.ok(settled?.resolved_at, '过期必须同时写 resolved_at，满足 resolved_at IS NULL ⇔ pending');
 
-        // 过期不发通知：收件箱里还是只有那两封 pending 请求。
+        // 超时只通知发起方：目标方的收件箱里还是只有那两封 pending 请求。
         assert.equal(
             (
                 await queryAll<{ id: string }>(
@@ -2215,6 +2217,27 @@ describe('namecard exchange lifecycle', () => {
             ).length,
             2,
         );
+        const expiredNotices = await queryAll<{
+            kind: string;
+            title: string;
+            body: string;
+            exchange_id: string | null;
+            read_at: unknown;
+        }>(
+            database,
+            `SELECT kind, title, body, exchange_id, read_at
+               FROM public.namecard_notifications
+              WHERE recipient_account_id=? AND kind='card-exchange-expired'`,
+            ['collector'],
+        );
+        assert.equal(expiredNotices.length, 1);
+        assert.equal(expiredNotices[0]?.title, '名片交换请求已过期');
+        assert.equal(
+            expiredNotices[0]?.body,
+            'Owner 未及时处理您的交换申请，本次名片交换自动关闭。',
+        );
+        assert.equal(expiredNotices[0]?.exchange_id, UUID.expire);
+        assert.equal(expiredNotices[0]?.read_at, null);
 
         // 已经落成终态后再裁决：不是过期，而是「已经处理过了」。
         assert.deepEqual(
@@ -2240,6 +2263,14 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [staleNumber],
         });
+        // 同一对账号只保留一笔有效 pending：先把第一笔拨到 7 天外，第二笔才落成独立的一行。
+        await executeSql(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET created_at = now() - interval '8 days'
+              WHERE id=?`,
+            [UUID.staleDecide],
+        );
         await commit({
             id: UUID.settledDecide,
             clientExchangeId: 'client-decide-settled',
@@ -2248,13 +2279,6 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [settledNumber],
         });
-        await executeSql(
-            database,
-            `UPDATE public.namecard_exchanges
-                SET created_at = now() - interval '8 days'
-              WHERE id=?`,
-            [UUID.staleDecide],
-        );
 
         const decide = (id: string, decision: 'accept' | 'decline') =>
             testRequest(app, `/api/community/exchange/exchanges/${id}/${decision}`, {
@@ -2318,8 +2342,8 @@ describe('namecard exchange lifecycle', () => {
             [UUID.dedupeFirst],
         );
 
-        // 换一批目标卡是合法的新请求，不能被去重吞掉。
-        const different = await commit({
+        // 换一批目标卡不是第二次申请：同一笔 pending 被原地覆盖，id 不变、通知不多一封。
+        const changed = await commit({
             id: UUID.dedupeThird,
             clientExchangeId: 'client-dedupe-0003',
             source: 'card-request',
@@ -2327,15 +2351,122 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [firstNumber, secondNumber],
         });
-        assert.equal(different.idempotent, false);
-        assert.notEqual(different.exchange.id, UUID.dedupeFirst);
+        assert.equal(changed.idempotent, false);
+        assert.equal(changed.exchange.id, UUID.dedupeFirst);
         assert.deepEqual(
-            [...different.exchange.target_card_numbers].sort((left, right) => left - right),
+            [...changed.exchange.target_card_numbers].sort((left, right) => left - right),
             [firstNumber, secondNumber].sort((left, right) => left - right),
         );
         assert.equal(
             (await namecards.listExchanges({ accountId: 'owner', limit: 10, offset: 0 })).total,
-            2,
+            1,
+        );
+        const refreshed = await queryAll<{ exchange_id: string | null; body: string }>(
+            database,
+            `SELECT exchange_id, body FROM public.namecard_notifications
+              WHERE recipient_account_id=? AND kind='card-exchange-requested'`,
+            ['owner'],
+        );
+        assert.equal(refreshed.length, 1);
+        assert.equal(refreshed[0]?.exchange_id, UUID.dedupeFirst);
+        assert.match(refreshed[0]?.body ?? '', new RegExp(`#${firstNumber}`));
+        assert.match(refreshed[0]?.body ?? '', new RegExp(`#${secondNumber}`));
+    });
+
+    postgresTest('changing the cards overwrites the pending row and refreshes its notification', async () => {
+        const { database, namecards, publish } = await fixture();
+        const firstTarget = await publish('owner-overwrite-a', 'owner', 'manual');
+        const secondTarget = await publish('owner-overwrite-b', 'owner', 'manual');
+        const firstGive = await publish('collector-overwrite-a', 'collector', 'auto');
+        const secondGive = await publish('collector-overwrite-b', 'collector', 'auto');
+        const later = new Date(Date.parse(AT) + 60_000).toISOString();
+
+        const first = await namecards.commitExchange({
+            id: UUID.overwriteFirst,
+            clientExchangeId: 'client-overwrite-0001',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [firstTarget],
+            giveCardNumbers: [firstGive],
+            scanSessionId: null,
+            at: AT,
+        });
+        assert.equal(first.exchange.status, 'pending');
+        const [before] = await queryAll<{ id: string; body: string }>(
+            database,
+            `SELECT id, body FROM public.namecard_notifications
+              WHERE recipient_account_id=? AND kind='card-exchange-requested'`,
+            ['owner'],
+        );
+        assert.ok(before);
+        assert.ok(before.body.includes(`#${firstTarget}`));
+        // 对方已经读过这条请求；覆盖之后它要重新变成未读。
+        await executeSql(
+            database,
+            'UPDATE public.namecard_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=?',
+            [before.id],
+        );
+
+        const overwritten = await namecards.commitExchange({
+            id: UUID.overwriteSecond,
+            clientExchangeId: 'client-overwrite-0002',
+            source: 'card-request',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [secondTarget],
+            giveCardNumbers: [secondGive],
+            scanSessionId: null,
+            at: later,
+        });
+        assert.equal(overwritten.idempotent, false);
+        assert.equal(overwritten.exchange.id, UUID.overwriteFirst);
+        assert.equal(overwritten.exchange.status, 'pending');
+        assert.deepEqual(overwritten.exchange.target_card_numbers, [secondTarget]);
+        assert.deepEqual(overwritten.exchange.initiator_card_numbers, [secondGive]);
+
+        // 同一行通知：卡号与正文换成最新一次，重新未读，不新增第二封。
+        const after = await queryAll<{
+            id: string;
+            body: string;
+            read_at: unknown;
+            exchange_id: string | null;
+        }>(
+            database,
+            `SELECT id, body, read_at, exchange_id FROM public.namecard_notifications
+              WHERE recipient_account_id=? AND kind='card-exchange-requested'`,
+            ['owner'],
+        );
+        assert.equal(after.length, 1);
+        assert.equal(after[0]?.id, before.id);
+        assert.equal(after[0]?.exchange_id, UUID.overwriteFirst);
+        assert.equal(after[0]?.read_at, null);
+        assert.ok(after[0]?.body.includes(`#${secondTarget}`));
+        assert.ok(!(after[0]?.body ?? '').includes(`#${firstTarget}`));
+
+        // 有效期跟着 `created_at` 重置；详情窗口直接读到的就是最新内容。
+        const detail = await namecards.findExchangeDetail({
+            exchangeId: UUID.overwriteFirst,
+            accountId: 'owner',
+        });
+        assert.ok(detail);
+        assert.equal(new Date(detail.created_at).getTime(), Date.parse(later));
+        assert.equal(
+            Date.parse(detail.expires_at ?? '') - new Date(detail.created_at).getTime(),
+            NAMECARD_EXCHANGE_PENDING_TTL_MS,
+        );
+        assert.ok(
+            Date.parse(detail.expires_at ?? '') >
+                new Date(first.exchange.created_at).getTime() +
+                    NAMECARD_EXCHANGE_PENDING_TTL_MS,
+        );
+        assert.deepEqual(
+            detail.target_cards.map((card) => card.card_number),
+            [secondTarget],
+        );
+        assert.deepEqual(
+            detail.initiator_cards.map((card) => card.card_number),
+            [secondGive],
         );
     });
 
@@ -2343,6 +2474,7 @@ describe('namecard exchange lifecycle', () => {
         const { database, app, authHeaders, namecards, publish, commit } = await fixture();
         const acceptedNumber = await publish('owner-notify-accepted', 'owner', 'manual');
         const declinedNumber = await publish('owner-notify-declined', 'owner', 'manual');
+        // 同一对账号只保留一笔 pending：先裁决前一笔，再发起后一笔，两封结果通知才各有归属。
         await commit({
             id: UUID.notifyRequested,
             clientExchangeId: 'client-notify-0001',
@@ -2351,6 +2483,12 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [acceptedNumber],
         });
+        await namecards.decideExchange({
+            exchangeId: UUID.notifyRequested,
+            accountId: 'owner',
+            decision: 'accept',
+            at: AT,
+        });
         await commit({
             id: UUID.notifyDeclined,
             clientExchangeId: 'client-notify-0002',
@@ -2358,12 +2496,6 @@ describe('namecard exchange lifecycle', () => {
             initiatorAccountId: 'collector',
             targetAccountId: 'owner',
             targetCardNumbers: [declinedNumber],
-        });
-        await namecards.decideExchange({
-            exchangeId: UUID.notifyRequested,
-            accountId: 'owner',
-            decision: 'accept',
-            at: AT,
         });
         await namecards.decideExchange({
             exchangeId: UUID.notifyDeclined,
@@ -2527,6 +2659,14 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [expiredNumber],
         });
+        // 同一对账号只保留一笔有效 pending：过期那笔先离开有效期，第二笔才是独立的一行。
+        await executeSql(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET created_at = now() - interval '8 days'
+              WHERE id=?`,
+            [UUID.detail],
+        );
         await commit({
             id: UUID.detailSettled,
             clientExchangeId: 'client-detail-settled',
@@ -2535,13 +2675,6 @@ describe('namecard exchange lifecycle', () => {
             targetAccountId: 'owner',
             targetCardNumbers: [settledNumber],
         });
-        await executeSql(
-            database,
-            `UPDATE public.namecard_exchanges
-                SET created_at = now() - interval '8 days'
-              WHERE id=?`,
-            [UUID.detail],
-        );
         await namecards.decideExchange({
             exchangeId: UUID.detailSettled,
             accountId: 'owner',

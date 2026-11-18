@@ -170,7 +170,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261112130000_namecard_page_object_queue', phase: 'post-data' },
                 { version: '20261112140000_namecard_retire_card_key_columns', phase: 'post-data' },
                 { version: '20261116120000_namecard_profile_layouts', phase: 'post-data' },
-                { version: '20261118100000_namecard_notification_exchange', phase: 'pre-data' }
+                { version: '20261118100000_namecard_notification_exchange', phase: 'pre-data' },
+                { version: '20261118120000_namecard_exchange_expired_notification', phase: 'pre-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -720,11 +721,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 103);
+        assert.equal(catalog.count, 104);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261118100000_namecard_notification_exchange'
+            '20261118120000_namecard_exchange_expired_notification'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1107,7 +1108,8 @@ test.describe('PostgreSQL migration', () => {
         '20261112130000_namecard_page_object_queue',
         '20261112140000_namecard_retire_card_key_columns',
         '20261116120000_namecard_profile_layouts',
-        '20261118100000_namecard_notification_exchange'
+        '20261118100000_namecard_notification_exchange',
+        '20261118120000_namecard_exchange_expired_notification'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

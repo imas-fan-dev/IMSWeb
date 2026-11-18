@@ -9,6 +9,7 @@ import {
 } from '@imsweb/contracts/fudaba/runtime';
 import {
     insertNamecardNotification,
+    refreshNamecardExchangeRequestNotification,
     SqlNamecardNotificationRepository
 } from '@/infra/db/repositories/namecard-notification-repository';
 import {
@@ -16,6 +17,7 @@ import {
     cardApprovedCopy,
     cardExchangeAcceptedCopy,
     cardExchangeDeclinedCopy,
+    cardExchangeExpiredCopy,
     cardExchangeRequestedCopy,
     cardLockedCopy,
     cardRejectedCopy,
@@ -216,6 +218,19 @@ function exchangeRecordFromRow(row: NamecardExchangeRow): NamecardExchangeRecord
 /** `?` 占位符只认标量，名片号数组写成 PG 的 bigint[] 字面量。 */
 function postgresBigintArray(values: readonly number[]): string {
     return `{${values.map((value) => Math.trunc(value)).join(',')}}`;
+}
+
+/**
+ * 「两次发起有没有差别」的口径：两侧卡号按集合比较，顺序不同不算变化。
+ * 相等才是同一次申请；任一侧变了就用新的内容覆盖旧的待确认记录。
+ */
+function sameExchangeCardNumbers(
+    left: readonly number[],
+    right: readonly number[]
+): boolean {
+    if (left.length !== right.length) return false;
+    const expected = new Set(left.map(Number));
+    return right.every((number) => expected.has(Number(number)));
 }
 
 /** 分享短链与卡片绑定，同一张卡永远得到同一个地址。 */
@@ -3139,33 +3154,46 @@ export class SqlCoreRepository implements NamecardRepository {
                 ? 'pending'
                 : 'completed';
 
-            // 重复发起去重（doc §7）：同一发起方、同一目标方、同一批目标卡且仍在一周有效期内的
-            // pending，只留一笔；再点一次也拿回同一行，不再发第二封通知。换一批卡是合法的新请求，
-            // 过期 pending 也不挡路（读取侧它已经是 `expired`）。
-            if (input.source !== 'scan') {
+            // 重复发起（doc §7）：同一发起方、同一目标方、仍在一周有效期内的 pending 只有一笔。
+            // 两侧卡号完全没变才算同一次申请（幂等返回）；任一侧变了就用这一次的内容原地覆盖，
+            // 旧内容不该在对方收件箱里堆成第二封。行锁与裁决共用，避免覆盖和同意同时落库；
+            // 过期 pending 不挡路（读取侧它已经是 `expired`）。
+            const targetNumbers = targets.map((card) => card.card_number ?? card.id);
+            const giveNumbers = gives.map((card) => card.card_number ?? card.id);
+            if (input.source !== 'scan' && status === 'pending') {
                 const duplicate = await queryOne<NamecardExchangeRow>(
                     database,
-                    `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
+                    `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
                       WHERE initiator_account_id=? AND target_account_id=?
-                        AND status='pending' AND target_card_numbers=?::bigint[]
-                        AND created_at > now() - interval '7 days'
-                      LIMIT 1`,
-                    [
-                        input.initiatorAccountId,
-                        input.targetAccountId,
-                        postgresBigintArray(targets.map((card) => card.card_number ?? card.id))
-                    ]
+                        AND status='pending' AND created_at > now() - interval '7 days'
+                      LIMIT 1
+                      FOR UPDATE`,
+                    [input.initiatorAccountId, input.targetAccountId]
                 );
                 if (duplicate) {
-                    return {
-                        exchange: exchangeRecordFromRow(duplicate),
-                        idempotent: true,
-                        targetMissingCount: await this.countMissingCollectionCardsWith(
-                            database,
-                            input.initiatorAccountId,
-                            input.targetAccountId
-                        )
-                    };
+                    const previous = exchangeRecordFromRow(duplicate);
+                    if (
+                        sameExchangeCardNumbers(previous.target_card_numbers, targetNumbers) &&
+                        sameExchangeCardNumbers(previous.initiator_card_numbers, giveNumbers)
+                    ) {
+                        return {
+                            exchange: previous,
+                            idempotent: true,
+                            targetMissingCount: await this.countMissingCollectionCardsWith(
+                                database,
+                                input.initiatorAccountId,
+                                input.targetAccountId
+                            )
+                        };
+                    }
+                    return this.overwritePendingExchange(
+                        database,
+                        input,
+                        duplicate.id,
+                        targetNumbers,
+                        giveNumbers,
+                        skipped
+                    );
                 }
             }
 
@@ -3186,8 +3214,8 @@ export class SqlCoreRepository implements NamecardRepository {
                     status,
                     input.initiatorAccountId,
                     input.targetAccountId,
-                    postgresBigintArray(targets.map((card) => card.card_number ?? card.id)),
-                    postgresBigintArray(gives.map((card) => card.card_number ?? card.id)),
+                    postgresBigintArray(targetNumbers),
+                    postgresBigintArray(giveNumbers),
                     JSON.stringify(skipped),
                     input.at,
                     status === 'pending' ? null : input.at
@@ -3252,6 +3280,63 @@ export class SqlCoreRepository implements NamecardRepository {
                 )
             };
         });
+    }
+
+    /**
+     * 用最新一次发起的内容覆盖旧的 pending（doc §7）：交换 id 不变，卡号与跳过记录换新，
+     * `created_at` 刷新（有效期 = created_at + 7 天，因此跟着重置），`resolved_at` 保持空。
+     * 目标方那条请求通知原地刷新——改正文、重新未读、时间刷新，不再多一封。
+     */
+    private async overwritePendingExchange(
+        database: SqlDatabase,
+        input: NamecardExchangeCommitInput,
+        pendingId: string,
+        targetNumbers: readonly number[],
+        giveNumbers: readonly number[],
+        skipped: readonly NamecardExchangeSkipRecord[]
+    ): Promise<NamecardExchangeCommitResult> {
+        const overwritten = await queryOne<NamecardExchangeRow>(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET target_card_numbers=?, initiator_card_numbers=?, skipped=?, created_at=?
+              WHERE id=?
+              RETURNING ${EXCHANGE_COLUMNS}`,
+            [
+                postgresBigintArray(targetNumbers),
+                postgresBigintArray(giveNumbers),
+                JSON.stringify(skipped),
+                input.at,
+                pendingId
+            ]
+        );
+        if (!overwritten) throw new Error('namecard exchange overwrite vanished');
+        const exchange = exchangeRecordFromRow(overwritten);
+        const counterpart = await queryOne<{ display_name: string | null }>(
+            database,
+            `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
+            [input.initiatorAccountId]
+        );
+        const copy = cardExchangeRequestedCopy(
+            counterpart?.display_name?.trim() || '一位制作人',
+            exchange.target_card_numbers
+        );
+        await refreshNamecardExchangeRequestNotification(database, {
+            recipientAccountId: input.targetAccountId,
+            exchangeId: pendingId,
+            cardNumber: exchange.target_card_numbers[0] ?? null,
+            title: copy.title,
+            body: copy.body,
+            at: input.at
+        });
+        return {
+            exchange,
+            idempotent: false,
+            targetMissingCount: await this.countMissingCollectionCardsWith(
+                database,
+                input.initiatorAccountId,
+                input.targetAccountId
+            )
+        };
     }
 
     /** 双向写入名片册；再抽到同一张时恢复显示。 */
@@ -3365,6 +3450,25 @@ export class SqlCoreRepository implements NamecardRepository {
                       WHERE id=?`,
                     [input.at, input.exchangeId]
                 );
+                // 请求通知里承诺过「一周内不处理将自动过期」：这里兑现成一条超时通知，
+                // 与落库同一个事务，`exchange_id` 让发起方能在收件箱里打开详情。
+                const expired = exchangeRecordFromRow(row);
+                const target = await queryOne<{ display_name: string | null }>(
+                    database,
+                    `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
+                    [row.target_account_id]
+                );
+                const copy = cardExchangeExpiredCopy(
+                    target?.display_name?.trim() || '对方'
+                );
+                await insertNamecardNotification(database, {
+                    recipientAccountId: row.initiator_account_id,
+                    kind: copy.kind,
+                    cardNumber: expired.target_card_numbers[0] ?? null,
+                    exchangeId: row.id,
+                    title: copy.title,
+                    body: copy.body
+                });
                 return { status: 'expired', stale: true } as const;
             }
             const exchange = exchangeRecordFromRow(row);
@@ -3407,21 +3511,15 @@ export class SqlCoreRepository implements NamecardRepository {
                 `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
                 [input.accountId]
             );
-            const numbers = exchange.target_card_numbers;
+            const counterpartName = counterpart?.display_name?.trim() || '对方';
             const copy =
                 status === 'completed'
-                    ? cardExchangeAcceptedCopy(
-                          counterpart?.display_name?.trim() || '对方',
-                          numbers
-                      )
-                    : cardExchangeDeclinedCopy(
-                          counterpart?.display_name?.trim() || '对方',
-                          numbers
-                      );
+                    ? cardExchangeAcceptedCopy(counterpartName)
+                    : cardExchangeDeclinedCopy(counterpartName);
             await insertNamecardNotification(database, {
                 recipientAccountId: exchange.initiator_account_id,
                 kind: copy.kind,
-                cardNumber: numbers[0] ?? null,
+                cardNumber: exchange.target_card_numbers[0] ?? null,
                 exchangeId: exchange.id,
                 title: copy.title,
                 body: copy.body

@@ -23,7 +23,8 @@ export type NamecardNotificationCopyKind =
     | 'legacy-card-match'
     | 'card-exchange-requested'
     | 'card-exchange-accepted'
-    | 'card-exchange-declined';
+    | 'card-exchange-declined'
+    | 'card-exchange-expired';
 
 export interface NamecardNotificationCopy {
     kind: NamecardNotificationCopyKind;
@@ -261,33 +262,28 @@ function describeRequestedCardNumbers(cardNumbers: number[]): string {
     return labels.join('、');
 }
 
-export function cardExchangeAcceptedCopy(
-    counterpart: string,
-    cardNumbers: number[]
-): NamecardNotificationCopy {
+/** 结果通知只交代「谁、成没成」，卡片清单回到详情窗里看。 */
+export function cardExchangeAcceptedCopy(counterpart: string): NamecardNotificationCopy {
     return {
         kind: 'card-exchange-accepted',
         title: '名片交换已完成',
-        body: `${counterpart} 已经确认交换，${describeCardNumbers(cardNumbers)}已放进双方的名片册。`
+        body: `${counterpart} 已同意了您的交换申请，本次名片交换完成。`
     };
 }
 
-export function cardExchangeDeclinedCopy(
-    counterpart: string,
-    cardNumbers: number[]
-): NamecardNotificationCopy {
+export function cardExchangeDeclinedCopy(counterpart: string): NamecardNotificationCopy {
     return {
         kind: 'card-exchange-declined',
         title: '对方婉拒了这次交换',
-        body: `${counterpart} 婉拒了这次交换，${describeCardNumbers(cardNumbers)}没有易手。`
+        body: `${counterpart} 拒绝了您的交换申请，本次名片交换失败。`
     };
 }
 
-/** 通知正文里只点名几张，更多的用「等 N 张」收尾。 */
-function describeCardNumbers(cardNumbers: number[]): string {
-    const labels = cardNumbers.slice(0, 3).map((number) => `#${number}`);
-    if (cardNumbers.length > labels.length) {
-        return `${labels.join('、')} 等 ${cardNumbers.length} 张名片`;
-    }
-    return `${labels.join('、')} 名片`;
+/** 请求超过一周没人处理：交换行落成 `expired` 时告诉发起方。 */
+export function cardExchangeExpiredCopy(counterpart: string): NamecardNotificationCopy {
+    return {
+        kind: 'card-exchange-expired',
+        title: '名片交换请求已过期',
+        body: `${counterpart} 未及时处理您的交换申请，本次名片交换自动关闭。`
+    };
 }
