@@ -915,6 +915,19 @@ export const namecardCollectionEntrySchema = exactJsonResponse({
   obtainedAt: z.string().min(1),
   hiddenAt: z.string().min(1).nullable(),
   /**
+   * 卡主身份：瓦片底部的制作人名称点击后跳转 `/user/<uid>`。已收集条目取
+   * 原卡卡主，`own` 行取自己；资料不可用（账号停用/删除、历史数据）时为
+   * null，前端降级成纯文本。
+   */
+  owner: z
+    .object({
+      accountId: z.string().min(1),
+      uid: z.string().min(1),
+      displayName: z.string().min(1),
+    })
+    .strict()
+    .nullable(),
+  /**
    * 原卡是否仍对外可见（`published`）。为 false 时 `card` **可能仍在**——持有者删卡（`hidden`）
    * 后已收集者照旧拿到投影与图；只有 `card === null` 才必须渲染 `snapshot`。
    */
@@ -932,6 +945,21 @@ export const namecardCollectionPageSchema = exactJsonResponse({
   list: z.array(namecardCollectionEntrySchema),
   total: z.number().int().nonnegative(),
   totalPage: z.number().int().nonnegative(),
+})
+
+/**
+ * 筛选项里的一个卡主（含自己）。数据只来自平台账号与自己册内的卡主，
+ * 不是全站用户目录。
+ */
+export const namecardCollectionOwnerSchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  uid: z.number().int().positive(),
+  displayName: z.string().min(1),
+  avatarUrl: z.string().min(1).nullable(),
+})
+
+export const namecardCollectionOwnersSchema = exactJsonResponse({
+  list: z.array(namecardCollectionOwnerSchema),
 })
 
 export const namecardCollectionVisibilityResponseSchema = exactJsonResponse({
@@ -993,6 +1021,11 @@ export const namecardCollectionQuerySchema = strictRequestObject({
   /** 缺省值取决于 `sort`：交换时间与制作日期倒序，其余正序（读取侧补默认值）。 */
   dir: namecardCollectionDirectionSchema.optional(),
   q: queryText(64),
+  /**
+   * 所属用户：卡主（平台账号 id）。只保留该账号名片册里的卡主；
+   * `includeOwn` 同用时，卡主不是自己时「我的名片」不参与。
+   */
+  owner: z.string().trim().min(1).max(128).optional(),
   series: repeatableQueryTextList(16, 40),
   group: queryText(64),
   /** 担当角色目录 id；重复出现即多选。 */
@@ -1005,10 +1038,27 @@ export const namecardCollectionQuerySchema = strictRequestObject({
   excludeOther: queryBoolean,
   /** 【不含越境】：排除企划数为复数的名片。 */
   excludeCross: queryBoolean,
+  /**
+   * 创作声明：`original` 只留原创（`is_original`），`ai` 只留 AI 制作
+   * （`made_with_ai`）。与其它内容条件同属「命中集合」，可被 `invert` 一并取反。
+   */
+  declaration: z.enum(["original", "ai"]).optional(),
+  /**
+   * 反向排除：把内容筛选（`q` / `series` / `group` / `character` + `match` +
+   * `excludeOther` / `excludeCross` / `declaration`）整体取反；`owner` /
+   * `includeOwn` / `includeHidden` 这类范围条件不参与。没有任何内容条件时等价于不筛。
+   */
+  invert: queryBoolean,
   /** 【显示我的名片】：并入自己 `published` 的名片（交换时间回退创建时间）。 */
   includeOwn: queryBoolean,
   /** 【显示隐藏名片】：并入被手动隐藏（`hidden_at`）的条目。 */
   includeHidden: queryBoolean,
+})
+
+/** 所属用户选择器：只按显示名搜索，最多返回 50 条（默认 20）。 */
+export const namecardCollectionOwnersQuerySchema = strictRequestObject({
+  q: queryText(64),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
 })
 
 /** 交换记录只有页码（`namecardCollectionQuerySchema` 的其余参数与它无关）。 */
@@ -1127,6 +1177,15 @@ export type NamecardCollectionEntry = z.infer<
   typeof namecardCollectionEntrySchema
 >
 export type NamecardCollectionPage = z.infer<typeof namecardCollectionPageSchema>
+export type NamecardCollectionOwnersQuery = z.infer<
+  typeof namecardCollectionOwnersQuerySchema
+>
+export type NamecardCollectionOwner = z.infer<
+  typeof namecardCollectionOwnerSchema
+>
+export type NamecardCollectionOwners = z.infer<
+  typeof namecardCollectionOwnersSchema
+>
 export type NamecardExchangeHistoryQuery = z.infer<
   typeof namecardExchangeHistoryQuerySchema
 >

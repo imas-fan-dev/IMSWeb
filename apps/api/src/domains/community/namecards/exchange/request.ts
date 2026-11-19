@@ -1,6 +1,7 @@
 import type { AppEnvironment } from '@/app';
 import type {
     NamecardCollectionEntryParams,
+    NamecardCollectionOwnersQuery,
     NamecardCollectionQuery,
     NamecardCollectionVisibilityRequest,
     NamecardExchangeCardParams,
@@ -53,6 +54,9 @@ export type NamecardScanCommitContext = WithParamsBody<
 >;
 /** 名片册的查询参数由契约校验（分页 / 排序 / 搜索 / 筛选 / 两个开关）。 */
 export type NamecardCollectionQueryContext = WithQuery<NamecardCollectionQuery>;
+/** 所属用户选择器：一条搜索词 + 上限。 */
+export type NamecardCollectionOwnersQueryContext =
+    WithQuery<NamecardCollectionOwnersQuery>;
 export type NamecardExchangeHistoryQueryContext =
     WithQuery<NamecardExchangeHistoryQuery>;
 export type NamecardCollectionEntryContext = WithParamsBody<

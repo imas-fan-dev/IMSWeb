@@ -28,6 +28,7 @@ import type {
     NamecardCardShare as NamecardCardShareContract,
     NamecardCardShareLink as NamecardCardShareLinkContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
+    NamecardCollectionOwners as NamecardCollectionOwnersContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
     NamecardExchangeDetail as NamecardExchangeDetailContract,
@@ -74,6 +75,9 @@ export type NamecardQuickExchangeResponse = NamecardQuickExchangeContract;
 export type NamecardQuickSettingsResponse = NamecardQuickSettingsContract;
 export type NamecardExchangeResultResponse = NamecardExchangeResultContract;
 export type NamecardCollectionPageResponse = NamecardCollectionPageContract;
+/** 所属用户选择器只回一份精简名单（卡主 + 自己）。 */
+export type NamecardCollectionOwnersResponse =
+    NamecardCollectionOwnersContract;
 export type NamecardExchangeHistoryPageResponse =
     NamecardExchangeHistoryPageContract;
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;

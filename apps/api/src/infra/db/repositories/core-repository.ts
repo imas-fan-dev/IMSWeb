@@ -156,6 +156,20 @@ function collectionSnapshotRecord(value: unknown): NamecardCollectionSnapshotRec
 }
 
 /**
+ * 卡主资料的读取口径：`listCollectionOwners`（选择器）与名片册条目的 `owner`
+ * 共用同一套列与账号准入，避免两处 SQL 各写一份慢慢漂移。
+ */
+const COLLECTION_OWNER_PROFILE_SELECT = `SELECT profile.account_id, profile.uid, profile.page_slug,
+           profile.display_name, profile.avatar_object_key,
+           profile.avatar_external_url, profile.home_city,
+           profile.bio, profile.updated_at
+      FROM platform_profiles profile
+      JOIN platform_accounts account
+        ON account.id = profile.account_id
+     WHERE account.status IN ('active', 'restricted')
+       AND account.deleted_at IS NULL`;
+
+/**
  * 名片册列表合并后的原始行：收到的条目与「我自己的名片」投影到同一组列，
  * 实时卡片列只在原卡行还在时给值，其余从 `snapshot` 回退。
  */
@@ -173,6 +187,9 @@ interface NamecardCollectionQueryRow {
     live_created_at: string | Date | null;
     live_sort_name_key: string | null;
     live_sort_name_bucket: number | string | null;
+    live_is_original: boolean | null;
+    live_made_with_ai: boolean | null;
+    live_owner_account_id: string | null;
 }
 
 /** 排序 / 筛选用的归一视图：实时列与快照列在这里已经合成一份。 */
@@ -188,6 +205,11 @@ interface NamecardCollectionViewRow {
     characterKeys: { category: string; order: number }[];
     producerName: string | null;
     groupName: string | null;
+    /** 创作声明：实时列优先，原卡删除后回退快照。 */
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    /** 卡主账号：已收集条目取原卡卡主，`own` 行回退当前用户。 */
+    ownerAccountId: string | null;
     madeOn: string | null;
     /** 0=有月日、1=只有年份、2=没有。精度层级固定，不随升降序翻转（PRD §3.3）。 */
     madeOnRank: number;
@@ -3914,12 +3936,21 @@ export class SqlCoreRepository implements NamecardRepository {
      * 再在合并后的集合上统一筛选、排序、分页。
      *
      * 条目没有删除操作：`hidden_at` 是「默认不展示」（除非 `includeHidden`），整卡 `locked`
-     * 同样不展示；原卡被持有者下线（`hidden`）仍按最新内容展示，只有卡片行真的没了才落回
-     * `snapshot`（doc §5）。删除卡的筛选与排序一律从快照里的同名字段回退。
+     * 同样不展示。原卡被后台判决删除（`deleted_at`）或物理删除（`card.id` 置空）后，整条
+     * 不再出现在名片册里——`total` 与分页同步排除。卡片行还在但状态暂不入册（如 `approving`）
+     * 时才用 `snapshot` 投影。
      */
     async listCollection(
         input: NamecardCollectionQueryRecord
     ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
+        const ownerFilter = input.owner?.trim() || null;
+        // 卡主不是自己时，「我的名片」里没有能命中筛选的条目。
+        const includeOwn =
+            input.includeOwn === true &&
+            (ownerFilter === null || ownerFilter === input.accountId);
+        const collectedValues = ownerFilter
+            ? [input.accountId, ownerFilter]
+            : [input.accountId];
         const collectedSql = `SELECT entry.card_number, entry.obtained_at, entry.hidden_at,
                 entry.snapshot, false AS own,
                 card.id AS live_id, card.publication_status AS live_status,
@@ -3928,13 +3959,18 @@ export class SqlCoreRepository implements NamecardRepository {
                 card.made_on AS live_made_on,
                 card.created_at AS live_created_at,
                 card.sort_name_key AS live_sort_name_key,
-                card.sort_name_bucket AS live_sort_name_bucket
+                card.sort_name_bucket AS live_sort_name_bucket,
+                card.is_original AS live_is_original,
+                card.made_with_ai AS live_made_with_ai,
+                card.owner_account_id AS live_owner_account_id
            FROM public.namecard_collection_entries entry
            LEFT JOIN fudaba_cards card
                   ON card.id = entry.card_id AND card.deleted_at IS NULL
           WHERE entry.collector_account_id=?
             ${input.includeHidden ? '' : 'AND entry.hidden_at IS NULL'}
-            AND (card.id IS NULL OR card.publication_status <> 'locked')`;
+            AND card.id IS NOT NULL
+            ${ownerFilter ? 'AND card.owner_account_id=?' : ''}
+            AND card.publication_status <> 'locked'`;
         // 自己的名片没有交换时间（PRD §6）：`obtained_at := created_at`，快照 = 当前内容。
         // 已经收在自己册里的同名卡不再重复计一条。
         const ownedSql = `SELECT card.card_number, card.created_at AS obtained_at,
@@ -3945,7 +3981,10 @@ export class SqlCoreRepository implements NamecardRepository {
                 card.made_on AS live_made_on,
                 card.created_at AS live_created_at,
                 card.sort_name_key AS live_sort_name_key,
-                card.sort_name_bucket AS live_sort_name_bucket
+                card.sort_name_bucket AS live_sort_name_bucket,
+                card.is_original AS live_is_original,
+                card.made_with_ai AS live_made_with_ai,
+                card.owner_account_id AS live_owner_account_id
            FROM fudaba_cards card
           WHERE card.owner_account_id=?
             AND card.deleted_at IS NULL
@@ -3956,12 +3995,12 @@ export class SqlCoreRepository implements NamecardRepository {
                    AND held.card_number=card.card_number)`;
         const rows = await queryAll<NamecardCollectionQueryRow>(
             this.database,
-            input.includeOwn
+            includeOwn
                 ? `${collectedSql} UNION ALL ${ownedSql}`
                 : collectedSql,
-            input.includeOwn
-                ? [input.accountId, input.accountId]
-                : [input.accountId]
+            includeOwn
+                ? [...collectedValues, input.accountId]
+                : collectedValues
         );
 
         const liveIds = rows.flatMap((row) => (row.live_id ? [row.live_id] : []));
@@ -4032,6 +4071,16 @@ export class SqlCoreRepository implements NamecardRepository {
                         ? row.live_producer_name
                         : snapshot.producerName,
                     groupName: live ? row.live_group_name : snapshot.groupName,
+                    // 实时列是唯一真相；只有原卡行已不在时才回退快照。
+                    isOriginal: live
+                        ? row.live_is_original === true
+                        : snapshot.isOriginal,
+                    madeWithAi: live
+                        ? row.live_made_with_ai === true
+                        : snapshot.madeWithAi,
+                    ownerAccountId:
+                        row.live_owner_account_id ??
+                        (row.own ? input.accountId : null),
                     madeOn,
                     madeOnRank,
                     dateSortValue:
@@ -4052,7 +4101,11 @@ export class SqlCoreRepository implements NamecardRepository {
             }
         );
 
-        const filtered = views.filter((view) => {
+        const declaration = input.declaration ?? null;
+        // 内容筛选的「命中集合」：只有这些条件参与【反向排除】。`owner` /
+        // `includeOwn` / `includeHidden` 与 `locked` / 已删卡在 SQL 与合并阶段处理，
+        // 不属于这里，因此不会被取反。
+        const matchesContent = (view: NamecardCollectionViewRow): boolean => {
             // 【不含越境】：企划数是复数的整张排除（PRD §4）。
             if (input.excludeCross && view.seriesCodes.length > 1) return false;
             if (
@@ -4063,7 +4116,7 @@ export class SqlCoreRepository implements NamecardRepository {
             }
             if (
                 groupNeedle.length > 0 &&
-                view.groupName?.trim().toLowerCase() !== groupNeedle
+                !view.groupName?.trim().toLowerCase().includes(groupNeedle)
             ) {
                 return false;
             }
@@ -4097,7 +4150,25 @@ export class SqlCoreRepository implements NamecardRepository {
                     .toLowerCase();
                 if (!haystack.includes(needle)) return false;
             }
+            // 创作声明与其它内容条件同属命中集合，可被 `invert` 一并取反。
+            if (declaration === 'original' && !view.isOriginal) return false;
+            if (declaration === 'ai' && !view.madeWithAi) return false;
             return true;
+        };
+
+        const hasContentFilter =
+            input.excludeCross === true ||
+            seriesFilter.size > 0 ||
+            groupNeedle.length > 0 ||
+            characterFilter.size > 0 ||
+            needle.length > 0 ||
+            declaration !== null;
+        // 没有任何内容条件时【反向排除】等价于不筛：不能把所有行都排除。
+        const invert = input.invert === true && hasContentFilter;
+
+        const filtered = views.filter((view) => {
+            const matched = matchesContent(view);
+            return invert ? !matched : matched;
         });
 
         filtered.sort((left, right) =>
@@ -4121,16 +4192,32 @@ export class SqlCoreRepository implements NamecardRepository {
         )) {
             liveByNumber.set(card.card_number ?? card.id, card);
         }
+        // 卡主身份按页批量解析，避免逐条查询。
+        const ownerProfiles = await this.collectionOwnerProfiles(
+            page.flatMap((view) =>
+                view.ownerAccountId ? [view.ownerAccountId] : []
+            )
+        );
 
         return {
             total: filtered.length,
             rows: page.map((view) => {
                 const card = liveByNumber.get(view.cardNumber) ?? null;
+                const ownerProfile = view.ownerAccountId
+                    ? ownerProfiles.get(view.ownerAccountId)
+                    : undefined;
                 return {
                     card_number: view.cardNumber,
                     obtained_at: view.row.obtained_at,
                     hidden_at: view.row.hidden_at,
                     own: view.own,
+                    owner: ownerProfile
+                        ? {
+                              account_id: ownerProfile.account_id,
+                              uid: String(ownerProfile.uid),
+                              display_name: ownerProfile.display_name
+                          }
+                        : null,
                     card,
                     card_status: view.own
                         ? 'published'
@@ -4154,6 +4241,61 @@ export class SqlCoreRepository implements NamecardRepository {
                 };
             })
         };
+    }
+
+    /** 批量解析卡主资料（同一套列与账号准入，见 `COLLECTION_OWNER_PROFILE_SELECT`）。 */
+    private async collectionOwnerProfiles(
+        accountIds: readonly string[]
+    ): Promise<Map<string, PublicProfileRecord>> {
+        const unique = [...new Set(accountIds)].filter(
+            (accountId) => accountId.length > 0
+        );
+        if (unique.length === 0) return new Map();
+        const rows = await queryAll<PublicProfileRecord>(
+            this.database,
+            `${COLLECTION_OWNER_PROFILE_SELECT}
+               AND profile.account_id IN (${unique.map(() => '?').join(', ')})`,
+            unique
+        );
+        return new Map(rows.map((row) => [row.account_id, row]));
+    }
+
+    /**
+     * 所属用户选择器：自己 + 自己册内条目的卡主（卡行仍在、未锁定、未判删）。
+     * 只按显示名做不区分大小写的包含搜索，并按名称排序；不查全站账号目录。
+     */
+    async listCollectionOwners(input: {
+        accountId: string;
+        q?: string;
+        limit: number;
+    }): Promise<PublicProfileRecord[]> {
+        const needle = input.q?.trim() ?? '';
+        return queryAll<PublicProfileRecord>(
+            this.database,
+            `WITH owners AS (
+                 SELECT CAST(? AS text) AS account_id
+                 UNION
+                 SELECT card.owner_account_id
+                   FROM public.namecard_collection_entries entry
+                   JOIN fudaba_cards card
+                     ON card.id = entry.card_id AND card.deleted_at IS NULL
+                  WHERE entry.collector_account_id = ?
+                    AND card.publication_status <> 'locked'
+                    AND card.owner_account_id IS NOT NULL
+             )
+             ${COLLECTION_OWNER_PROFILE_SELECT}
+               AND profile.account_id = owners.account_id
+               AND (? = '' OR position(lower(?) in lower(profile.display_name)) > 0)
+              ORDER BY profile.display_name, profile.account_id
+              LIMIT ?`,
+            [
+                input.accountId,
+                input.accountId,
+                needle,
+                needle,
+                input.limit
+            ]
+        );
     }
 
     async setCollectionHidden(input: {

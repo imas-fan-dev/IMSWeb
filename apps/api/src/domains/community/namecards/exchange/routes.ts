@@ -1,6 +1,7 @@
 import {
     namecardCardLayoutRequestSchema,
     namecardCollectionEntryParamsSchema,
+    namecardCollectionOwnersQuerySchema,
     namecardCollectionQuerySchema,
     namecardCollectionVisibilitySchema,
     namecardExchangeCardParamsSchema,
@@ -37,6 +38,7 @@ import {
     handleListCollection,
     handleSetCollectionVisibility,
 } from '@/domains/community/namecards/exchange/handlers/collection';
+import { handleListCollectionOwners } from '@/domains/community/namecards/exchange/handlers/collection-owners';
 import { handleListExchanges } from '@/domains/community/namecards/exchange/handlers/list-exchanges';
 import {
     handleAcceptExchange,
@@ -86,6 +88,10 @@ const commitBody = jsonSchemaValidator(namecardExchangeCommitSchema, {
 const collectionQuery = querySchemaValidator(namecardCollectionQuerySchema, {
     invalidMessage: '名片册参数无效',
 });
+const collectionOwnersQuery = querySchemaValidator(
+    namecardCollectionOwnersQuerySchema,
+    { invalidMessage: '名片册参数无效' },
+);
 const exchangeHistoryQuery = querySchemaValidator(namecardExchangeHistoryQuerySchema, {
     invalidMessage: '分页参数无效',
 });
@@ -134,6 +140,7 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
     );
 
     // 名片册与交换记录。
+    routes.get('/exchange/me/collection/owners', platformAuth, collectionOwnersQuery, handleListCollectionOwners);
     routes.get('/exchange/me/collection', platformAuth, collectionQuery, handleListCollection);
     routes.put(
         '/exchange/me/collection/:cardNumber',

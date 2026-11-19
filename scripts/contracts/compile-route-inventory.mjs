@@ -11,6 +11,7 @@ const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "optio
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 const BASELINE = { mountedMethodPaths: 292, carriers: 370, reject: 85, acceptAndProject: 184, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
+  { module: "@imsweb/contracts/namecards", symbol: "namecardCollectionOwnersQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "reject" },

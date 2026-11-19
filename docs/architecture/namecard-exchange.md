@@ -255,14 +255,16 @@ CREATE TABLE public.namecard_profile_layouts (
 列表是**服务端**参数化的（PRD §7.1，契约见 `namecardCollectionQuerySchema`）：
 
 ```sql
--- 收到的条目
+-- 收到的条目（卡片行被后台判删 / 物理删除的条目整条不出现）
 SELECT entry.*, card.*  -- 实时列别名 live_*
 FROM namecard_collection_entries entry
 LEFT JOIN fudaba_cards card
        ON card.id = entry.card_id AND card.deleted_at IS NULL
 WHERE entry.collector_account_id = ?
   AND entry.hidden_at IS NULL           -- 除非 includeHidden
-  AND (card.id IS NULL OR card.publication_status <> 'locked')
+  AND card.id IS NOT NULL               -- 判删与物理删除都不再进册
+  AND card.owner_account_id = ?         -- 可选：owner 筛选（只看该卡主）
+  AND card.publication_status <> 'locked'
 UNION ALL
 -- 自己的名片（includeOwn）：`obtained_at := created_at`、`hidden_at := NULL`、`own := true`
 SELECT card.*, ... FROM fudaba_cards card
@@ -274,12 +276,16 @@ WHERE card.owner_account_id = ? AND card.deleted_at IS NULL
 ```
 
 - `includeHidden` 决定是否排除 `hidden_at`；`locked` 仍被过滤，解锁后条目自动重新出现。
+- **删除卡的条目不再出现**：后台判决删除（`deleted_at`）或物理删除（`card_id` 置空）后，
+  列表与 `total` 同步排除，不再参与排序或筛选；条目与快照仍留在库里，恢复卡片行后会重新出现。
+- `owner` 只保留卡主为该平台账号的条目；`includeOwn` 与「卡主不是自己」的 `owner` 同用时，
+  「我的名片」不参与。`owner` 与 `q` / 企划 / 角色 / 团体筛选可以叠加。
 - `includeOwn` 只并 `published`（整卡 `hidden` 不并）；自己的名片没有交换时间，按名片创建时间参与排序。
   同名卡已经在册时只保留条目那一份，`total` 不重复计。
 - `hidden`（持有者删卡）保留展示，界面标记为已隐藏，**并照旧拿到最新投影与图**。
-- 原卡**可读**（行在、未被 `deleted_at` 判删、状态为 `published` 或 `hidden`）时给实时投影；其余情形——
-  行被物理删除、被后台判决删除（`deleted_at`）、或状态不入册（`pending` / `approving`，例如解锁后回到待审）——
-  才用 `snapshot` 渲染。筛选与排序需要的字段（企划、担当角色、团体、`madeOn`、排序键）在删除卡上同样从快照回退。
+- 原卡**可读**（行在、未被 `deleted_at` 判删、状态为 `published` 或 `hidden`）时给实时投影；卡片行
+  被删除的条目根本不会出现，`card === null` 只剩「行在但当前状态不入册」（如 `approving`）这一种情形，
+  此时才用 `snapshot` 渲染。
 - 排序（在合并后的集合上统一执行，`dir` 缺省：`exchange` / `date` 倒序，其余正序）：
   - `exchange`：`obtained_at`；
   - `name`：`sort_name_bucket`（0 英文 / 1 假名罗马音 / 2 拼音 / 3 特殊符号）→ `sort_name_key` → `obtained_at`；
@@ -288,11 +294,22 @@ WHERE card.owner_account_id = ? AND card.deleted_at IS NULL
   - `date`：`madeOn` 精度（有月日 → 只有年份 → 没有，固定顺序）→ 日期值（没有 `madeOn` 时用创建时间）→ `obtained_at`。
 - 筛选：`q` 对制作人名称做不区分大小写的包含匹配（名称为空时改用团体名称）；`series` 命中任意一个即保留；
   `group` 按 `groupName` 精确匹配（忽略大小写）；`character` + `match=all` 是【同时包含】；
-  `excludeOther` 要求担当角色 ⊆ 筛选项；`excludeCross` 排除企划数为复数的名片。
+  `excludeOther` 要求担当角色 ⊆ 筛选项；`excludeCross` 排除企划数为复数的名片；`declaration` 只留
+  `original`（`is_original`）或 `ai`（`made_with_ai`）；`owner` 只保留该卡主。
+- 【反向排除】`invert=true` 把**内容筛选**（`q` / `series` / `group` / `character` + `match` +
+  `excludeOther` / `excludeCross` / `declaration`）整体取反：先算出命中集合，再保留不命中的行。
+  `owner` / `includeOwn` / `includeHidden` 与 `locked`、已删卡这类范围条件不参与取反；没有任何内容条件时
+  等价于不筛（不会把所有行都排除）。
+- 每条条目带 `owner`（`accountId` / `uid` / `displayName`）：瓦片底部的制作人名称据此跳 `/user/<uid>`。
+  已收集条目取原卡卡主，`own` 行取当前用户；本轮按页批量解析（与所属用户选择器共用同一段资料 SQL），
+  不给每条单独查。账号停用/删除或历史数据缺资料时 `owner = null`，前端降级为纯文本。
 - 分页 `total` 是筛选后的条数（含并入的自己的名片，已去重）；`totalPage = ceil(total / size)`。
 - 响应里的 `available` 只表示「原卡是否仍对外可见（`published`）」：`hidden` 时为 false 但 `card` 仍在；
-  前端据 `!available && card` 标记「对方已删除」，只有 `card === null` 才必须渲染 `snapshot`。
+  被删除的条目不会出现，`card === null` 只在「行在但当前状态不入册」时出现（渲染 `snapshot`）。
   `own` 标记该条来自【显示我的名片】，前端据此不显示隐藏按钮。
+- **所属用户筛选**：`owner`（平台账号 id）只保留该卡主名下的条目；`includeOwn` 与「卡主不是自己」的
+  `owner` 同用时自己的名片不参与。选择器数据来自 `GET /api/community/exchange/me/collection/owners`
+  （自己 + 册内卡主，去重；`q` 按显示名子串、不区分大小写；`limit` 默认 20、上限 50），不暴露全站账号目录。
 - 媒体准入：公开读取只认 `published`；原卡 `hidden` 之后，**名片册里已经有这张卡的人**仍能读它的页面对象
   （媒体路由加可选会话 + 一条 `EXISTS namecard_collection_entries` 判断；`hidden_at` 只是展示开关，不影响准入），
   匿名与没有这张卡的人一律 404。该分支的**最终**响应头由 `/api/community/exchange/*` 的前缀中间件统一设为
@@ -358,6 +375,7 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 | `POST` | `/api/community/exchange/scan/sessions` | 出示方创建二维码会话 |
 | `POST` | `/api/community/exchange/scan/sessions/:token/commit` | 扫码方提交 |
 | `GET` | `/api/community/exchange/me/collection` | 名片册 |
+| `GET` | `/api/community/exchange/me/collection/owners` | 所属用户选择器（自己 + 册内卡主） |
 | `PUT` | `/api/community/exchange/me/collection/:cardNumber` | 切换「默认不展示」 |
 | `GET` | `/api/community/exchange/me/exchanges` | 交换历史（含待确认） |
 | `POST` | `/api/community/exchange/exchanges/:id/accept` / `decline` | 手动确认 |
@@ -394,7 +412,8 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 - 幂等：同一 `clientExchangeId` 重复提交只落一次。
 - 扫码：单次消费、超时、离线重放。
 - 快速列表：模式改动与状态变化的自动移除。
-- 名片册：锁定过滤、隐藏保留**并继续出图**、手动不展示；行被删除（物理或后台判删）或状态不入册（`pending` / `approving`）时才快照渲染。
+- 名片册：锁定过滤、隐藏保留**并继续出图**、手动不展示；被删除（物理或后台判删）的条目连同 `total` 一并排除，
+  只有卡行在而状态暂不入册（`pending` / `approving`）时才快照渲染；`owner` 过滤只回该卡主。
 
 ## 12. 已定的取值与剩余问题
 
@@ -417,10 +436,11 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 - ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（复核后）**：
   `namecardCollectionSnapshotSchema` 只含文本字段（`producerName` / `bio` / `tradeNote` / `accent` /
   `seriesCodes` / `credits` 等），**不含页面或媒体**，代码里也从未存在 `resolveSnapshotMedia`。
-  后果：卡片行被**物理删除**后名片册只能渲染文本（前端用占位图）；**持有者删卡（`hidden`）不受影响**——
-  条目照旧带最新投影与图。**已定（方案 A）**：快照不带页面键；让 `hidden` 卡继续出图靠
-  「媒体路由加可选会话 + 已收集者判断」（见 §5），公开分享链接仍然关闭。取舍对比见任务
-  `.trellis/tasks/11-15-namecard-exchange/design.md` §11-D3。
+  **删除规则（最新）**：卡片行被**物理删除**或后台判删（`deleted_at`）后，条目整条不再进名片册，
+  因此不需要为删除卡渲染占位图；`snapshot` 只在卡行还在、状态暂不入册（`pending` / `approving`）时投影。
+  **持有者删卡（`hidden`）不受影响**——条目照旧带最新投影与图。**已定（方案 A）**：快照不带页面键；
+  让 `hidden` 卡继续出图靠「媒体路由加可选会话 + 已收集者判断」（见 §5），公开分享链接仍然关闭。
+  取舍对比见任务 `.trellis/tasks/11-15-namecard-exchange/design.md` §11-D3。
 
 已定（补充）：
 
@@ -445,8 +465,9 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 | 服务端 | `apps/api/src/domains/community/namecards/exchange/`（`commit.ts`、`media.ts`、`scan.ts`、`request.ts`、`handlers/`、`routes.ts`） |
 
 路由全部挂在 **`/api/community/exchange`** 下（`app.route(communityApiPath(), namecardExchangeRoutes())`），
-共 13 条：`card/:slug`（+`/commit`）、`cards/:cardNumber/request`、`quick/:handle`（+`/commit`）、
-`me/quick`（GET/PUT）、`me/collection`（GET）与 `me/collection/:cardNumber`（PUT）、`me/exchanges`、
+共 14 条：`card/:slug`（+`/commit`）、`cards/:cardNumber/request`、`quick/:handle`（+`/commit`）、
+`me/quick`（GET/PUT）、`me/collection`（GET）、`me/collection/owners`（GET）与
+`me/collection/:cardNumber`（PUT）、`me/exchanges`、
 `scan/sessions`（+`/:token/commit`）、`exchanges/:id/accept|decline`。写操作统一走
 `platformAuth + activePlatformMutation + platformCsrf + platformWriteRateLimit`。
 

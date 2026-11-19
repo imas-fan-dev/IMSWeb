@@ -414,13 +414,18 @@ export interface NamecardCollectionEntryRecord {
     /** 「我自己的名片」带出的条目：没有交换时间（回退创建时间）与隐藏入口。 */
     own: boolean;
     /**
+     * 卡主身份（瓦片底部的制作人名称 → `/user/<uid>`）：已收集条目取原卡卡主，
+     * `own` 行取当前用户。账号停用/删除或历史数据缺资料时为 null。
+     */
+    owner: { account_id: string; uid: string; display_name: string } | null;
+    /**
      * 原卡行还在且未被 `locked` 时带实时投影：`published` **与 `hidden`（持有者删卡）都给**，
-     * 因为「我收到的那张」不该因为对方下线而消失。`null` 表示只能渲染 `snapshot`——
-     * 卡片行被删除（`card_id` 置空），或它正处于不进册的状态（如 `approving`）。
-     * 整卡 `locked` 的条目根本不会出现在列表里（doc §5）。
+     * 因为「我收到的那张」不该因为对方下线而消失。卡行被删除（物理删除或后台判删）的条目
+     * 根本不会出现在列表里；`null` 只剩「行还在但当前状态不进册」（如 `approving`），
+     * 此时渲染 `snapshot`。整卡 `locked` 的条目同样不会出现（doc §5）。
      */
     card: NamecardPublicRecord | null;
-    /** 原卡当前是否仍对外可见（`published`）；`hidden` 时为 false 但 `card` 仍在。`null` = 行已不在。 */
+    /** 原卡当前是否仍对外可见（`published`）；`hidden` 时为 false 但 `card` 仍在。 */
     card_status: 'published' | 'hidden' | null;
     snapshot: NamecardCollectionSnapshotRecord;
 }
@@ -441,6 +446,11 @@ export interface NamecardCollectionQueryRecord {
     dir?: 'asc' | 'desc';
     /** 制作人名搜索；为空时改用团体名称（PRD §7.1）。 */
     q?: string;
+    /**
+     * 所属用户（卡主账号 id）：只保留该账号名下的条目；卡行被删除的条目已经不在
+     * 列表里，因此不需要再回退快照判断。`includeOwn` 与不同账号同用时自己的名片不参与。
+     */
+    owner?: string;
     /** 企划筛选；命中其中任意一个即保留。 */
     seriesCodes?: readonly string[];
     /** 所属团体（`groupName`）精确匹配（忽略大小写）。 */
@@ -453,6 +463,14 @@ export interface NamecardCollectionQueryRecord {
     excludeOther?: boolean;
     /** 【不含越境】：排除企划数为复数的名片。 */
     excludeCross?: boolean;
+    /** 创作声明：`original` = `is_original`，`ai` = `made_with_ai`。 */
+    declaration?: 'original' | 'ai';
+    /**
+     * 【反向排除】：把内容筛选（搜索 / 企划 / 团体 / 角色 / 声明）整体取反；
+     * `owner` / `includeOwn` / `includeHidden` 这类范围条件不受影响。
+     * 没有任何内容条件时等价于不筛（不能把所有行都排除）。
+     */
+    invert?: boolean;
 }
 
 /** 属主清单布局的原始形态：分组 + 默认分组顺序。 */
@@ -597,6 +615,16 @@ export interface NamecardRepository {
     listCollection(
         input: NamecardCollectionQueryRecord,
     ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
+    /**
+     * 所属用户选择器：自己 + 自己名片册里出现过的卡主（卡行仍在、未锁定），
+     * 按显示名做不区分大小写的包含搜索。不暴露全站用户。
+     */
+    listCollectionOwners(input: {
+        accountId: string;
+        /** 显示名子串；缺省 / 空白表示不过滤。 */
+        q?: string;
+        limit: number;
+    }): Promise<PublicProfileRecord[]>;
     /** 隐藏或恢复名片册里的一条；false 表示这一条不存在。 */
     setCollectionHidden(input: {
         accountId: string;

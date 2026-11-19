@@ -29,12 +29,15 @@ export async function handleListCollection(
         sort: query.sort,
         ...(query.dir ? { dir: query.dir } : {}),
         ...(query.q ? { q: query.q } : {}),
+        ...(query.owner ? { owner: query.owner } : {}),
         ...(query.series.length > 0 ? { seriesCodes: query.series } : {}),
         ...(query.group ? { groupName: query.group } : {}),
         ...(query.character.length > 0 ? { characterIds: query.character } : {}),
         match: query.match,
         excludeOther: query.excludeOther,
         excludeCross: query.excludeCross,
+        ...(query.declaration ? { declaration: query.declaration } : {}),
+        invert: query.invert,
         includeOwn: query.includeOwn,
         includeHidden: query.includeHidden,
     });
@@ -45,6 +48,13 @@ export async function handleListCollection(
                 obtainedAt: new Date(row.obtained_at).toISOString(),
                 hiddenAt: row.hidden_at ? new Date(row.hidden_at).toISOString() : null,
                 own: row.own,
+                owner: row.owner
+                    ? {
+                          accountId: row.owner.account_id,
+                          uid: row.owner.uid,
+                          displayName: row.owner.display_name,
+                      }
+                    : null,
                 // 「在线」只表示原卡仍对外可见；`hidden` 的条目照样带 `card`（图照常显示），
                 // 前端据 `!available && card` 标「对方已删除」（doc §5）。
                 available: row.card_status === 'published',

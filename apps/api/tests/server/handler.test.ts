@@ -846,6 +846,7 @@ import { test } from 'vitest';
             async listExchanges() { return { rows: [], total: 0 }; },
             async findExchangeDetail() { return null; },
             async listCollection() { return { rows: [], total: 0 }; },
+            async listCollectionOwners() { return []; },
             async setCollectionHidden() { return false; },
             async listCollectedCardNumbers() { return new Set<number>(); },
             async findHeldCardPageKey() { return null; },

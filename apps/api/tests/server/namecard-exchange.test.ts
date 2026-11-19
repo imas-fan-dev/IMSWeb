@@ -9,7 +9,7 @@
  * platform sessions.
  */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { describe } from 'vitest';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { PlatformAccessTokenInput, PlatformTokenService } from '@/ports/security';
@@ -26,6 +26,7 @@ import {
     NAMECARD_SCAN_TOKEN_TTL_MS,
     namecardCardShareLinkSchema,
     namecardCardShareSchema,
+    namecardCollectionOwnersSchema,
     namecardCollectionPageSchema,
     namecardExchangeDetailSchema,
     namecardPageSchema,
@@ -107,6 +108,7 @@ const UUID = {
     overwriteFirst: '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b',
     overwriteSecond: '6c6c6c6c-6c6c-4c6c-8c6c-6c6c6c6c6c6c',
     albumRoute: '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a',
+    albumDeclaration: '7b7b7b7b-7b7b-4b7b-8b7b-7b7b7b7b7b7b',
 } as const;
 
 /** 路由用例的假会话：Bearer 就是那把固定钥匙，CSRF 对 Bearer 自动放行。 */
@@ -958,7 +960,7 @@ describe('namecard exchange repository', () => {
         assert.match(pages[0]?.thumbUrl ?? '', /^\/api\/community\/exchange\/cards\//);
     });
 
-    postgresTest('a deleted card keeps its shelf row pointed at nothing', async () => {
+    postgresTest('a physically deleted card leaves the shelf entirely', async () => {
         const { database, publish, commit, shelf } = await fixture();
         const ownerNumber = await publish('owner-shelf-deleted', 'owner', 'auto');
         await commit({
@@ -970,7 +972,7 @@ describe('namecard exchange repository', () => {
             targetCardNumbers: [ownerNumber],
         });
 
-        // 卡片行被物理删除：card_id 置 NULL，编号与快照接手展示（doc §3.2 / §5）。
+        // 卡片行被物理删除：条目还在（`card_id` 置空、快照保留），但整条不再进名片册。
         await executeSql(database, 'DELETE FROM fudaba_cards WHERE id=?', ['owner-shelf-deleted']);
         const [entry] = await queryAll<{ card_id: string | null }>(
             database,
@@ -980,15 +982,11 @@ describe('namecard exchange repository', () => {
         assert.equal(entry?.card_id, null);
 
         const mine = await shelf('collector');
-        assert.equal(mine.total, 1);
-        assert.equal(mine.rows[0]?.card_number, ownerNumber);
-        assert.equal(mine.rows[0]?.card, null);
-        assert.equal(mine.rows[0]?.card_status, null);
-        assert.equal(mine.rows[0]?.snapshot.producerName, 'Producer owner');
-        assert.equal(mine.rows[0]?.snapshot.exchangeMode, 'auto');
+        assert.equal(mine.total, 0);
+        assert.deepEqual(mine.rows, []);
     });
 
-    postgresTest('a card row deleted by moderation keeps its shelf row on the snapshot', async () => {
+    postgresTest('a card row deleted by moderation leaves the shelf entirely', async () => {
         const { database, publish, commit, shelf } = await fixture();
         const ownerNumber = await publish('owner-shelf-soft-deleted', 'owner', 'auto');
         await commit({
@@ -1000,18 +998,15 @@ describe('namecard exchange repository', () => {
             targetCardNumbers: [ownerNumber],
         });
 
-        // 后台判决删除只打 `deleted_at`，不动 `publication_status`：投影已经不在了，
-        // 「是否仍对外可见」也必须跟着变成 false，否则前端既拿不到卡、又不会标出「已删除」。
+        // 后台判决删除只打 `deleted_at`，不动 `publication_status`：条目的卡片行不再可见，
+        // 列表与 `total` 一并排除。
         await executeSql(database, 'UPDATE fudaba_cards SET deleted_at=? WHERE id=?', [
             AT,
             'owner-shelf-soft-deleted',
         ]);
         const mine = await shelf('collector');
-        assert.equal(mine.total, 1);
-        assert.equal(mine.rows[0]?.card_number, ownerNumber);
-        assert.equal(mine.rows[0]?.card, null);
-        assert.equal(mine.rows[0]?.card_status, null);
-        assert.equal(mine.rows[0]?.snapshot.producerName, 'Producer owner');
+        assert.equal(mine.total, 0);
+        assert.deepEqual(mine.rows, []);
     });
 
     postgresTest('the display flag never changes what the account owns', async () => {
@@ -2755,6 +2750,68 @@ describe('namecard album queries over the route', () => {
         assert.equal(second.list[0]?.own, false);
     });
 
+    postgresTest('the route parses declaration and inverts the content filters', async () => {
+        const { app, authHeaders, publish, commit, database } = await fixture();
+        const original = await publish('album-declaration-original', 'owner');
+        const ai = await publish('album-declaration-ai', 'owner');
+        const plain = await publish('album-declaration-plain', 'owner');
+        await executeSql(
+            database,
+            'UPDATE fudaba_cards SET is_original=TRUE WHERE id=?',
+            ['album-declaration-original'],
+        );
+        await executeSql(
+            database,
+            'UPDATE fudaba_cards SET made_with_ai=TRUE WHERE id=?',
+            ['album-declaration-ai'],
+        );
+        await commit({
+            id: UUID.albumDeclaration,
+            clientExchangeId: 'client-album-declaration',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [original, ai, plain],
+        });
+
+        const album = async (query: string) =>
+            assertContractJson(
+                await testRequest(
+                    app,
+                    `/api/community/exchange/me/collection?${query}`,
+                    { headers: authHeaders('collector') },
+                ),
+                200,
+                namecardCollectionPageSchema,
+            );
+        // 同一交换写入的条目时间相同，倒序按名片编号兜底：plain, ai, original。
+        assert.deepEqual(
+            (await album('declaration=original')).list.map((entry) => entry.cardNumber),
+            [original],
+        );
+        assert.deepEqual(
+            (await album('declaration=ai')).list.map((entry) => entry.cardNumber),
+            [ai],
+        );
+        assert.deepEqual(
+            (await album('declaration=original&invert=true')).list.map(
+                (entry) => entry.cardNumber,
+            ),
+            [plain, ai],
+        );
+        // 没有内容条件时取反等价于不筛。
+        assert.deepEqual(
+            (await album('invert=true')).list.map((entry) => entry.cardNumber),
+            [plain, ai, original],
+        );
+        const rejected = await testRequest(
+            app,
+            '/api/community/exchange/me/collection?declaration=unknown',
+            { headers: authHeaders('collector') },
+        );
+        assert.equal(rejected.status, 400);
+    });
+
     postgresTest('the album route rejects malformed filters and the history route stays page-only', async () => {
         const { app, authHeaders } = await fixture();
         for (const query of [
@@ -2790,5 +2847,137 @@ describe('namecard album queries over the route', () => {
             { headers: authHeaders('collector') },
         );
         assert.equal(rejected.status, 400);
+    });
+});
+
+describe('namecard collection owner filter over the route', () => {
+    postgresTest('the owner picker only lists card owners from my shelf plus myself', async () => {
+        const { app, authHeaders, publish, commit, database } = await fixture();
+        const fromOwner = await publish('picker-owner-a', 'owner', 'auto');
+        const fromOwnerAgain = await publish('picker-owner-b', 'owner', 'auto');
+        const fromStranger = await publish('picker-stranger', 'stranger', 'auto');
+        for (const [cardNumber, target] of [
+            [fromOwner, 'owner'],
+            [fromOwnerAgain, 'owner'],
+            [fromStranger, 'stranger'],
+        ] as const) {
+            await commit({
+                id: randomUUID(),
+                clientExchangeId: `client-${randomUUID()}`,
+                source: 'card-share',
+                initiatorAccountId: 'collector',
+                targetAccountId: target,
+                targetCardNumbers: [cardNumber],
+            });
+        }
+
+        // 站内还有别的用户：没进过我的册子，不能出现在选单里。
+        await executeSql(
+            database,
+            `INSERT INTO platform_accounts (id, status, created_at, updated_at)
+             VALUES ('lurker', 'active', ?, ?)`,
+            [AT_MS, AT_MS],
+        );
+        await executeSql(
+            database,
+            `INSERT INTO platform_profiles (account_id, display_name, updated_at)
+             VALUES ('lurker', 'Lurker', ?)`,
+            [AT_MS],
+        );
+
+        const owners = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/collection/owners', {
+                headers: authHeaders('collector'),
+            }),
+            200,
+            namecardCollectionOwnersSchema,
+        );
+        assert.deepEqual(owners.list.map((row) => row.accountId), [
+            'collector',
+            'owner',
+            'stranger',
+        ]);
+        assert.deepEqual(owners.list.map((row) => row.displayName), [
+            'Collector',
+            'Owner',
+            'Stranger',
+        ]);
+        assert.equal(owners.list[0]?.avatarUrl, null);
+        assert.ok(
+            owners.list.every((row) => Number.isInteger(row.uid) && row.uid > 0),
+            '每个卡主都带正整数 uid',
+        );
+
+        // `q` 按显示名子串过滤，且不区分大小写。
+        const searched = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection/owners?q=own',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionOwnersSchema,
+        );
+        assert.deepEqual(searched.list.map((row) => row.displayName), ['Owner']);
+
+        // `limit` 生效；顺序按显示名。
+        const limited = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection/owners?limit=1',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionOwnersSchema,
+        );
+        assert.deepEqual(limited.list.map((row) => row.displayName), ['Collector']);
+        for (const query of ['limit=0', 'limit=51', 'limit=abc']) {
+            const response = await testRequest(
+                app,
+                `/api/community/exchange/me/collection/owners?${query}`,
+                { headers: authHeaders('collector') },
+            );
+            assert.equal(response.status, 400, query);
+        }
+
+        // 列表的 `owner` 筛选：两个卡主各回各的条目。
+        const filtered = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection?owner=owner',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionPageSchema,
+        );
+        assert.equal(filtered.total, 2);
+        assert.deepEqual(
+            filtered.list.map((row) => row.cardNumber).sort((left, right) => left - right),
+            [fromOwner, fromOwnerAgain].sort((left, right) => left - right),
+        );
+
+        // `includeOwn` + `owner=自己`：自己的名片能被筛出来。
+        const own = await publish('picker-own', 'collector', 'auto');
+        const ownPage = await assertContractJson(
+            await testRequest(
+                app,
+                '/api/community/exchange/me/collection?owner=collector&includeOwn=true',
+                { headers: authHeaders('collector') },
+            ),
+            200,
+            namecardCollectionPageSchema,
+        );
+        assert.equal(ownPage.total, 1);
+        assert.equal(ownPage.list[0]?.cardNumber, own);
+        assert.equal(ownPage.list[0]?.own, true);
+    });
+
+    postgresTest('the owner picker stays behind the platform session', async () => {
+        const { app } = await fixture();
+        const response = await testRequest(
+            app,
+            '/api/community/exchange/me/collection/owners',
+        );
+        assert.equal(response.status, 401);
     });
 });
