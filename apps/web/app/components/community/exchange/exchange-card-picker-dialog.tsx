@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react"
+import { LoaderCircleIcon, XIcon } from "lucide-react"
 import { useCallback, useState } from "react"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
@@ -26,7 +26,7 @@ import {
   ExchangeCardPickerSkeletonGrid,
 } from "./exchange-card-picker-grid"
 import {
-  canStartScanShare,
+  canConfirmPicker,
   needsEmptyGiveConfirm,
   pickerCountLabel,
   type ExchangeCardPickerVariant,
@@ -37,7 +37,7 @@ import {
   type ExchangeCardPickerStatus,
 } from "./use-exchange-card-picker"
 
-/** 标题与说明文案：默认模式是「选卡」，扫码模式强调接下来要出示二维码。 */
+/** 标题与说明文案：默认模式是「选卡」，扫码模式强调接下来要出示二维码，送片模式说明是单向给。 */
 const PICKER_COPY: Record<
   ExchangeCardPickerVariant,
   { title: string; description: string }
@@ -49,6 +49,10 @@ const PICKER_COPY: Record<
   "scan-share": {
     title: "扫码交换",
     description: "选择要交给对方的名片，然后分享二维码。",
+  },
+  gift: {
+    title: "发送名片",
+    description: "选择要送给对方的名片，直接放进对方的名片册。",
   },
 }
 
@@ -65,8 +69,13 @@ export interface ExchangeCardPickerDialogProps {
   targetCard?: number | undefined
   /** 「确定」前的二次确认用（来自分享页/快速页响应）；未知时省略。 */
   targetMissingCount?: number | undefined
-  /** 底部控件形态：默认【取消】【确定】，App 出示二维码场合是【扫码】【分享】。 */
+  /** 底部控件形态：默认【取消】【确定】，App 出示二维码场合是【扫码】【分享】，送片同默认但必须至少选 1 张。 */
   variant?: ExchangeCardPickerVariant
+  /**
+   * 写请求在途：底部两个按钮一起禁用，【确定】显示 busy。
+   * 只有送片（gift）用得上 —— 它在请求落定前不关窗，失败后还能改选重试。
+   */
+  submitting?: boolean
   /** 【确定】/【分享】：窗口只交出编号，登记交换是接入方的事。 */
   onSubmit: (cardNumbers: number[]) => void
   /** 【扫码】：给出当前选择（可以为空），由接入方接扫码器。 */
@@ -90,18 +99,22 @@ export function ExchangeCardPickerDialog({
   targetCard,
   targetMissingCount,
   variant = "confirm",
+  submitting = false,
   onSubmit,
   onScan,
 }: ExchangeCardPickerDialogProps) {
   const desktop = useDesktopAccountWorkspace()
   const copy = PICKER_COPY[variant]
 
+  // 送片不在这里关窗：请求落定前窗口要显示 busy，成功后由接入方关（失败还能改选）。
+  const keepsOpenOnSubmit = variant === "gift"
+
   const submit = useCallback(
     (cardNumbers: readonly number[]) => {
       onSubmit([...cardNumbers])
-      onOpenChange(false)
+      if (!keepsOpenOnSubmit) onOpenChange(false)
     },
-    [onOpenChange, onSubmit]
+    [keepsOpenOnSubmit, onOpenChange, onSubmit]
   )
 
   const scan = useCallback(
@@ -120,6 +133,7 @@ export function ExchangeCardPickerDialog({
       targetCard={targetCard}
       targetMissingCount={targetMissingCount}
       variant={variant}
+      submitting={submitting}
       onSubmit={submit}
       onScan={scan}
       onCancel={exit}
@@ -193,6 +207,7 @@ function PickerPanel({
   targetCard,
   targetMissingCount,
   variant,
+  submitting,
   onSubmit,
   onScan,
   onCancel,
@@ -201,11 +216,17 @@ function PickerPanel({
   targetCard?: number | undefined
   targetMissingCount?: number | undefined
   variant: ExchangeCardPickerVariant
+  submitting: boolean
   onSubmit: (cardNumbers: readonly number[]) => void
   onScan: (cardNumbers: readonly number[]) => void
   onCancel: () => void
 }) {
-  const picker = useExchangeCardPicker({ target, targetCard })
+  // 送片从零开始挑，不预勾快速清单；其它入口沿用快速清单。
+  const picker = useExchangeCardPicker({
+    target,
+    targetCard,
+    autoSelect: variant !== "gift",
+  })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const missingCount = targetMissingCount ?? picker.targetMissingCount
 
@@ -227,6 +248,7 @@ function PickerPanel({
         selected={picker.selected}
         limit={picker.limit}
         variant={variant}
+        submitting={submitting}
         onToggle={picker.toggle}
         onClear={picker.clear}
         onRetry={picker.retry}
@@ -263,6 +285,7 @@ function PickerContent({
   selected,
   limit,
   variant,
+  submitting,
   onToggle,
   onClear,
   onRetry,
@@ -276,6 +299,7 @@ function PickerContent({
   selected: readonly number[]
   limit: number | null
   variant: ExchangeCardPickerVariant
+  submitting: boolean
   onToggle: (cardNumber: number) => void
   onClear: () => void
   onRetry: () => void
@@ -324,6 +348,7 @@ function PickerContent({
             type="button"
             variant="outline"
             className="flex-1"
+            disabled={submitting}
             onClick={onCancel}
           >
             取消
@@ -332,10 +357,22 @@ function PickerContent({
         <Button
           type="button"
           className="flex-1"
-          disabled={!canStartScanShare(variant, selected)}
+          disabled={submitting || !canConfirmPicker(variant, selected)}
           onClick={onConfirm}
         >
-          {variant === "scan-share" ? "分享" : "确定"}
+          {submitting ? (
+            <>
+              <LoaderCircleIcon
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+              发送中…
+            </>
+          ) : variant === "scan-share" ? (
+            "分享"
+          ) : (
+            "确定"
+          )}
         </Button>
       </div>
     </div>

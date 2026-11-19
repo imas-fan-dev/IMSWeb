@@ -19,7 +19,7 @@ import { useLocation } from "react-router"
 
 import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
-import { ScanPlaceholderDialog } from "~/components/community/exchange/scan-placeholder-dialog"
+import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
 import { ScanShareDialog } from "~/components/community/exchange/scan-share-dialog"
 import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import {
@@ -123,12 +123,10 @@ function ExchangeActionButton({
   open,
   onToggle,
   onOpenQr,
-  onOpenPlaceholder,
 }: {
   open: boolean
   onToggle: () => void
   onOpenQr: () => void
-  onOpenPlaceholder: () => void
 }) {
   return (
     <>
@@ -153,13 +151,7 @@ function ExchangeActionButton({
                 type="button"
                 disabled={disabled}
                 aria-label={action.label}
-                onClick={
-                  disabled
-                    ? undefined
-                    : action.id === "qr"
-                      ? onOpenQr
-                      : onOpenPlaceholder
-                }
+                onClick={disabled ? undefined : onOpenQr}
                 className={cn(
                   "flex size-14 flex-col items-center justify-center gap-0.5 rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/25",
                   "transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
@@ -273,7 +265,9 @@ export function AppTabBar() {
   const [scanShareCards, setScanShareCards] = useState<readonly number[] | null>(
     null
   )
-  const [scanPlaceholderOpen, setScanPlaceholderOpen] = useState(false)
+  const [scanGiveCards, setScanGiveCards] = useState<readonly number[] | null>(
+    null
+  )
   const nativeItems = useMemo(
     () =>
       tabs.map((tab) => ({
@@ -518,10 +512,6 @@ export function AppTabBar() {
                       setExchangeMenuOpen(false)
                       setScanPickerOpen(true)
                     }}
-                    onOpenPlaceholder={() => {
-                      setExchangeMenuOpen(false)
-                      setScanPlaceholderOpen(true)
-                    }}
                   />
                 </li>
               )
@@ -584,7 +574,7 @@ export function AppTabBar() {
             onOpenChange={setScanPickerOpen}
             variant="scan-share"
             onSubmit={(cardNumbers) => setScanShareCards(cardNumbers)}
-            onScan={() => setScanPlaceholderOpen(true)}
+            onScan={(cardNumbers) => setScanGiveCards(cardNumbers)}
           />
           <ScanShareDialog
             open={scanShareCards !== null}
@@ -593,9 +583,12 @@ export function AppTabBar() {
             }}
             cardNumbers={scanShareCards ?? []}
           />
-          <ScanPlaceholderDialog
-            open={scanPlaceholderOpen}
-            onOpenChange={setScanPlaceholderOpen}
+          <ScanExchangeDialog
+            open={scanGiveCards !== null}
+            onOpenChange={(open) => {
+              if (!open) setScanGiveCards(null)
+            }}
+            cardNumbers={scanGiveCards ?? []}
           />
         </>
       ) : null}

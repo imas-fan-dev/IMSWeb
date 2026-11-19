@@ -12,6 +12,14 @@ const ISO_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Shanghai",
 })
 
+/** 时刻只到分钟：交换记录不需要秒。 */
+const CLOCK_TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Shanghai",
+})
+
 /**
  * `madeOn` 允许只填年份或年月。统一按 `yyyy-mm-dd` 呈现，**没填的部分不补**：
  * `2025` / `2025-03` / `2025-03-02`；格式不对返回 null（由调用方回退创建时间）。
@@ -33,6 +41,17 @@ export function namecardDateLabel(
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.valueOf()) ? null : ISO_DATE.format(date)
+}
+
+/** 交换记录的时间：`YYYY-MM-DD HH:mm`，与名片日期同一时区口径。 */
+export function namecardDateTimeLabel(
+  value: string | null | undefined
+): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.valueOf())
+    ? null
+    : `${ISO_DATE.format(date)} ${CLOCK_TIME.format(date)}`
 }
 
 /** 瓦片上的「制作时间」：优先 `madeOn`，缺失时回退创建时间。 */

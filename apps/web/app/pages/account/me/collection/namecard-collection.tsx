@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  HistoryIcon,
   ImagesIcon,
   LibraryIcon,
   Settings2Icon,
@@ -11,6 +12,7 @@ import { toast } from "sonner"
 
 import type { NamecardCollectionEntry } from "@imsweb/contracts/namecards"
 
+import { ExchangeHistoryDialog } from "~/components/community/exchange/exchange-history-dialog"
 import {
   DEFAULT_NAMECARD_FILTERS,
   NamecardFilterBar,
@@ -225,6 +227,7 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
   const [includeOwn, setIncludeOwn] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   // 搜索框即时响应，查询串慢半拍。
   const [search, setSearch] = useState("")
 
@@ -483,48 +486,61 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
           </p>
         </div>
 
-        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                aria-label="显示设置"
-              />
-            }
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            aria-label="交换记录"
+            onClick={() => setHistoryOpen(true)}
           >
-            <Settings2Icon aria-hidden="true" />
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-56">
-            <PopoverTitle className="mb-2">显示选项</PopoverTitle>
-            <div className="flex flex-col gap-1">
-              <label className="flex min-h-9 items-center gap-2 text-sm">
-                <Checkbox
-                  checked={includeOwn}
-                  onCheckedChange={(next) => {
-                    const checked = next === true
-                    setIncludeOwn(checked)
-                    setPage(1)
-                    writeShowOwn(accountId, checked)
-                  }}
+            <HistoryIcon aria-hidden="true" />
+          </Button>
+
+          <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label="显示设置"
                 />
-                显示我的名片
-              </label>
-              <label className="flex min-h-9 items-center gap-2 text-sm">
-                <Checkbox
-                  checked={includeHidden}
-                  onCheckedChange={(next) => {
-                    setIncludeHidden(next === true)
-                    setPage(1)
-                  }}
-                />
-                显示隐藏名片
-              </label>
-            </div>
-          </PopoverContent>
-        </Popover>
+              }
+            >
+              <Settings2Icon aria-hidden="true" />
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56">
+              <PopoverTitle className="mb-2">显示选项</PopoverTitle>
+              <div className="flex flex-col gap-1">
+                <label className="flex min-h-9 items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={includeOwn}
+                    onCheckedChange={(next) => {
+                      const checked = next === true
+                      setIncludeOwn(checked)
+                      setPage(1)
+                      writeShowOwn(accountId, checked)
+                    }}
+                  />
+                  显示我的名片
+                </label>
+                <label className="flex min-h-9 items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={includeHidden}
+                    onCheckedChange={(next) => {
+                      setIncludeHidden(next === true)
+                      setPage(1)
+                    }}
+                  />
+                  显示隐藏名片
+                </label>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       <div className="mt-6">
@@ -626,6 +642,8 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
         }}
         onReact={react}
       />
+
+      <ExchangeHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   )
 }

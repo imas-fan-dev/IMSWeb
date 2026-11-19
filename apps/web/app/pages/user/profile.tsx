@@ -7,6 +7,7 @@ import {
   MapPinIcon,
   PackageCheckIcon,
   PencilLineIcon,
+  SendIcon,
   ShareIcon,
   SparklesIcon,
   UserRoundXIcon,
@@ -15,7 +16,10 @@ import {
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
-import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
+import {
+  EXCHANGE_GIFT_SENT_MESSAGE,
+  useExchangeSubmit,
+} from "~/components/community/exchange/use-exchange-submit"
 import { CardImage } from "~/components/shared/card-image"
 import { namecardPages } from "~/components/shared/namecard-pages"
 import { NamecardPreview } from "~/components/shared/namecard-preview"
@@ -32,10 +36,12 @@ import {
   getNamecardReactions,
   getProfileCards,
   getPublicProfile,
+  giftCards,
   requestCardExchange,
 } from "~/lib/api"
 import { toast } from "sonner"
 import { PlatformAccountList } from "~/components/profile/platform-account-list"
+import { notifyNamecardDataChanged } from "~/lib/namecards/data-refresh"
 import { cardTimeLabel } from "~/lib/namecards/dates"
 import type { Namecard as NamecardRecord, NamecardPage } from "~/lib/api"
 
@@ -247,6 +253,15 @@ export default function UserProfilePage() {
   const exchange = useExchangeSubmit({
     onSettled: () => setReload((n) => n + 1),
   })
+  // 单向送片：入口只在「登录 + 不是本人主页」时出现，成功后关窗并广播名片册变更。
+  const [giftOpen, setGiftOpen] = useState(false)
+  const gift = useExchangeSubmit({
+    completedMessage: EXCHANGE_GIFT_SENT_MESSAGE,
+    onSettled: () => {
+      notifyNamecardDataChanged()
+      setGiftOpen(false)
+    },
+  })
   const previewReturnRef = useRef<HTMLButtonElement | null>(null)
   const [reactions, setReactions] = useState<
     Record<number, Record<string, number>>
@@ -379,6 +394,18 @@ export default function UserProfilePage() {
                 <SparklesIcon aria-hidden="true" />
                 公开名片 {owned.length}
               </Badge>
+              {/* 单向送片：只有登录的访客在别人的主页上才有这个入口。 */}
+              {profile !== null && !isSelf && exchangeLoggedIn ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGiftOpen(true)}
+                >
+                  <SendIcon className="size-3.5" aria-hidden="true" />
+                  发送名片
+                </Button>
+              ) : null}
               {isSelf ? (
                 <NavigationLink
                   to="/account/me"
@@ -551,6 +578,21 @@ export default function UserProfilePage() {
               clientExchangeId,
               giveCardNumbers: cardNumbers,
             })
+          )
+        }}
+      />
+      {/* 送片选卡窗：与交换窗口同款，只是提交的是单向送礼端点。 */}
+      <ExchangeCardPickerDialog
+        open={giftOpen}
+        onOpenChange={(open) => setGiftOpen(open)}
+        variant="gift"
+        target={profile?.accountId}
+        submitting={gift.submitting}
+        onSubmit={(cardNumbers) => {
+          const targetAccountId = profile?.accountId
+          if (!targetAccountId) return
+          void gift.submit((clientExchangeId) =>
+            giftCards(targetAccountId, { clientExchangeId, cardNumbers })
           )
         }}
       />

@@ -17,6 +17,7 @@
 | 用户维护资料与头像        | [profile](me/profile/)                                                                                                                                                   | 资料表单、头像上传和裁剪                                                               |
 | 用户维护平台展示账号      | [平台账号编辑器](me/platform-accounts-editor.tsx)、[专用平台图标](me/components/platform-account-kind-icon.tsx)                                                          | 只展示已保存项；粘贴主页链接即按模板定位平台，窄屏用底部抽屉查看支持的模板，沿用资料编辑权限 |
 | 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                                     |
+| 用户查看名片册与交换记录  | [名片册](me/collection/)、[交换记录](../../components/community/exchange/exchange-history-dialog.tsx)、[离线队列](../../lib/namecards/scan-exchange-queue.ts)             | 筛选与显示设置、服务端历史与本机待重放扫码交换合并展示；pending 复用交换详情窗          |
 | 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗                       |
 | 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
 | 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                                         |
@@ -53,6 +54,8 @@
 
 - 认证、安全与 App OAuth：[account 单元测试](../../../tests/unit/pages/account/)。
 - 个人工作区与各分区：[account/me 单元测试](../../../tests/unit/pages/account/me/)。
+- 名片册与交换记录：[名片册](../../../tests/unit/pages/account/me/collection/)、
+  [交换记录与离线队列](../../../tests/unit/components/community/exchange/)。
 - 平台账号：[编辑器单元测试](../../../tests/unit/pages/account/me/platform-accounts-editor.test.tsx)，校验目录、逐项请求、取消、失败与限制状态。
 - 浏览器流程：[个人页](../../../tests/e2e/account-personal-pages.spec.ts)、
   [App 帐号](../../../tests/e2e/app-account.spec.ts)、

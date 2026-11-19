@@ -324,3 +324,45 @@ describe("ExchangeCardPickerDialog footer", () => {
     expect(onScan).toHaveBeenCalledWith([1])
   })
 })
+
+describe("ExchangeCardPickerDialog gift mode", () => {
+  it("starts empty, blocks 确定 until a card is picked and leaves closing to the caller", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendCandidates.mockResolvedValue(
+      settings([candidate(1, { selected: true }), candidate(2)])
+    )
+    const { onSubmit, onOpenChange } = renderPicker({
+      variant: "gift",
+      target: "u1",
+    })
+
+    expect(
+      await screen.findByRole("dialog", { name: "发送名片" })
+    ).toBeInTheDocument()
+    // 送片不预勾快速清单：打开窗口就是 0 张。
+    expect(screen.getByText("已选 0/20")).toBeInTheDocument()
+    const confirm = screen.getByRole("button", { name: "确定" })
+    expect(confirm).toBeDisabled()
+
+    await user.click(
+      screen.getByRole("button", { name: "选择制作人名片 2" })
+    )
+    expect(screen.getByText("已选 1/20")).toBeInTheDocument()
+    expect(confirm).toBeEnabled()
+
+    await user.click(confirm)
+
+    expect(onSubmit).toHaveBeenCalledWith([2])
+    // 请求还没落定：窗口由接入方在成功后关闭，这里不能自己关。
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it("disables both footer buttons and shows busy while the gift request is in flight", async () => {
+    apiMocks.sendCandidates.mockResolvedValue(settings([candidate(1)]))
+    renderPicker({ variant: "gift", submitting: true })
+
+    expect(await screen.findByText("已选 0/20")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /发送中/ })).toBeDisabled()
+  })
+})

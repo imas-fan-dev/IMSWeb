@@ -39,6 +39,7 @@
     "@react-router/serve": "7.18.5",
     "@tanstack/react-virtual": "^3.14.8",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-barcode-scanner": "^2.5.3",
     "@tauri-apps/plugin-deep-link": "~2.4.10",
     "@tauri-apps/plugin-fs": "~2.5.1",
     "@tauri-apps/plugin-geolocation": "2.3.2",

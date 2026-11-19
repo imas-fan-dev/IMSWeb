@@ -154,4 +154,19 @@ describe("useExchangeSubmit", () => {
 
     expect(toastMocks.toast.error).toHaveBeenCalledWith("交换失败，请重试")
   })
+
+  it("lets the caller replace the completed copy for a one-way gift", async () => {
+    const { result } = renderHook(() =>
+      useExchangeSubmit({ completedMessage: "名片已送出" })
+    )
+
+    await act(async () => {
+      await result.current.submit(() => Promise.resolve(exchangeResult()))
+    })
+
+    expect(toastMocks.toast.success).toHaveBeenCalledWith("名片已送出")
+    expect(toastMocks.toast.success).not.toHaveBeenCalledWith(
+      "交换完成，名片已放进你的名片册"
+    )
+  })
 })

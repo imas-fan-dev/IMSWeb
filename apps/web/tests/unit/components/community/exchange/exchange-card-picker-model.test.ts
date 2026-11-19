@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   autoSelectPickerCards,
-  canStartScanShare,
+  canConfirmPicker,
   DEFAULT_PICKER_GROUP_KEY,
   groupPickerCards,
   isPickerCandidateAvailable,
@@ -177,11 +177,14 @@ describe("needsEmptyGiveConfirm", () => {
   })
 })
 
-describe("canStartScanShare", () => {
-  it("keeps 确定 always available and 分享 gated on one card", () => {
-    expect(canStartScanShare("confirm", [])).toBe(true)
-    expect(canStartScanShare("confirm", [1])).toBe(true)
-    expect(canStartScanShare("scan-share", [])).toBe(false)
-    expect(canStartScanShare("scan-share", [1])).toBe(true)
+describe("canConfirmPicker", () => {
+  it("keeps 确定 always available for exchange and gates 分享 / 送片 on one card", () => {
+    expect(canConfirmPicker("confirm", [])).toBe(true)
+    expect(canConfirmPicker("confirm", [1])).toBe(true)
+    expect(canConfirmPicker("scan-share", [])).toBe(false)
+    expect(canConfirmPicker("scan-share", [1])).toBe(true)
+    // 送片必须有牌可送：0 张的【确定】不可点。
+    expect(canConfirmPicker("gift", [])).toBe(false)
+    expect(canConfirmPicker("gift", [1])).toBe(true)
   })
 })

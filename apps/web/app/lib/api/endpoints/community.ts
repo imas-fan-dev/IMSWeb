@@ -5,6 +5,7 @@ import {
   exchangeDecisionPath,
   exchangeMyCollectionEntryPath,
   exchangeMyCollectionPath,
+  exchangeMyHistoryPath,
   exchangePath,
   exchangeQuickPath,
   namecardPath,
@@ -17,6 +18,8 @@ import {
   namecardErrorResponseSchema,
   namecardExchangeDecisionSchema,
   namecardExchangeDetailSchema,
+  namecardExchangeHistoryPageSchema,
+  namecardExchangeHistoryQuerySchema,
   namecardListErrorResponseSchema,
   namecardQuickExchangeSchema,
   randomOwnerlessCardErrorSchema,
@@ -305,6 +308,26 @@ export function getNamecardCollectionOwners(
       meta: withPlatformAuth(),
       params: { ...(q ? { q } : {}), limit: query.limit ?? 20 },
       select: normalizeNamecardCollectionOwners,
+    })
+  )
+}
+
+/**
+ * 交换记录：发起与收到都算一条，服务端按创建时间倒序分页。
+ *
+ * 只翻服务端记录；本机待重放的扫码交换由离线队列单独提供，页面自己合并置顶。
+ */
+export function getExchangeHistory(
+  query: { page?: number; size?: number } = {}
+) {
+  const params = namecardExchangeHistoryQuerySchema.parse(query)
+  return platformApiClient.Get(
+    exchangeMyHistoryPath(),
+    parsed(namecardExchangeHistoryPageSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      meta: withPlatformAuth(),
+      params,
     })
   )
 }

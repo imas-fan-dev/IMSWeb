@@ -18,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   getNamecardReactions: vi.fn(),
   getCardShareLink: vi.fn(),
   requestCardExchange: vi.fn(),
+  giftCards: vi.fn(),
   sendProfile: vi.fn(),
   sendCards: vi.fn(),
   sendReactions: vi.fn(),
@@ -28,6 +29,20 @@ const sessionMocks = vi.hoisted(() => ({
   useOptionalPlatformSession: vi.fn(),
 }))
 
+const refreshMocks = vi.hoisted(() => ({ notifyNamecardDataChanged: vi.fn() }))
+
+const toastMocks = vi.hoisted(() => {
+  const toast = Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+  })
+  return { toast }
+})
+
+vi.mock("sonner", () => ({ toast: toastMocks.toast }))
+
+vi.mock("~/lib/namecards/data-refresh", () => refreshMocks)
+
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
@@ -37,6 +52,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getNamecardReactions: apiMocks.getNamecardReactions,
     getCardShareLink: apiMocks.getCardShareLink,
     requestCardExchange: apiMocks.requestCardExchange,
+    giftCards: apiMocks.giftCards,
   }
 })
 
@@ -48,19 +64,29 @@ vi.mock(
       open,
       target,
       targetCard,
+      variant,
+      submitting,
       onSubmit,
       onOpenChange,
     }: {
       open: boolean
       target?: string
       targetCard?: number
+      variant?: string
+      submitting?: boolean
       onSubmit: (cardNumbers: number[]) => void
       onOpenChange: (open: boolean) => void
     }) =>
       open ? (
-        <div role="dialog" aria-label="交换名片" data-testid="exchange-picker">
+        <div
+          role="dialog"
+          aria-label="交换名片"
+          data-testid="exchange-picker"
+          data-variant={variant}
+        >
           <span data-testid="picker-target">{target}</span>
           <span data-testid="picker-target-card">{targetCard}</span>
+          <span data-testid="picker-submitting">{String(submitting)}</span>
           <button
             type="button"
             onClick={() => {
@@ -247,6 +273,17 @@ beforeEach(() => {
     skipped: [],
     targetMissingCount: 0,
   })
+  apiMocks.giftCards.mockResolvedValue({
+    exchangeId: "exchange-gift-1",
+    status: "completed",
+    targetCardNumbers: [],
+    initiatorCardNumbers: [202],
+    skipped: [],
+    targetMissingCount: 0,
+  })
+  toastMocks.toast.success.mockClear()
+  toastMocks.toast.error.mockClear()
+  refreshMocks.notifyNamecardDataChanged.mockClear()
 })
 
 describe("UserProfilePage", () => {
@@ -535,6 +572,8 @@ describe("UserProfilePage", () => {
     expect(share.getAttribute("title")).toBeNull()
     expect(screen.queryByLabelText("已交换过这张名片")).toBeNull()
     expect(screen.queryByRole("button", { name: "交换" })).toBeNull()
+    // 自己的主页不出现单向送片的入口。
+    expect(screen.queryByRole("button", { name: "发送名片" })).toBeNull()
   })
 
   it("opens the single card share panel with the slug from the owner endpoint", async () => {
@@ -650,6 +689,55 @@ describe("UserProfilePage", () => {
     expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
   })
 
+  it("lets a signed-in visitor send cards from someone else's profile", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      ...anonymousSession(),
+      status: "authenticated",
+      session: { account: { id: "acct-9" } },
+    })
+    apiMocks.sendProfile.mockResolvedValue(profile({ accountId: "acct-2" }))
+    apiMocks.sendCards.mockResolvedValue(
+      page({
+        list: [card({ id: 202, cardNumber: 202 })],
+        total: 1,
+        totalPage: 1,
+      })
+    )
+    renderProfile("acct-2")
+
+    await user.click(await screen.findByRole("button", { name: "发送名片" }))
+
+    const picker = screen.getByTestId("exchange-picker")
+    expect(picker).toHaveAttribute("data-variant", "gift")
+    expect(within(picker).getByTestId("picker-target")).toHaveTextContent(
+      "acct-2"
+    )
+    expect(within(picker).getByTestId("picker-submitting")).toHaveTextContent(
+      "false"
+    )
+
+    await user.click(within(picker).getByRole("button", { name: "确定" }))
+
+    const [accountId, body] = apiMocks.giftCards.mock.calls[0] as [
+      string,
+      { clientExchangeId: string; cardNumbers: number[] },
+    ]
+    expect(accountId).toBe("acct-2")
+    expect(body.cardNumbers).toEqual([202])
+    expect(body.clientExchangeId.length).toBeGreaterThanOrEqual(8)
+    expect(body.clientExchangeId.length).toBeLessThanOrEqual(64)
+
+    // 成功：提示送片文案并广播名片册变更（对方的名片册变了）。
+    await waitFor(() =>
+      expect(toastMocks.toast.success).toHaveBeenCalledWith("名片已送出")
+    )
+    expect(refreshMocks.notifyNamecardDataChanged).toHaveBeenCalledTimes(1)
+    await waitFor(() =>
+      expect(screen.queryByTestId("exchange-picker")).toBeNull()
+    )
+  })
+
   it("keeps the detail dialog open when the picker opens from it", async () => {
     const user = userEvent.setup()
     sessionMocks.useOptionalPlatformSession.mockReturnValue({
@@ -725,6 +813,8 @@ describe("UserProfilePage", () => {
     expect(screen.getByText("这位制作人还没有写简介。")).toBeTruthy()
     expect(screen.queryByRole("link", { name: "编辑资料" })).toBeNull()
     expect(screen.queryByText("平台账号")).toBeNull()
+    // 未登录没有送片入口。
+    expect(screen.queryByRole("button", { name: "发送名片" })).toBeNull()
 
     const exchange = await screen.findAllByRole("button", {
       name: "交换名片",

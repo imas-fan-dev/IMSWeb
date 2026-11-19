@@ -3,8 +3,8 @@ import type { NamecardCardLayout, NamecardQuickSettings } from "~/lib/api"
 /** 候选：自己全部 `published` 名片的选卡投影；`selected` 表示它在快速交换清单里。 */
 export type PickerCandidate = NamecardQuickSettings["cards"][number]
 
-/** 窗口右侧控件的形态：默认【确定】，App 出示二维码场合是【扫码】【分享】。 */
-export type ExchangeCardPickerVariant = "confirm" | "scan-share"
+/** 窗口右侧控件的形态：默认【确定】，App 出示二维码场合是【扫码】【分享】，主页送片是【取消】【确定】。 */
+export type ExchangeCardPickerVariant = "confirm" | "scan-share" | "gift"
 
 /** 默认分组的稳定 key（自定义分组用布局里的组 id）。 */
 export const DEFAULT_PICKER_GROUP_KEY = "default"
@@ -134,8 +134,8 @@ export function needsEmptyGiveConfirm(
   return selected.length === 0 && targetMissingCount > 0
 }
 
-/** 【确定】恒可用（0 张合法）；【分享】要求至少 1 张（出示方必须有牌可出）。 */
-export function canStartScanShare(
+/** 【确定】的可点条件：默认交换 0 张也合法；送片与【分享】都要求至少 1 张。 */
+export function canConfirmPicker(
   variant: ExchangeCardPickerVariant,
   selected: readonly number[]
 ): boolean {

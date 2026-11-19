@@ -43,10 +43,16 @@ export interface ExchangeCardPickerState {
 export function useExchangeCardPicker({
   target,
   targetCard,
+  autoSelect = true,
 }: {
   target?: string | undefined
   /** 目标卡号：名片墙 / 主页拿不到账号 ID 时用它（与 `target` 只传一个）。 */
   targetCard?: number | undefined
+  /**
+   * 是否把快速清单预勾上。默认交换沿用快速清单；送片（gift）要用户自己挑，
+   * 从零开始才不会「点开就带着一串要送出去的名片」。
+   */
+  autoSelect?: boolean | undefined
 }): ExchangeCardPickerState {
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<ExchangeCardPickerStatus>("loading")
@@ -67,7 +73,9 @@ export function useExchangeCardPicker({
         setCandidates(settings.cards)
         setLimit(settings.limit)
         setTargetMissingCount(settings.targetMissingCount ?? 0)
-        setSelected(autoSelectPickerCards(settings.cards, settings.limit))
+        setSelected(
+          autoSelect ? autoSelectPickerCards(settings.cards, settings.limit) : []
+        )
         setStatus("ready")
       })
       .catch(() => {
@@ -86,7 +94,7 @@ export function useExchangeCardPicker({
     return () => {
       active = false
     }
-  }, [target, targetCard, attempt])
+  }, [target, targetCard, autoSelect, attempt])
 
   const groups = useMemo(
     () => groupPickerCards(candidates, layout),

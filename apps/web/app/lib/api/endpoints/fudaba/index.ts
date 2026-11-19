@@ -6,6 +6,7 @@ import {
   exchangeMyQuickPath,
   exchangePath,
   exchangeQuickCommitPath,
+  exchangeScanCommitPath,
   exchangeScanSessionPath,
   mapsPath,
 } from "@imsweb/contracts/paths"
@@ -16,6 +17,7 @@ import {
   namecardCardLayoutSchema,
   namecardCardShareLinkSchema,
   namecardExchangeCommitSchema,
+  namecardExchangeGiftSchema,
   namecardExchangeResultSchema,
   namecardFeedbackMutationSchema,
   namecardQuickSettingsSchema,
@@ -773,6 +775,34 @@ export function commitQuickExchange(
   return postExchangeCommit(exchangeQuickCommitPath(handle), input)
 }
 
+/** 单向送片的请求体：字段名是 `cardNumbers`，与其它交换的 `giveCardNumbers` 不同。 */
+export interface GiftCardsInput {
+  clientExchangeId: string
+  cardNumbers: readonly number[]
+}
+
+/**
+ * 他人主页的【发送名片】：把我选中的名片直接放进对方名片册，对方无需确认。
+ *
+ * 路由 `/exchange/users/:accountId/gift` 只有 API 侧的契约（`namecardExchangeGiftSchema`），
+ * 所以路径用 `exchangePath` 拼；响应与其它交换共用 `namecardExchangeResultSchema`。
+ */
+export function giftCards(accountId: string, input: GiftCardsInput) {
+  const submission = namecardExchangeGiftSchema.parse({
+    clientExchangeId: input.clientExchangeId,
+    cardNumbers: [...input.cardNumbers],
+  })
+  return platformApiClient.Post(
+    exchangePath(`users/${encodeURIComponent(accountId)}/gift`),
+    submission,
+    parsed(namecardExchangeResultSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
 /**
  * 出示方开一个扫码会话：拿到的 `token` 就是二维码内容，对方扫码后由对方提交。
  *
@@ -791,6 +821,16 @@ export function createScanSession(cardNumbers: readonly number[]) {
       meta: withPlatformCsrf(),
     })
   )
+}
+
+/**
+ * 扫码方提交：把扫到的令牌换成一次交换。
+ *
+ * 出示方在会话里已经登记了要交出的名片，这里只补「我给出哪几张」；
+ * `clientExchangeId` 由调用方保管，重放沿用同一锚点时后端拿回同一条记录。
+ */
+export function commitScanSession(token: string, input: ExchangeCommitInput) {
+  return postExchangeCommit(exchangeScanCommitPath(token), input)
 }
 
 /**

@@ -58,6 +58,8 @@ vi.mock("next-themes", () => ({
 
 vi.mock("~/lib/native-glass", () => ({
   isAndroidRuntimeIdentity: (userAgent: string) => /Android/i.test(userAgent),
+  isIosRuntimeIdentity: (identity: { userAgent: string }) =>
+    /\b(iPad|iPhone|iPod)\b/i.test(identity.userAgent),
   configureNativeGlass: nativeMocks.configure,
   destroyNativeGlass: nativeMocks.destroy,
   nativeTabRoute: (event: Event) =>
@@ -615,5 +617,15 @@ describe("AppTabBar exchange action", () => {
     ).toBeVisible()
     expect(screen.getByRole("button", { name: "扫码" })).toBeVisible()
     expect(screen.getByRole("button", { name: "分享" })).toBeDisabled()
+  })
+
+  it("points desktop at the phone app when 扫码 is pressed", async () => {
+    renderTabBar()
+
+    fireEvent.click(screen.getByRole("button", { name: "打开名片交换菜单" }))
+    fireEvent.click(screen.getByRole("button", { name: "二维码" }))
+    fireEvent.click(await screen.findByRole("button", { name: "扫码" }))
+
+    expect(await screen.findByText("请在手机 App 内扫码")).toBeVisible()
   })
 })

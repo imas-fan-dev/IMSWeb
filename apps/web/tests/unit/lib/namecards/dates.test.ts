@@ -4,6 +4,7 @@ import {
   cardTimeLabel,
   madeOnLabel,
   namecardDateLabel,
+  namecardDateTimeLabel,
 } from "~/lib/namecards/dates"
 
 describe("madeOnLabel", () => {
@@ -40,5 +41,19 @@ describe("cardTimeLabel", () => {
     expect(
       cardTimeLabel({ madeOn: null, createdAt: "2025-03-02T01:00:00.000Z" })
     ).toBe("2025-03-02")
+  })
+})
+
+describe("namecardDateTimeLabel", () => {
+  it("renders the Shanghai day and time to the minute", () => {
+    // 2025-03-02T01:00Z 在上海是 3 月 2 日 09:00。
+    expect(namecardDateTimeLabel("2025-03-02T01:00:00.000Z")).toBe(
+      "2025-03-02 09:00"
+    )
+  })
+
+  it("returns null instead of an invalid date", () => {
+    expect(namecardDateTimeLabel("not-a-date")).toBeNull()
+    expect(namecardDateTimeLabel(null)).toBeNull()
   })
 })
