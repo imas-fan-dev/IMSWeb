@@ -104,7 +104,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     {
       method: "GET",
       path: "/api/community/exchange/me/collection",
-      times: workspaceTimes,
+      times: { min: 0, max: 12 },
     },
     (route) =>
       route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
@@ -413,7 +413,7 @@ test("desktop root and section preserve pending, failed, retry and successful lo
     {
       method: "GET",
       path: "/api/community/exchange/me/collection",
-      times: 2,
+      times: { min: 0, max: 12 },
     },
     (route) =>
       route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })

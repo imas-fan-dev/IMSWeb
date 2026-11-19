@@ -378,7 +378,9 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
   if (webMode) {
     expect(stats.readUrls).toBeGreaterThan(0)
     expect(stats.signedReads).toBeGreaterThan(0)
-    expect(stats.byteReads).toBe(0)
+    // 列表缩略图走 `?w=` 变体：这类请求必须由服务端现场生成，不能再重定向，
+    // 所以固定读 0 字节的口径只适用于原图（上面的 readUrls/signedReads）。
+    expect(stats.byteReads).toBeGreaterThan(0)
     expect(stats.refreshCalls).toBe(0)
   } else {
     expect(stats.byteReads).toBeGreaterThan(0)
