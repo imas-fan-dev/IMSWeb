@@ -210,7 +210,6 @@ test.describe("app navigation", () => {
     await expect(nav(page).getByRole("link")).toHaveText([
       "首页",
       "社区",
-      "交换地图",
       "资料",
       "我的",
     ])

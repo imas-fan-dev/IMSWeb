@@ -95,16 +95,14 @@ const tabs = APP_TABS.map((tab) => ({
   icon: tabIcons[tab.id],
 }))
 
-const EXCHANGE_ACTION_LABEL = "名片交换"
-
 /**
  * 弧形子菜单的几何：以中央按钮顶部为原点，左右各外扩再向上抬，
  * 中间那颗最高，形成一条拱形而不是一条直线。
  */
 const EXCHANGE_SUB_ACTIONS = [
-  { id: "qr", label: "二维码", icon: QrCodeIcon, x: -76, y: -8 },
-  { id: "nfc", label: "碰一碰", icon: NfcIcon, x: 0, y: -56 },
-  { id: "group", label: "多人交换", icon: UsersRoundIcon, x: 76, y: -8 },
+  { id: "qr", label: "二维码", icon: QrCodeIcon, x: -66, y: -42 },
+  { id: "nfc", label: "碰一碰", icon: NfcIcon, x: 0, y: -90 },
+  { id: "group", label: "多人交换", icon: UsersRoundIcon, x: 66, y: -42 },
 ] as const satisfies readonly {
   id: "qr" | "nfc" | "group"
   label: string
@@ -136,7 +134,7 @@ function ExchangeActionButton({
         inert={!open}
         className="pointer-events-none absolute bottom-18 left-1/2 size-0"
       >
-        {EXCHANGE_SUB_ACTIONS.map((action) => {
+        {EXCHANGE_SUB_ACTIONS.map((action, index) => {
           const disabled = EXCHANGE_SUB_ACTION_DISABLED[action.id]
           const Icon = action.icon
           return (
@@ -152,18 +150,38 @@ function ExchangeActionButton({
                 disabled={disabled}
                 aria-label={action.label}
                 onClick={disabled ? undefined : onOpenQr}
+                style={{
+                  transitionDelay: open
+                    ? `${index * 45}ms`
+                    : `${(EXCHANGE_SUB_ACTIONS.length - 1 - index) * 35}ms`,
+                }}
                 className={cn(
-                  "flex size-14 flex-col items-center justify-center gap-0.5 rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/25",
-                  "transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+                  "group flex flex-col items-center gap-1.5 outline-none",
+                  "transition-[scale,translate,opacity] duration-420 ease-interactive motion-reduce:transition-none",
                   open
-                    ? "pointer-events-auto scale-100 opacity-100"
-                    : "pointer-events-none scale-50 opacity-0",
-                  disabled &&
-                    "disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:ring-foreground/10"
+                    ? "pointer-events-auto translate-y-0 scale-100"
+                    : "pointer-events-none translate-y-3 scale-50",
+                  open ? (disabled ? "opacity-60" : "opacity-100") : "opacity-0"
                 )}
               >
-                <Icon aria-hidden="true" className="size-5" />
-                <span className="text-[0.5625rem] leading-none">
+                <span
+                  className={cn(
+                    "grid size-12 place-items-center rounded-full shadow-[0_10px_24px_-14px_rgb(0_0_0/0.55)] ring-1 transition-colors",
+                    disabled
+                      ? "bg-muted text-muted-foreground ring-foreground/10"
+                      : "bg-card text-primary ring-primary/15"
+                  )}
+                >
+                  <Icon aria-hidden="true" className="size-5" />
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[0.625rem] leading-none font-medium whitespace-nowrap shadow-sm ring-1 ring-foreground/5",
+                    disabled
+                      ? "bg-muted/80 text-muted-foreground"
+                      : "bg-card/90 text-foreground"
+                  )}
+                >
                   {action.label}
                 </span>
               </button>
@@ -177,32 +195,22 @@ function ExchangeActionButton({
         aria-controls="exchange-action-menu"
         aria-label={open ? "收起名片交换菜单" : "打开名片交换菜单"}
         onClick={onToggle}
-        className="absolute bottom-0 left-1/2 z-10 grid size-18 -translate-x-1/2 place-items-center rounded-full bg-primary p-1 shadow-[0_12px_30px_-10px_rgb(0_0_0/0.55)] ring-4 ring-background/70 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
+        className="absolute bottom-0 left-1/2 z-10 grid size-16 -translate-x-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
       >
-        <span className="relative grid size-full place-items-center rounded-full bg-white">
-          <HandshakeIcon
-            aria-hidden="true"
-            className={cn(
-              "absolute size-5 text-primary transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
-              open ? "rotate-90 scale-75 opacity-0" : "scale-100 opacity-100"
-            )}
-          />
-          <XIcon
-            aria-hidden="true"
-            className={cn(
-              "absolute size-6 text-primary transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
-              open ? "scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0"
-            )}
-          />
-          <span
-            className={cn(
-              "absolute bottom-1.5 text-[0.5rem] leading-none font-medium text-primary transition-opacity duration-200 motion-reduce:transition-none",
-              open ? "opacity-0" : "opacity-100"
-            )}
-          >
-            {EXCHANGE_ACTION_LABEL}
-          </span>
-        </span>
+        <HandshakeIcon
+          aria-hidden="true"
+          className={cn(
+            "absolute size-6 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            open ? "scale-75 -rotate-45 opacity-0" : "scale-100 opacity-100"
+          )}
+        />
+        <XIcon
+          aria-hidden="true"
+          className={cn(
+            "absolute size-6 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            open ? "scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0"
+          )}
+        />
       </button>
     </>
   )
@@ -559,12 +567,16 @@ export function AppTabBar() {
         </ul>
       </div>
       </nav>
-      {IS_APP_TARGET && exchangeMenuOpen ? (
+      {IS_APP_TARGET ? (
         <div
           data-slot="exchange-scrim"
+          data-open={exchangeMenuOpen ? "true" : undefined}
           aria-hidden="true"
           onClick={() => setExchangeMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-background/50 backdrop-blur-sm animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+          className={cn(
+            "fixed inset-0 z-40 bg-background/50 backdrop-blur-sm transition-opacity duration-300 ease-out motion-reduce:transition-none",
+            exchangeMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          )}
         />
       ) : null}
       {IS_APP_TARGET ? (

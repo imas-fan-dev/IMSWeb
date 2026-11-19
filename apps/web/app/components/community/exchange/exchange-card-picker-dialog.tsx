@@ -105,6 +105,7 @@ export function ExchangeCardPickerDialog({
 }: ExchangeCardPickerDialogProps) {
   const desktop = useDesktopAccountWorkspace()
   const copy = PICKER_COPY[variant]
+  const exitLabel = variant === "gift" ? "关闭" : PICKER_EXIT_LABEL
 
   // 送片不在这里关窗：请求落定前窗口要显示 busy，成功后由接入方关（失败还能改选）。
   const keepsOpenOnSubmit = variant === "gift"
@@ -157,12 +158,12 @@ export function ExchangeCardPickerDialog({
               variant="ghost"
               size="icon-sm"
               className="absolute top-2 right-2 max-sm:size-11"
-              title={PICKER_EXIT_LABEL}
+              title={exitLabel}
             />
           }
         >
           <XIcon />
-          <span className="sr-only">{PICKER_EXIT_LABEL}</span>
+          <span className="sr-only">{exitLabel}</span>
         </DialogClose>
         {panel}
       </DialogContent>
@@ -184,12 +185,12 @@ export function ExchangeCardPickerDialog({
               variant="ghost"
               size="icon-sm"
               className="absolute top-3 right-3"
-              title={PICKER_EXIT_LABEL}
+              title={exitLabel}
             />
           }
         >
           <XIcon />
-          <span className="sr-only">{PICKER_EXIT_LABEL}</span>
+          <span className="sr-only">{exitLabel}</span>
         </SheetClose>
         {panel}
       </SheetContent>

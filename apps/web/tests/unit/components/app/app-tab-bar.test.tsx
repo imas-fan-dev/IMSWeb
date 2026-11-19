@@ -589,9 +589,9 @@ describe("AppTabBar exchange action", () => {
     expect(
       screen.getByRole("button", { name: "打开名片交换菜单" })
     ).toHaveAttribute("aria-expanded", "false")
-    expect(
-      container.querySelector('[data-slot="exchange-scrim"]')
-    ).toBeNull()
+    // 遮罩常驻（退场动画要它），收起态必须不可见且不可点。
+    const scrim = container.querySelector('[data-slot="exchange-scrim"]')
+    expect(scrim).toHaveClass("opacity-0", "pointer-events-none")
   })
 
   it("collapses when the close icon is pressed", () => {
