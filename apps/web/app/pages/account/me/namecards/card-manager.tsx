@@ -11,11 +11,13 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react"
+import { flushSync } from "react-dom"
 import { toast } from "sonner"
 
 import {
@@ -37,7 +39,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import type { FudabaOwnerCard, NamecardCardLayout } from "~/lib/api"
-import { APP_STICKY_HEADER_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 import { cn } from "~/lib/utils"
 import {
@@ -97,6 +99,34 @@ const LONG_PRESS_HINT_STORAGE_KEY = "imsweb:namecard-long-press-hint:v1"
 let longPressHintShownInMemory = false
 
 /**
+ * 进入/退出编辑时工具栏高度会变（多出保存/退出、批量区），仅仅保留 scrollTop 会让
+ * 视野里换一批卡。这里记录「滚动区顶部第一张可见名片 + 它的相对偏移」，切换后按同一偏移还原。
+ */
+let editAnchorCardId: string | null = null
+let editAnchorOffset = 0
+
+/** 通过函数改滚动位置：直接把 `scrollTop` 写到 props 派生的元素上会被 hooks 规则拦下。 */
+function scrollElementBy(element: HTMLElement, delta: number) {
+  element.scrollTop += delta
+}
+
+function rememberEditAnchor(scroller: HTMLElement | null) {
+  if (!scroller) return
+  const scrollerTop = scroller.getBoundingClientRect().top
+  const firstVisible = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-card-id]")
+  ).find((tile) => tile.getBoundingClientRect().bottom > scrollerTop)
+  if (!firstVisible) return
+  editAnchorCardId = firstVisible.dataset.cardId ?? null
+  editAnchorOffset = firstVisible.getBoundingClientRect().top - scrollerTop
+}
+
+/**
+ * 编辑模式切换时要在「文档滚动」与「清单容器滚动」之间换算位置。
+ * 记录在模块级：同一时刻只有一个名片管理器实例，且写 ref 会触发
+ * `react-hooks/immutability`（把「上一状态」塞进 ref 被判为修改 hook 参数）。
+ */
+/**
  * 进入编辑模式的第一次长按提示一次「长按拖动可调整顺序」（设计 §11：两个长按手势不叠加，
  * 进编辑后要让用户知道下一次长按是拖动）。
  *
@@ -148,6 +178,7 @@ export function CardManager({
   onCreate,
   onLayoutSaved,
   onDirtyChange,
+  scrollContainerRef,
 }: {
   cards: FudabaOwnerCard[]
   /** 服务端归一后的布局；读失败时为 `null`，退化成「只有默认分组」。 */
@@ -170,6 +201,8 @@ export function CardManager({
   ) => void
   /** 草稿有没有未保存改动；上层用它决定「刷新/重载前先确认」。 */
   onDirtyChange?: (dirty: boolean) => void
+  /** 拖拽边缘滚动作用的页面级滚动容器（App 目标提供）。 */
+  scrollContainerRef?: { readonly current: HTMLElement | null }
 }) {
   const [mode, setMode] = useState<CardManagerViewMode>("grouped")
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -215,12 +248,34 @@ export function CardManager({
     toggleSelected,
   } = draft
 
+  // 编辑模式切换后，按锚点把「同一张名片」放回滚动区里的同一相对位置。
+  useLayoutEffect(() => {
+    const id = editAnchorCardId
+    if (!id) return
+    editAnchorCardId = null
+    const scroller =
+      scrollContainerRef?.current ??
+      document.querySelector<HTMLElement>("[data-namecards-scroller]")
+    if (!scroller) return
+    const tile = document.querySelector<HTMLElement>(`[data-card-id="${id}"]`)
+    if (!tile) return
+    const delta =
+      tile.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top -
+      editAnchorOffset
+    if (Math.abs(delta) > 1) scrollElementBy(scroller, delta)
+  }, [editing, scrollContainerRef])
+
   /**
    * 退出 / 重置编辑会话：折叠态收窄到**服务端已保存的分组**。新建分组用的 `local:N`
    * 键每会话都从 1 重号，上一会话留下的折叠态不清掉，这一会话新建的组会一出生就折叠着。
    */
   const endEditingSession = useCallback(
     (nextLayout: NamecardCardLayout | null) => {
+      rememberEditAnchor(
+        scrollContainerRef?.current ??
+          document.querySelector<HTMLElement>("[data-namecards-scroller]")
+      )
       if (nextLayout) {
         pruneCollapsedKeys(nextLayout.groups.map((group) => group.id))
       }
@@ -228,7 +283,7 @@ export function CardManager({
       setPendingGroupKey(null)
       resetDraft(nextLayout)
     },
-    [pruneCollapsedKeys, resetDraft]
+    [pruneCollapsedKeys, resetDraft, scrollContainerRef]
   )
 
   const save = useCardManagerSave({
@@ -299,6 +354,10 @@ export function CardManager({
     layout === null ? "读不到名片布局，刷新页面后再试。" : null
   const startEditing = useCallback((): boolean => {
     if (readOnly || layout === null) return false
+    rememberEditAnchor(
+      scrollContainerRef?.current ??
+        document.querySelector<HTMLElement>("[data-namecards-scroller]")
+    )
     // 每次进编辑模式都从「没有待命名分组、批量区折叠」开始：退出/切换模式时会丢掉这个区域，
     // 状态也就跟着会话一起重置，不必再用 effect 去追状态。
     setPendingGroupKey(null)
@@ -307,12 +366,15 @@ export function CardManager({
     pruneCollapsedKeys(layout.groups.map((group) => group.id))
     // 经典模式没有分组界面（建组、拖拽都在分组视图里），所以点「编辑模式」先自动切回分组：
     // 一次交互完成。切换只是视图状态，不碰草稿，也就不会把会话标脏。
-    applyLayout(() => {
-      setMode((current) => (current === "classic" ? "grouped" : current))
-      beginEditing()
+    // 同一次提交里完成 DOM 更新与滚动补偿（`flushSync`）：分两次提交时中间那帧更容易被画出来。
+    flushSync(() => {
+      applyLayout(() => {
+        setMode((current) => (current === "classic" ? "grouped" : current))
+        beginEditing()
+      })
     })
     return true
-  }, [beginEditing, layout, pruneCollapsedKeys, readOnly])
+  }, [beginEditing, layout, pruneCollapsedKeys, readOnly, scrollContainerRef])
 
   /**
    * 移动端长按瓦片进编辑（§7.1），并**默认勾选触发这一次长按的那张瓦片**（用户 2026-11-17
@@ -341,6 +403,7 @@ export function CardManager({
   const canAddGroup = canCreateCardGroup(draft.layoutDraft?.groups ?? [])
 
   const drag = useCardManagerDrag({
+    scrollerRef: scrollContainerRef,
     cards,
     groups: draftGroups ?? [],
     // 指针追踪只在「编辑模式的分组视图」里挂着（拖着卡片才需要落点几何）。
@@ -646,6 +709,11 @@ export function CardManager({
     )
 
   /** 编辑模式下才需要 dnd 上下文（落点、Overlay、读屏播报都在里面）。 */
+  /**
+   * 滚动容器由页面提供（`scrollContainerRef`）：iOS/Android 在触摸手势里会**限流
+   * document 的滚动**（实测 246 帧只前进 69px），内层 `overflow-y: auto` 容器不受限。
+   * 容器必须包住**标题行 + 控件 + 清单**，否则标题会被挤出滚动区、看起来像整块吸顶。
+   */
   const dndList = editing ? (
     <DndContext {...drag.dnd}>
       {cardList}
@@ -720,8 +788,8 @@ export function CardManager({
         <div
           data-testid="card-manager-controls"
           className={cn(
-            "sticky z-30 mt-3 bg-background/95 py-2 backdrop-blur",
-            IS_APP_TARGET ? APP_STICKY_HEADER_OFFSET : "top-16"
+            "sticky z-30 mt-3 bg-background py-2",
+            IS_APP_TARGET ? "top-0" : "top-16"
           )}
         >
           <div
@@ -778,7 +846,12 @@ export function CardManager({
           data-testid="card-manager-controls"
           className="mt-3 flex justify-end"
         >
-          <Button type="button" size="sm" disabled={readOnly} onClick={onCreate}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={readOnly}
+            onClick={onCreate}
+          >
             <PlusIcon data-icon="inline-start" aria-hidden="true" />
             新建名片
           </Button>

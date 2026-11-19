@@ -78,9 +78,14 @@ const DROP_TARGET_HYSTERESIS_PX = 12
  * 它们都要求 droppable 增删之后 rects 重新量一遍（多选拖动一开始整批移出列表就是一次增删），
  * 否则缓存 rects 与真实 DOM 差一格、`over` 指到错位的容器上（2026-11-17 实测）。
  */
-/** 拖拽时指针进入视口顶/底多少像素内开始滚动，以及每帧最大位移。 */
-const EDGE_SCROLL_ZONE_PX = 72
-const EDGE_SCROLL_MAX_PX = 14
+/**
+ * 拖拽的边缘滚动：进入顶/底 96px 就开始，带着 6px/帧的下限（否则要贴到极限边缘才有感知），
+ * 越靠边越快，最贴边 28px/帧。速度按时间换算，帧率高低不影响手感。
+ */
+const EDGE_SCROLL_ZONE_PX = 96
+const EDGE_SCROLL_MIN_PX = 10
+const EDGE_SCROLL_MAX_PX = 32
+const EDGE_SCROLL_FRAME_MS = 1000 / 60
 
 const MEASURING: MeasuringConfiguration = {
   droppable: { strategy: MeasuringStrategy.Always },
@@ -122,15 +127,15 @@ function readDropPointerGroups(): CardDropPointerGroup[] {
     groups.push({
       key,
       rect: dropRectOf(area),
-      tiles: [
-        ...area.querySelectorAll<HTMLElement>(CARD_TILE_SELECTOR),
-      ].map((tile) => ({
-        cardId: tile.dataset.cardId ?? "",
-        rect: layoutRectFromRenderedRect(
-          dropRectOf(tile),
-          window.getComputedStyle(tile).transform
-        ),
-      })),
+      tiles: [...area.querySelectorAll<HTMLElement>(CARD_TILE_SELECTOR)].map(
+        (tile) => ({
+          cardId: tile.dataset.cardId ?? "",
+          rect: layoutRectFromRenderedRect(
+            dropRectOf(tile),
+            window.getComputedStyle(tile).transform
+          ),
+        })
+      ),
     })
   }
   return groups
@@ -255,6 +260,7 @@ export function useCardManagerDrag({
   selectedCardIds,
   onMoveCards,
   onReorderCardGroups,
+  scrollerRef,
 }: {
   cards: readonly FudabaOwnerCard[]
   /** 编辑模式渲染用的草稿分组结构（含默认分组）。 */
@@ -268,11 +274,15 @@ export function useCardManagerDrag({
   selectedCardIds: ReadonlySet<string>
   onMoveCards: (cardNumbers: readonly number[], target: CardMoveTarget) => void
   onReorderCardGroups: (fromKey: string, toKey: string) => void
+  /**
+   * 边缘滚动的目标容器。`document` 在 iOS/Android 的触摸手势里会被系统限流
+   * （实测 246 帧只前进 69px），内层 `overflow-y: auto` 容器不受限（平台探针 1380/1780px）。
+   */
+  scrollerRef?: { readonly current: HTMLElement | null }
 }) {
   const [session, setSession] = useState<DragSession | null>(null)
-  const [cardDropPreview, setCardDropPreview] = useState<CardDropPreview | null>(
-    null
-  )
+  const [cardDropPreview, setCardDropPreview] =
+    useState<CardDropPreview | null>(null)
 
   const sessionRef = useRef<DragSession | null>(null)
   /** `cardDropPreview` 的同步快照：拖拽事件里要立刻读到「现在展开没有」，不能等下一帧。 */
@@ -311,49 +321,59 @@ export function useCardManagerDrag({
     }
   }, [])
 
-  // 自引用不能直接写进 useCallback 的函数体（lint 会判「先用后声明」），用 ref 转一手。
-  const stepAutoScrollRef = useRef<() => void>(() => {})
-  const stepAutoScroll = useCallback(() => {
-    autoScrollFrameRef.current = null
-    const speed = autoScrollSpeedRef.current
-    if (!speed) return
-    window.scrollBy(0, speed)
-    autoScrollFrameRef.current = window.requestAnimationFrame(() =>
-      stepAutoScrollRef.current()
-    )
-  }, [])
-
-  useEffect(() => {
-    stepAutoScrollRef.current = stepAutoScroll
-  }, [stepAutoScroll])
+  const startAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) return
+    // 帧间隔留在闭包里（不写 ref，避免 lint 的「渲染期可变值」规则）。
+    let last = performance.now()
+    const tick = (now: number) => {
+      autoScrollFrameRef.current = null
+      const speed = autoScrollSpeedRef.current
+      if (!speed) return
+      const tickRoot = document.documentElement
+      tickRoot.dataset.autoScrollTicks = String(
+        Number(tickRoot.dataset.autoScrollTicks ?? "0") + 1
+      )
+      // 帧间隔按 16.67ms 折算；切后台/掉帧时夹住，避免一下子跳很远。
+      const frames = Math.min(now - last, 50) / EDGE_SCROLL_FRAME_MS
+      last = now
+      // Safari 在触摸手势里会明显限制 `window.scrollBy`，直接改滚动元素的 `scrollTop`
+      // 在各平台上更可靠（Android 上两者等价）。
+      const scroller =
+        scrollerRef?.current ??
+        ((document.scrollingElement ?? document.documentElement) as HTMLElement)
+      scroller.scrollTop += speed * frames
+      autoScrollFrameRef.current = window.requestAnimationFrame(tick)
+    }
+    autoScrollFrameRef.current = window.requestAnimationFrame(tick)
+  }, [scrollerRef])
 
   const updateAutoScroll = useCallback(
     (clientY: number) => {
       const height = window.innerHeight
+      const ratioAt = (distance: number) =>
+        Math.min(1, Math.max(0, distance / EDGE_SCROLL_ZONE_PX))
+      const speedFor = (ratio: number) =>
+        Math.round(
+          EDGE_SCROLL_MIN_PX + ratio * (EDGE_SCROLL_MAX_PX - EDGE_SCROLL_MIN_PX)
+        )
       let speed = 0
       if (clientY < EDGE_SCROLL_ZONE_PX) {
-        speed = -Math.ceil(
-          ((EDGE_SCROLL_ZONE_PX - clientY) / EDGE_SCROLL_ZONE_PX) *
-            EDGE_SCROLL_MAX_PX
-        )
+        speed = -speedFor(ratioAt(EDGE_SCROLL_ZONE_PX - clientY))
       } else if (clientY > height - EDGE_SCROLL_ZONE_PX) {
-        speed = Math.ceil(
-          ((clientY - (height - EDGE_SCROLL_ZONE_PX)) /
-            EDGE_SCROLL_ZONE_PX) *
-            EDGE_SCROLL_MAX_PX
-        )
+        speed = speedFor(ratioAt(clientY - (height - EDGE_SCROLL_ZONE_PX)))
       }
       autoScrollSpeedRef.current = speed
+      document.documentElement.dataset.autoScrollSpeed = String(speed)
+      document.documentElement.dataset.autoScrollPointerY = String(
+        Math.round(clientY)
+      )
       if (!speed) {
         stopAutoScroll()
         return
       }
-      if (autoScrollFrameRef.current === null) {
-        autoScrollFrameRef.current =
-          window.requestAnimationFrame(stepAutoScroll)
-      }
+      startAutoScroll()
     },
-    [stepAutoScroll, stopAutoScroll]
+    [startAutoScroll, stopAutoScroll]
   )
   /** 这一趟是不是键盘拖拽：键盘没有「指针停顿」，ghost 直接按展开态渲染。 */
   const keyboardDragRef = useRef(false)
@@ -660,10 +680,14 @@ export function useCardManagerDrag({
     setSession(null)
     resetDropPreview()
     stopAutoScroll()
+    document.documentElement.style.overflowAnchor = ""
   }, [resetDropPreview, stopAutoScroll])
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      // 拖拽会改动列表布局：开着 scroll anchoring 的浏览器会为了「内容不跳」把我们的
+      // 边缘滚动又拉回去（实测 speed=44 但两秒只位移一百多像素）。
+      document.documentElement.style.overflowAnchor = "none"
       messagesRef.current = { start: "", over: "", end: "", cancel: "" }
       const activeId = String(event.active.id)
       resetDropPreview()
@@ -684,7 +708,9 @@ export function useCardManagerDrag({
       sessionRef.current = next
       setSession(next)
       messagesRef.current.start =
-        cardIds.length > 1 ? `已抓起 ${cardIds.length} 张名片` : "已抓起 1 张名片"
+        cardIds.length > 1
+          ? `已抓起 ${cardIds.length} 张名片`
+          : "已抓起 1 张名片"
     },
     // 这批依赖是**行为**依赖，不是性能摆件：`dnd` 把它们原样转给 `DndContext`，
     // 少一个就会让落位闭包在旧值上（sensor 选项将来提成常量后尤其隐蔽）。
@@ -720,7 +746,10 @@ export function useCardManagerDrag({
         return
       }
       const settled = settledTargetRef.current
-      if (settled?.groupKey === target.groupKey && settled.index === target.index) {
+      if (
+        settled?.groupKey === target.groupKey &&
+        settled.index === target.index
+      ) {
         return
       }
       settledTargetRef.current = target

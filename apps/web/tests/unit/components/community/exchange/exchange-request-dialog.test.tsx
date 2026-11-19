@@ -37,7 +37,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
 vi.mock("sonner", () => ({ toast: { error: toastMocks.toast } }))
 
 const sessionMock = vi.hoisted(() => ({
-  current: null as null | { accountId: string },
+  current: null as null | { account: { id: string } },
 }))
 
 vi.mock("~/components/platform/platform-session-provider", async (importOriginal) => {
@@ -111,7 +111,7 @@ beforeEach(() => {
 
 describe("ExchangeRequestDialog content", () => {
   it("shows an outgoing request as a read-only detail for the initiator", async () => {
-    sessionMock.current = { accountId: "u1" }
+    sessionMock.current = { account: { id: "u1" } }
     renderDialog()
 
     expect(await screen.findByText("交换详情")).toBeInTheDocument()

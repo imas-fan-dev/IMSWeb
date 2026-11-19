@@ -17,7 +17,9 @@ function noop() {}
  *   语义盖掉，读屏与既有测试都会跟着变。
  * - `setActivatorNodeRef` 挂在外层节点上：键盘激活只在焦点落在这个节点时生效，焦点在
  *   瓦片里的复选框上时，空格就是勾选、不会被劫持成拖拽（`KeyboardSensor` 的 activator 判断）。
- * - `touch-none` 只在可拖拽时加（编辑模式）：dnd-kit 的 `TouchSensor` 要它才不会被页面滚动抢走；
+ * - 编辑模式下可拖拽的瓦片用 `touch-pan-y`：划动落在名片上仍能滚动页面（Android 上瓦片几乎
+ *   没有缝隙，`touch-none` 会让编辑模式整页划不动）；按住不动 250ms 后 `TouchSensor` 激活，
+ *   dnd-kit 自己会在 `touchmove` 里 `preventDefault`，拖拽行为不变；
  *   非编辑模式下页面必须照常滚动，那里的长按手势由 `useLongPress` 负责（§7.1）。
  * - 长按只在**非编辑模式**生效：编辑模式里长按瓦片 = 开始拖拽（`TouchSensor` 的 250ms 延迟），
  *   两个手势不叠加（§11）。`enabled` 还要求调用方真的给了回调——不给回调（只读、布局读失败）
@@ -63,7 +65,7 @@ export function SortableCardTile({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         "min-w-0",
-        draggable && "cursor-grab touch-none active:cursor-grabbing",
+        draggable && "cursor-grab touch-pan-y active:cursor-grabbing",
         // 拖动中的原瓦片留在原位（落点由 dnd-kit 的排序位移让出），压暗以免和 DragOverlay 上的副本抢眼。
         isDragging && "opacity-40"
       )}

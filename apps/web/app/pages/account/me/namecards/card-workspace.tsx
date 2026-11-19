@@ -9,7 +9,6 @@ import {
 } from "~/components/ui/dialog"
 import { FileImageIcon } from "lucide-react"
 
-
 import {
   Empty,
   EmptyDescription,
@@ -51,6 +50,7 @@ export function CardWorkspace({
   onReload,
   onWriteClosed,
   onDirtyChange,
+  scrollContainerRef,
 }: {
   active: boolean
   onClose: () => void
@@ -82,6 +82,8 @@ export function CardWorkspace({
   onWriteClosed: () => void
   /** 编辑草稿的脏标记；上层用它决定刷新前是否先确认。 */
   onDirtyChange?: (dirty: boolean) => void
+  /** App 目标下拖拽边缘滚动作用的页面级滚动容器。 */
+  scrollContainerRef?: { readonly current: HTMLElement | null }
 }) {
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null
 
@@ -143,6 +145,7 @@ export function CardWorkspace({
         }}
         onLayoutSaved={onLayoutSaved}
         onDirtyChange={onDirtyChange}
+        scrollContainerRef={scrollContainerRef}
       />
       {mapDialog ? (
         open ? (
