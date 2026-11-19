@@ -1824,13 +1824,14 @@ import { test } from 'vitest';
             }
         });
 
-        test('namecard public and admin pagination preserve parseInt aliases and fallbacks', async () => {
+        test('namecard public pagination preserves parseInt aliases, clamps the page size, and falls back safely', async () => {
             const fixture = createCompatibilityFixture();
             const publicCases = [
                 ['page=abc&size=abc', [25, 0]],
                 ['page=0&size=0', [25, 0]],
                 ['page=1foo&size=1foo', [1, 0]],
-                ['page=101&size=101', [101, 10_100]]
+                // 每页条数上限 100：size=101 收到 100，offset 随之为 100 * 100。
+                ['page=101&size=101', [100, 10_000]]
             ] as const;
             for (const [query, repositoryArgs] of publicCases) {
                 const response = await fixture.request(`/api/cards?${query}`);

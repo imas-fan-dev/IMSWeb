@@ -1023,6 +1023,7 @@ export type NamecardWallSort = z.infer<typeof namecardWallSortSchema>
  * 其余参数在这里做形状校验。
  */
 export const namecardListQuerySchema = legacyStripRequestObject({
+  /** 旧入口的 parseInt 别名由服务端归一化；`size` 归一化后上限 100。 */
   page: z.unknown().optional(),
   size: z.unknown().optional(),
   sort: namecardWallSortSchema.optional(),

@@ -22,6 +22,8 @@ import { invalidRequest, requestRecord } from "@/utils/validation/request-data";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
+/** 每页条数上限：与名片册一致，避免一次拉取/排序过大的页。 */
+const MAX_PAGE_SIZE = 100;
 const MAX_REPLACEMENT_IMAGE_BYTES = 3 * 1024 * 1024 + 128 * 1024;
 
 export interface CompatibleNamecardIdParams {
@@ -253,7 +255,10 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     return {
         // 旧入口的数字别名继续按 parseInt 兼容，但不允许 0 / 负数落到分页切片。
         page: Math.max(DEFAULT_PAGE, legacyPaginationValue(query.page, DEFAULT_PAGE)),
-        size: Math.max(1, legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE)),
+        size: Math.min(
+            MAX_PAGE_SIZE,
+            Math.max(1, legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE))
+        ),
         sort,
         dir,
         q: wallQueryText(query.q),
