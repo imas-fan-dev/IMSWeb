@@ -33,7 +33,7 @@
 9. 名片归属（`owner_account_id`）在交换前后不变。
 10. 每张名片都固定拥有一个交换链接，不存在「撤销」；链接的行为由名片状态与交换模式实时决定。
 
-## 2. 四种入口
+## 2. 五种入口
 
 | 入口 | 链接形态 | 有效期 | 目标卡范围 | 提供卡范围 |
 | --- | --- | --- | --- | --- |
@@ -41,6 +41,7 @@
 | 发起申请 | 无链接，针对墙/主页上的名片 | 即时 | 该名片 | 访问者的可用名片 |
 | 快速交换 | `/exchange/<uid 或 page_slug>` | 长期，随列表变化 | 该账号的快速交换列表 | 访问者的可用名片 |
 | 扫码交换 | 一次性二维码 | 一周或直到交换成功 | 出示方本轮已选名片 | 扫码方本轮已选或现场选择 |
+| 单向送礼 | 无链接，针对他人主页 | 即时 | 无 | 访问者选中的已发布名片 |
 
 ### 2.1 主动分享
 
@@ -124,6 +125,19 @@ stateDiagram-v2
   `created_at` 刷新（有效期随之重置 7 天），`resolved_at` 保持空；目标方那条请求通知
   复用同一行（改正文与卡号、`read_at` 置空、时间刷新），不会新增第二封。
 
+### 2.6 单向送礼
+
+他人主页（头像下方【发送名片】）可以把**自己的**名片直接放进对方的名片册，对方无需确认。
+
+- 端点：`POST /api/community/exchange/users/:accountId/gift`，请求体
+  `{ clientExchangeId, cardNumbers }`（1–20 张）；响应与其它入口同为 `NamecardExchangeResult`。
+- 源记录：`source: 'gift'`，`status: 'completed'`，`target_card_numbers` 为空；
+  只有给出方名片进入对方名片册，发送方名片册**不新增**条目。
+- 可送范围：本人的全部 `published` 名片，包含交换模式 `none` 的卡（给出方不受模式限制）。
+- 已拥有即跳过：对方名片册里已有某张时该张进 `skipped`（`owned-by-target`），其余照常入册，整次仍成功。
+- 静默：不发任何通知；对方可以在自己的交换记录里看到 `incoming` 的 `completed` 记录。
+- 目标账号不存在或已停用 → 404「找不到这位制作人」；送给自己 → 400「不能给自己送名片」。
+
 ## 3. 数据模型
 
 新增迁移（时间戳按提交日生成），全部位于 `apps/api/migrations/postgresql`。
@@ -136,7 +150,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `client_exchange_id` | text UNIQUE | 客户端生成的幂等键，离线重放返回同一条记录 |
-| `source` | text | `card-share` / `card-request` / `quick` / `scan` |
+| `source` | text | `card-share` / `card-request` / `quick` / `scan` / `gift` |
 | `status` | text | `pending` / `completed` / `declined` / `expired` |
 | `initiator_account_id` | text | 发起方（访问者 / 扫码方） |
 | `target_account_id` | text | 目标方（链接持有者 / 出示方） |

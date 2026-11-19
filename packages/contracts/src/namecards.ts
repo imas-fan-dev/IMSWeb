@@ -701,6 +701,8 @@ export const namecardExchangeSourceSchema = z.enum([
   "card-request",
   "quick",
   "scan",
+  /** 单向送礼：我把它直接放进对方名片册，对方无需确认。 */
+  "gift",
 ])
 
 export const namecardExchangeStatusSchema = z.enum([
@@ -859,6 +861,15 @@ export const namecardCardLayoutSchema = exactJsonResponse({
 export const namecardExchangeCommitSchema = strictRequestObject({
   clientExchangeId: z.string().trim().min(8).max(64),
   giveCardNumbers: z.array(cardIdSchema).max(NAMECARD_EXCHANGE_CARD_LIMIT).default([]),
+})
+
+/** 单向送名片：只交出我的名片，对方不用确认，也没有要收的卡。 */
+export const namecardExchangeGiftSchema = strictRequestObject({
+  clientExchangeId: z.string().trim().min(8).max(64),
+  cardNumbers: z
+    .array(cardIdSchema)
+    .min(1)
+    .max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
 export const namecardExchangeResultSchema = exactJsonResponse({
@@ -1171,6 +1182,11 @@ export const namecardExchangeCardParamsSchema = strictRequestObject({
   cardNumber: z.string().trim().regex(/^\d{1,18}$/),
 })
 
+/** 他人主页上的账号 id：送礼端点用它定位收件人。 */
+export const namecardExchangeAccountParamsSchema = strictRequestObject({
+  accountId: z.string().trim().min(1).max(64),
+})
+
 export const namecardExchangeIdParamsSchema = strictRequestObject({
   id: z.string().trim().min(1).max(64),
 })
@@ -1267,6 +1283,9 @@ export type NamecardScanSessionRequest = z.infer<
 export type NamecardExchangeCommitRequest = z.infer<
   typeof namecardExchangeCommitSchema
 >
+export type NamecardExchangeGiftRequest = z.infer<
+  typeof namecardExchangeGiftSchema
+>
 export type NamecardQuickSelection = z.infer<typeof namecardQuickSelectionSchema>
 export type NamecardCollectionVisibilityRequest = z.infer<
   typeof namecardCollectionVisibilitySchema
@@ -1281,6 +1300,9 @@ export type NamecardExchangeHandleParams = z.infer<
 >
 export type NamecardExchangeCardParams = z.infer<
   typeof namecardExchangeCardParamsSchema
+>
+export type NamecardExchangeAccountParams = z.infer<
+  typeof namecardExchangeAccountParamsSchema
 >
 export type NamecardExchangeIdParams = z.infer<typeof namecardExchangeIdParamsSchema>
 export type NamecardScanTokenParams = z.infer<typeof namecardScanTokenParamsSchema>

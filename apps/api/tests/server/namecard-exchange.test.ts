@@ -29,6 +29,8 @@ import {
     namecardCollectionOwnersSchema,
     namecardCollectionPageSchema,
     namecardExchangeDetailSchema,
+    namecardExchangeHistoryPageSchema,
+    namecardExchangeResultSchema,
     namecardPageSchema,
     namecardQuickExchangeSchema,
     namecardQuickSettingsSchema,
@@ -3085,5 +3087,235 @@ describe('namecard collection owner filter over the route', () => {
             '/api/community/exchange/me/collection/owners',
         );
         assert.equal(response.status, 401);
+    });
+});
+
+describe('namecard gift over the route', () => {
+    postgresTest('a gift only fills the recipient shelf and records a silent completed exchange', async () => {
+        const { app, authHeaders, publish, shelf, database } = await fixture();
+        const first = await publish('gift-one', 'collector', 'auto');
+        // 送出方不受交换模式限制：`none` 的卡也能送。
+        const second = await publish('gift-two', 'collector', 'none');
+        const response = await testRequest(
+            app,
+            '/api/community/exchange/users/owner/gift',
+            {
+                method: 'POST',
+                headers: { ...authHeaders('collector'), 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    clientExchangeId: 'client-gift-silent',
+                    cardNumbers: [first, second],
+                }),
+            },
+        );
+        const result = await assertContractJson(
+            response,
+            200,
+            namecardExchangeResultSchema,
+        );
+        const numbers = (values: readonly number[]) =>
+            [...values].sort((left, right) => left - right);
+        assert.equal(result.status, 'completed');
+        assert.deepEqual(result.targetCardNumbers, []);
+        assert.deepEqual(numbers(result.initiatorCardNumbers), numbers([first, second]));
+        assert.deepEqual(result.skipped, []);
+
+        const received = await shelf('owner');
+        assert.equal(received.total, 2);
+        assert.deepEqual(
+            numbers(received.rows.map((row) => row.card_number)),
+            numbers([first, second]),
+        );
+        // 入册时间就是提交时刻，不是名片创建时间（夹具创建时间固定在 `AT`）。
+        const now = Date.now();
+        for (const row of received.rows) {
+            const obtainedAt = Date.parse(new Date(row.obtained_at).toISOString());
+            assert.ok(Number.isFinite(obtainedAt));
+            assert.ok(
+                Math.abs(now - obtainedAt) < 60_000,
+                `unexpected obtained_at ${row.obtained_at}`,
+            );
+        }
+        // 发送方名片册不新增条目：这些卡本来就是自己的。
+        assert.equal((await shelf('collector')).total, 0);
+
+        const [exchange] = await queryAll<{
+            source: string;
+            status: string;
+            target_cards: number | string;
+            initiator_cards: number | string;
+        }>(
+            database,
+            `SELECT source, status,
+                    cardinality(target_card_numbers) AS target_cards,
+                    cardinality(initiator_card_numbers) AS initiator_cards
+               FROM public.namecard_exchanges
+              WHERE client_exchange_id=?`,
+            ['client-gift-silent'],
+        );
+        assert.equal(exchange?.source, 'gift');
+        assert.equal(exchange?.status, 'completed');
+        assert.equal(Number(exchange?.target_cards), 0);
+        assert.equal(Number(exchange?.initiator_cards), 2);
+
+        // 静默：双方都没有交换通知。
+        const notices = await queryAll<{ id: string }>(
+            database,
+            `SELECT id FROM public.namecard_notifications
+              WHERE recipient_account_id IN ('owner','collector')
+                AND kind LIKE 'card-exchange-%'`,
+        );
+        assert.equal(notices.length, 0);
+
+        // 受赠方的交换记录：incoming + completed + 没有目标卡。
+        const history = await assertContractJson(
+            await testRequest(app, '/api/community/exchange/me/exchanges', {
+                headers: authHeaders('owner'),
+            }),
+            200,
+            namecardExchangeHistoryPageSchema,
+        );
+        assert.equal(history.total, 1);
+        assert.equal(history.list[0]?.source, 'gift');
+        assert.equal(history.list[0]?.status, 'completed');
+        assert.equal(history.list[0]?.direction, 'incoming');
+        assert.equal(history.list[0]?.counterpart.accountId, 'collector');
+        assert.deepEqual(history.list[0]?.targetCardNumbers, []);
+    });
+
+    postgresTest('owned and foreign cards are skipped while the rest still lands', async () => {
+        const { app, authHeaders, publish, shelf, commit, database } = await fixture();
+        const alreadyOwned = await publish('gift-owned', 'collector', 'auto');
+        const fresh = await publish('gift-fresh', 'collector', 'auto');
+        const foreign = await publish('gift-foreign', 'owner', 'auto');
+        // 先让 owner 拥有 `alreadyOwned`，再送同一张。
+        await commit({
+            id: randomUUID(),
+            clientExchangeId: `client-gift-seed-${randomUUID()}`,
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [],
+            giveCardNumbers: [alreadyOwned],
+        });
+
+        const response = await testRequest(
+            app,
+            '/api/community/exchange/users/owner/gift',
+            {
+                method: 'POST',
+                headers: { ...authHeaders('collector'), 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    clientExchangeId: 'client-gift-skip',
+                    cardNumbers: [alreadyOwned, fresh, foreign],
+                }),
+            },
+        );
+        const result = await assertContractJson(
+            response,
+            200,
+            namecardExchangeResultSchema,
+        );
+        assert.equal(result.status, 'completed');
+        assert.deepEqual(result.initiatorCardNumbers, [fresh]);
+        assert.deepEqual(
+            [...result.skipped].sort((left, right) => left.cardNumber - right.cardNumber),
+            [
+                { cardNumber: alreadyOwned, side: 'initiator', reason: 'owned-by-target' },
+                { cardNumber: foreign, side: 'initiator', reason: 'unavailable' },
+            ].sort((left, right) => left.cardNumber - right.cardNumber),
+        );
+
+        // 已经拥有的那张保持原样，新的一张照常入册。
+        const received = await shelf('owner');
+        assert.equal(received.total, 2);
+        assert.deepEqual(
+            received.rows.map((row) => row.card_number).sort((left, right) => left - right),
+            [alreadyOwned, fresh].sort((left, right) => left - right),
+        );
+
+        // 跳过原因落库，历史里能解释这次送礼做了什么。
+        const [exchange] = await queryAll<{ skipped: unknown }>(
+            database,
+            `SELECT skipped FROM public.namecard_exchanges WHERE client_exchange_id=?`,
+            ['client-gift-skip'],
+        );
+        assert.deepEqual(
+            (exchange?.skipped as { cardNumber: number }[]).map((row) => row.cardNumber)
+                .sort((left, right) => left - right),
+            [alreadyOwned, foreign].sort((left, right) => left - right),
+        );
+    });
+
+    postgresTest('the gift route rejects unknown, disabled, self and malformed requests', async () => {
+        const { app, authHeaders, publish, database } = await fixture();
+        const mine = await publish('gift-negative', 'collector', 'auto');
+        const send = (
+            accountId: string,
+            body: unknown,
+            options: { authenticated?: boolean } = {},
+        ) =>
+            testRequest(app, `/api/community/exchange/users/${accountId}/gift`, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    ...(options.authenticated === false ? {} : authHeaders('collector')),
+                },
+                body: JSON.stringify(body),
+            });
+
+        const unknown = await send('ghost', {
+            clientExchangeId: 'client-gift-unknown',
+            cardNumbers: [mine],
+        });
+        assert.equal(unknown.status, 404);
+        assert.deepEqual(await unknown.json(), { error: '找不到这位制作人' });
+
+        // 停用账号与不存在同口径。
+        await executeSql(
+            database,
+            "UPDATE platform_accounts SET status='suspended' WHERE id='owner'",
+        );
+        const disabled = await send('owner', {
+            clientExchangeId: 'client-gift-disabled',
+            cardNumbers: [mine],
+        });
+        assert.equal(disabled.status, 404);
+        assert.deepEqual(await disabled.json(), { error: '找不到这位制作人' });
+        await executeSql(
+            database,
+            "UPDATE platform_accounts SET status='active' WHERE id='owner'",
+        );
+
+        const self = await send('collector', {
+            clientExchangeId: 'client-gift-self',
+            cardNumbers: [mine],
+        });
+        assert.equal(self.status, 400);
+        assert.deepEqual(await self.json(), { error: '不能给自己送名片' });
+
+        for (const body of [
+            { clientExchangeId: 'client-gift-bad', cardNumbers: [] },
+            {
+                clientExchangeId: 'client-gift-bad',
+                cardNumbers: Array.from(
+                    { length: NAMECARD_EXCHANGE_CARD_LIMIT + 1 },
+                    (_value, index) => index + 1,
+                ),
+            },
+            { clientExchangeId: 'short', cardNumbers: [mine] },
+            { clientExchangeId: 'client-gift-bad', cardNumbers: [mine], extra: true },
+            { cardNumbers: [mine] },
+        ]) {
+            const response = await send('owner', body);
+            assert.equal(response.status, 400, JSON.stringify(body));
+        }
+
+        const anonymous = await send(
+            'owner',
+            { clientExchangeId: 'client-gift-anon', cardNumbers: [mine] },
+            { authenticated: false },
+        );
+        assert.equal(anonymous.status, 401);
     });
 });

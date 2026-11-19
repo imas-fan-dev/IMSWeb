@@ -4,8 +4,10 @@ import {
     namecardCollectionOwnersQuerySchema,
     namecardCollectionQuerySchema,
     namecardCollectionVisibilitySchema,
+    namecardExchangeAccountParamsSchema,
     namecardExchangeCardParamsSchema,
     namecardExchangeCommitSchema,
+    namecardExchangeGiftSchema,
     namecardExchangeHandleParamsSchema,
     namecardExchangeHistoryQuerySchema,
     namecardExchangeIdParamsSchema,
@@ -25,6 +27,7 @@ import { handleCommitQuickExchange } from '@/domains/community/namecards/exchang
 import { handleGetCardShare } from '@/domains/community/namecards/exchange/handlers/get-card-share';
 import { handleGetExchange } from '@/domains/community/namecards/exchange/handlers/get-exchange';
 import { handleGetQuickExchange } from '@/domains/community/namecards/exchange/handlers/get-quick-exchange';
+import { handleGiftCard } from '@/domains/community/namecards/exchange/handlers/gift-card';
 import {
     handleGetQuickSettings,
     handlePutQuickSettings,
@@ -86,6 +89,12 @@ const collectionEntryParam = paramSchemaValidator(namecardCollectionEntryParamsS
 const commitBody = jsonSchemaValidator(namecardExchangeCommitSchema, {
     invalidMessage: '交换参数无效',
 });
+const accountParam = paramSchemaValidator(namecardExchangeAccountParamsSchema, {
+    invalidMessage: '用户标识无效',
+});
+const giftBody = jsonSchemaValidator(namecardExchangeGiftSchema, {
+    invalidMessage: '送片参数无效',
+});
 const collectionQuery = querySchemaValidator(namecardCollectionQuerySchema, {
     invalidMessage: '名片册参数无效',
 });
@@ -111,6 +120,15 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
     routes.post('/exchange/cards/:cardNumber/request', ...write, cardParam, commitBody, handleRequestCard);
     routes.get('/exchange/quick/:handle', optionalPlatformAuth, handleParam, handleGetQuickExchange);
     routes.post('/exchange/quick/:handle/commit', ...write, handleParam, commitBody, handleCommitQuickExchange);
+
+    // 他人主页的单向送礼：直接放进对方名片册，对方无需确认也不收通知。
+    routes.post(
+        '/exchange/users/:accountId/gift',
+        ...write,
+        accountParam,
+        giftBody,
+        handleGiftCard,
+    );
 
     // 自己的快速交换清单；带 `target` 时再叠一层目标视角（见 handler）。
     routes.get('/exchange/me/quick', platformAuth, quickCandidatesQuery, handleGetQuickSettings);

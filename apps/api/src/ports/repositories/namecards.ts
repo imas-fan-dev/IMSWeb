@@ -344,12 +344,13 @@ export interface NamecardAdminFilter {
     ownerAccountId?: string | null;
 }
 
-/** 交换入口：单卡分享、从墙上发起、快速交换页、扫码。 */
+/** 交换入口：单卡分享、从墙上发起、快速交换页、扫码、单向送礼。 */
 export type NamecardExchangeSourceRecord =
     | 'card-share'
     | 'card-request'
     | 'quick'
-    | 'scan';
+    | 'scan'
+    | 'gift';
 
 export type NamecardExchangeStatusRecord =
     | 'pending'

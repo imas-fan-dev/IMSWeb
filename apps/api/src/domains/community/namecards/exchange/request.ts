@@ -4,8 +4,10 @@ import type {
     NamecardCollectionOwnersQuery,
     NamecardCollectionQuery,
     NamecardCollectionVisibilityRequest,
+    NamecardExchangeAccountParams,
     NamecardExchangeCardParams,
     NamecardExchangeCommitRequest,
+    NamecardExchangeGiftRequest,
     NamecardExchangeHandleParams,
     NamecardExchangeHistoryQuery,
     NamecardExchangeIdParams,
@@ -43,6 +45,11 @@ export type NamecardQuickContext = WithParams<NamecardExchangeHandleParams>;
 export type NamecardQuickCommitContext = WithParamsBody<
     NamecardExchangeHandleParams,
     NamecardExchangeCommitRequest
+>;
+/** 单向送礼：路径上是收件人的账号 id，请求体是要送出的名片。 */
+export type NamecardGiftContext = WithParamsBody<
+    NamecardExchangeAccountParams,
+    NamecardExchangeGiftRequest
 >;
 export type NamecardQuickSelectionContext = WithBody<NamecardQuickSelection>;
 /** 候选读取带一个可选目标（uid / 主页 slug / 账号 ID）。 */

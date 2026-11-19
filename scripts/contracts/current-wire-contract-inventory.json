@@ -3,43 +3,43 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "2cb178e51f8645e3d0c5eed1f12723dccdce6a965bfefa322e16cc140ad04721",
+    "semanticDigest": "763663b5046e5022bbb57bf1eff68158258ef9f8842906a73e958785793663f3",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 293,
-    "carriers": 371,
-    "reject": 85,
-    "acceptAndProject": 185,
+    "mountedMethodPaths": 294,
+    "carriers": 373,
+    "reject": 86,
+    "acceptAndProject": 186,
     "passthrough": 17,
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 407,
-    "mountedMethodPaths": 308,
+    "mountedRegistrations": 408,
+    "mountedMethodPaths": 309,
     "noInputRoutes": 99,
-    "requestCarriers": 405,
+    "requestCarriers": 407,
     "policies": {
-      "reject": 93,
-      "accept-and-project": 211,
+      "reject": 94,
+      "accept-and-project": 212,
       "passthrough": 17,
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 862,
-      "json": 796,
+      "total": 864,
+      "json": 798,
       "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 293,
-      "requestCarriers": 371,
+      "mountedMethodPaths": 294,
+      "requestCarriers": 373,
       "policies": {
-        "reject": 85,
-        "accept-and-project": 185,
+        "reject": 86,
+        "accept-and-project": 186,
         "passthrough": 17,
         "non-object-applicable": 84
       }
@@ -206,7 +206,7 @@
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 65,
+      "/api/community": 66,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -12582,6 +12582,56 @@
     },
     {
       "method": "POST",
+      "path": "/api/community/exchange/users/:accountId/gift",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleGiftCard",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardExchangeAccountParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardExchangeGiftSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/gift-card.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u4E0D\\u80FD\\u7ED9\\u81EA\\u5DF1\\u9001\\u540D\\u7247\" } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/gift-card.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u4F4D\\u5236\\u4F5C\\u4EBA\" } satisfies NamecardErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "POST",
       "path": "/api/emojis",
       "registration": {
         "file": "apps/api/src/domains/community/namecards/reactions/routes.ts"
@@ -21501,6 +21551,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/community/exchange/users/:accountId/gift",
+      "handlerSymbol": "handleGiftCard",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardExchangeAccountParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/users/:accountId/gift",
+      "handlerSymbol": "handleGiftCard",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardExchangeGiftSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/emojis",
       "handlerSymbol": "apps/api/src/domains/community/namecards/reactions/handlers/add-reaction.ts#anonymous:23b1f7feff7fb04b:d3c41204:0",
       "kind": "json",
@@ -27727,6 +27811,22 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
       "kind": "json",
       "expression": "{ error : INVALID_SCAN_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/users/:accountId/gift",
+      "handlerSymbol": "handleGiftCard",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/gift-card.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u4E0D\\u80FD\\u7ED9\\u81EA\\u5DF1\\u9001\\u540D\\u7247\" } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/exchange/users/:accountId/gift",
+      "handlerSymbol": "handleGiftCard",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/gift-card.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u627E\\u4E0D\\u5230\\u8FD9\\u4F4D\\u5236\\u4F5C\\u4EBA\" } satisfies NamecardErrorResponse"
     },
     {
       "method": "POST",

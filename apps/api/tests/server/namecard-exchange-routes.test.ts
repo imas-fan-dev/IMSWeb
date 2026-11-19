@@ -49,6 +49,7 @@ test('writes stay behind the platform session', async () => {
         ['GET', '/api/community/exchange/me/collection', undefined],
         ['GET', '/api/community/exchange/me/collection/owners', undefined],
         ['GET', '/api/community/exchange/me/exchanges', undefined],
+        ['POST', '/api/community/exchange/users/owner/gift', { clientExchangeId: 'client-gift-1', cardNumbers: [1] }],
         ['POST', '/api/community/exchange/scan/sessions', { cardNumbers: [1] }],
         ['GET', '/api/community/exchange/scan/sessions/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', undefined],
     ] as const) {
