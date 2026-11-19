@@ -13,11 +13,6 @@ import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
 import { Separator } from "~/components/ui/separator"
-
-/** A unit is shown by its Japanese name; the Chinese name is the fallback. */
-function unitLabel(unit: { nameJa: string | null; nameCn: string }): string {
-  return unit.nameJa || unit.nameCn
-}
 import { Input } from "~/components/ui/input"
 import {
   Select,
@@ -28,27 +23,17 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { UnitMemberSummary } from "~/components/shared/unit-member-summary"
+import {
+  CHARACTER_FILTER_ALL as ALL_VALUE,
+  matchCharacterCandidates,
+  unitLabel,
+} from "~/lib/namecard-character-match"
 import { NAMECARD_CHARACTER_CATEGORY_LABELS } from "~/lib/namecard-character-categories"
-
-/** Sentinel for the two filters' 「全部」 option; never collides with an id or category. */
-const ALL_VALUE = "all"
 
 type SelectedUnit = {
   id: number
   name: string
   memberIds: number[]
-}
-
-/**
- * Case-insensitive substring match across a character's or unit's four search
- * fields. `aliases` is one packed string, so it needs no splitting.
- */
-function matchesQuery(fields: (string | null)[], normalizedQuery: string) {
-  return fields.some(
-    (field) =>
-      field !== null &&
-      field.toLocaleLowerCase("zh-CN").includes(normalizedQuery)
-  )
 }
 
 /**
@@ -104,12 +89,22 @@ export function CharacterMultiSelect({
   const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN")
   const reachedLimit = selectedIds.length >= NAMECARD_FAVORITE_CHARACTER_LIMIT
 
-  const characterById = useMemo(
+  const {
+    characters: characterById,
+    filteredCharacters: filtered,
+    matchedCharacters,
+    matchedUnits,
+    fallbackCharacters,
+    nothingMatched,
+  } = useMemo(
     () =>
-      new Map(
-        (catalog?.characters ?? []).map((entry) => [entry.id, entry] as const)
-      ),
-    [catalog]
+      matchCharacterCandidates({
+        catalog,
+        agencyCode,
+        category,
+        query: normalizedQuery,
+      }),
+    [catalog, agencyCode, category, normalizedQuery]
   )
 
   // A unit chip stays while at least one of its members is still chosen, so a
@@ -140,54 +135,6 @@ export function CharacterMultiSelect({
     })),
   ]
 
-  const filtered = (catalog?.characters ?? []).filter(
-    (entry) =>
-      (agencyCode === ALL_VALUE || entry.agencyCode === agencyCode) &&
-      (category === ALL_VALUE || entry.category === category)
-  )
-  const matchedCharacters = filtered.filter(
-    (entry) =>
-      !entry.isFallback &&
-      (!normalizedQuery ||
-        matchesQuery(
-          [entry.nameCn, entry.nameJa, entry.nameEn, entry.aliases],
-          normalizedQuery
-        ))
-  )
-  const selectedAgencyId =
-    agencyCode === ALL_VALUE
-      ? null
-      : ((catalog?.agencies ?? []).find((agency) => agency.code === agencyCode)
-          ?.id ?? null)
-  const matchedUnits = normalizedQuery
-    ? (catalog?.units ?? []).filter(
-        (unit) =>
-          matchesQuery(
-            [unit.nameCn, unit.nameJa, unit.nameEn, unit.aliases],
-            normalizedQuery
-          ) &&
-          (selectedAgencyId === null ||
-            unit.agencyIds.includes(selectedAgencyId)) &&
-          (category === ALL_VALUE ||
-            unit.memberIds.some(
-              (memberId) => characterById.get(memberId)?.category === category
-            ))
-      )
-    : []
-  const nothingMatched =
-    matchedCharacters.length === 0 && matchedUnits.length === 0
-  // Fallback entries are the 「其他…」 escape hatch. They live under the sentinel
-  // 其他 agency, so once a query matches nothing they ignore the agency filter —
-  // filtering to a single agency must not hide the rows offered as the fallback.
-  // The category filter still applies, so a 吉祥物 filter offers 「其他吉祥物」
-  // rather than the idol bucket.
-  const fallbackPool =
-    normalizedQuery && nothingMatched ? (catalog?.characters ?? []) : filtered
-  const fallbackCharacters = fallbackPool.filter(
-    (entry) =>
-      entry.isFallback &&
-      (category === ALL_VALUE || entry.category === category)
-  )
   const empty =
     !loading &&
     filtered.length === 0 &&
@@ -426,9 +373,7 @@ export function CharacterMultiSelect({
                 </div>
               ) : null}
 
-              {matchedUnits.length ? (
-                <Separator className="my-1" />
-              ) : null}
+              {matchedUnits.length ? <Separator className="my-1" /> : null}
 
               {matchedCharacters.map(characterRow)}
 

@@ -1,8 +1,8 @@
 import { useState } from "react"
 
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
+  ArrowDownNarrowWideIcon,
+  ArrowDownWideNarrowIcon,
   ChevronDownIcon,
   SearchIcon,
   SlidersHorizontalIcon,
@@ -15,8 +15,7 @@ import type {
 } from "@imsweb/contracts/namecards"
 
 import { Button } from "~/components/ui/button"
-import { Checkbox } from "~/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "~/components/ui/field"
+import { Field, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import {
   Select,
@@ -28,11 +27,16 @@ import {
 } from "~/components/ui/select"
 import { NAMECARD_COLLECTION_DEFAULT_DIRECTION } from "~/lib/namecards/collection-query"
 import { cn } from "~/lib/utils"
-import { CharacterMultiSelect } from "~/components/community/character-multi-select"
+import type { SeriesOption } from "~/components/community/series-multi-select"
+
+import { CharacterFilterSelect } from "./character-filter-select"
+import { ClearInputButton } from "./clear-input-button"
+import { FilterCheckbox } from "./filter-checkbox"
 import {
-  SeriesMultiSelect,
-  type SeriesOption,
-} from "~/components/community/series-multi-select"
+  OwnerFilterSelect,
+  type NamecardOwnerSelection,
+} from "./owner-filter-select"
+import { SeriesFilterSelect } from "./series-filter-select"
 
 /** 名片册 / 名片墙共用的筛选状态：纯值，不含两个「显示」开关（PRD §4）。 */
 export interface NamecardFilterValue {
@@ -47,8 +51,14 @@ export interface NamecardFilterValue {
   excludeOther: boolean
   seriesCodes: string[]
   group: string
+  /** 所属用户：只看该卡主名下的名片；`null` 表示不限。 */
+  owner: NamecardOwnerSelection | null
   /** 【不含越境】：排除企划数为复数的名片。 */
   excludeCross: boolean
+  /** 【反向排除】：把上方全部内容条件整体取反。 */
+  invert: boolean
+  /** 创作声明：`original` / `ai`，`null` 表示不限。 */
+  declaration: "original" | "ai" | null
 }
 
 export const DEFAULT_NAMECARD_FILTERS: NamecardFilterValue = {
@@ -60,8 +70,17 @@ export const DEFAULT_NAMECARD_FILTERS: NamecardFilterValue = {
   excludeOther: false,
   seriesCodes: [],
   group: "",
+  owner: null,
   excludeCross: false,
+  invert: false,
+  declaration: null,
 }
+
+const DECLARATION_ITEMS = [
+  { value: "any", label: "不限" },
+  { value: "original", label: "原创" },
+  { value: "ai", label: "AI" },
+]
 
 function sortItems(timeLabel: string) {
   return [
@@ -100,6 +119,8 @@ export function NamecardFilterBar({
   disabled?: boolean
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  // 清空筛选时换 key 重挂角色选择器，把它的搜索框、企划与分类也一起复位。
+  const [resetToken, setResetToken] = useState(0)
   const advancedCount =
     value.characterIds.length +
     value.seriesCodes.length +
@@ -117,11 +138,21 @@ export function NamecardFilterBar({
     })
   }
 
+  /** 只清筛选，保留排序键与方向。 */
+  function resetFilters() {
+    setResetToken((current) => current + 1)
+    onChange({
+      ...DEFAULT_NAMECARD_FILTERS,
+      sort: value.sort,
+      dir: value.dir,
+    })
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-end">
         <Field id={`${id}-search-field`} className="min-w-0 flex-1">
-          <FieldLabel htmlFor={`${id}-search`}>搜索制作人</FieldLabel>
+          <FieldLabel htmlFor={`${id}-search`}>制作人名称</FieldLabel>
           <div className="relative">
             <SearchIcon
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -129,16 +160,33 @@ export function NamecardFilterBar({
             />
             <Input
               id={`${id}-search`}
-              type="search"
+              type="text"
               value={value.q}
-              placeholder="制作人名称；团体名片按团体名称"
+              placeholder="搜索制作人名称"
               disabled={disabled}
-              className="pl-9"
+              className="pr-8 pl-9"
               onChange={(event) =>
                 onChange({ ...value, q: event.currentTarget.value })
               }
             />
+            {value.q ? (
+              <ClearInputButton
+                label="清空制作人名称"
+                onClick={() => onChange({ ...value, q: "" })}
+              />
+            ) : null}
           </div>
+        </Field>
+
+        <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">
+          <FieldLabel htmlFor={`${id}-owner`}>所属用户</FieldLabel>
+          <OwnerFilterSelect
+            key={resetToken}
+            id={`${id}-owner`}
+            value={value.owner}
+            disabled={disabled}
+            onChange={(owner) => onChange({ ...value, owner })}
+          />
         </Field>
 
         <div className="flex items-end gap-2">
@@ -184,12 +232,21 @@ export function NamecardFilterBar({
             }
           >
             {value.dir === "desc" ? (
-              <ArrowDownIcon aria-hidden="true" />
+              <ArrowDownWideNarrowIcon aria-hidden="true" />
             ) : (
-              <ArrowUpIcon aria-hidden="true" />
+              <ArrowDownNarrowWideIcon aria-hidden="true" />
             )}
           </Button>
         </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          className="md:ml-auto"
+          onClick={resetFilters}
+        >
+          清空筛选
+        </Button>
       </div>
 
       <Button
@@ -212,68 +269,126 @@ export function NamecardFilterBar({
       <div
         id={`${id}-advanced`}
         className={cn(
-          "flex-col gap-4 rounded-lg border p-3 md:flex",
+          "flex-col gap-3 rounded-lg border p-3 md:flex md:flex-row md:items-start",
           advancedOpen ? "flex" : "hidden"
         )}
       >
-        <CharacterMultiSelect
-          id={`${id}-character`}
-          catalog={catalog}
-          loading={catalogLoading}
-          selectedIds={value.characterIds}
-          disabled={disabled}
-          description="可跨企划选择；搜索支持角色名、别名与组合名。"
-          onChange={(characterIds) => onChange({ ...value, characterIds })}
-          matchControls={{
-            all: value.matchAll,
-            excludeOther: value.excludeOther,
-            disabled,
-            onChange: ({ all, excludeOther }) =>
-              onChange({ ...value, matchAll: all, excludeOther }),
-          }}
-        />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="min-w-0 md:flex-1">
+              <CharacterFilterSelect
+                key={resetToken}
+                id={`${id}-character`}
+                catalog={catalog}
+                loading={catalogLoading}
+                selectedIds={value.characterIds}
+                disabled={disabled}
+                onChange={(characterIds) =>
+                  onChange({ ...value, characterIds })
+                }
+              />
+            </div>
+          </div>
 
-        <SeriesMultiSelect
-          id={`${id}-series`}
-          series={series}
-          required={false}
-          selectedCodes={value.seriesCodes}
-          disabled={disabled}
-          description="按名片上的企划字段筛选，可多选。"
-          onChange={(seriesCodes) => onChange({ ...value, seriesCodes })}
-        />
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="min-w-0 md:flex-1">
+              <SeriesFilterSelect
+                id={`${id}-series`}
+                series={series}
+                selectedCodes={value.seriesCodes}
+                disabled={disabled}
+                onChange={(seriesCodes) => onChange({ ...value, seriesCodes })}
+              />
+            </div>
+            <div className="min-w-0 md:w-48">
+              <Field id={`${id}-group-field`}>
+                <FieldLabel htmlFor={`${id}-group`}>所属团体</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id={`${id}-group`}
+                    value={value.group}
+                    placeholder="搜索团体名称"
+                    disabled={disabled}
+                    className="pr-8"
+                    onChange={(event) =>
+                      onChange({ ...value, group: event.currentTarget.value })
+                    }
+                  />
+                  {value.group ? (
+                    <ClearInputButton
+                      label="清空所属团体"
+                      onClick={() => onChange({ ...value, group: "" })}
+                    />
+                  ) : null}
+                </div>
+              </Field>
+            </div>
+            <div className="min-w-0 md:w-32">
+              <Field id={`${id}-declaration-field`}>
+                <FieldLabel htmlFor={`${id}-declaration`}>创作声明</FieldLabel>
+                <Select
+                  items={DECLARATION_ITEMS}
+                  value={value.declaration ?? "any"}
+                  disabled={disabled}
+                  onValueChange={(next) =>
+                    onChange({
+                      ...value,
+                      declaration:
+                        next === "original" || next === "ai" ? next : null,
+                    })
+                  }
+                >
+                  <SelectTrigger id={`${id}-declaration`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    <SelectGroup>
+                      {DECLARATION_ITEMS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </div>
+        </div>
 
-        <Field id={`${id}-group-field`}>
-          <FieldLabel htmlFor={`${id}-group`}>所属团体</FieldLabel>
-          <FieldDescription>
-            按编辑窗里的「团体名称」筛选；留空表示不限。
-          </FieldDescription>
-          <Input
-            id={`${id}-group`}
-            value={value.group}
-            placeholder="例如 765PRO ALLSTARS"
+        <div className="flex flex-row flex-wrap items-center justify-between gap-y-1 md:w-40 md:flex-col md:items-center md:justify-around md:self-stretch">
+          <FilterCheckbox
+            checked={value.matchAll}
             disabled={disabled}
-            onChange={(event) =>
-              onChange({ ...value, group: event.currentTarget.value })
+            label="同时包含"
+            hint="名片必须包含全部已选角色"
+            onCheckedChange={(matchAll) => onChange({ ...value, matchAll })}
+          />
+          <FilterCheckbox
+            checked={value.excludeOther}
+            disabled={disabled}
+            label="不含其他"
+            hint="名片最多只包含已选角色"
+            onCheckedChange={(excludeOther) =>
+              onChange({ ...value, excludeOther })
             }
           />
-        </Field>
-
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <label className="flex min-h-9 items-center gap-2 text-sm">
-            <Checkbox
-              checked={value.excludeCross}
-              disabled={disabled}
-              aria-label="不含越境"
-              onCheckedChange={(next) =>
-                onChange({ ...value, excludeCross: next === true })
-              }
-            />
-            不含越境
-          </label>
-          <span className="text-xs text-muted-foreground">
-            隐藏企划字段为复数（越境）的名片
-          </span>
+          <FilterCheckbox
+            checked={value.excludeCross}
+            disabled={disabled}
+            label="不含越境"
+            hint="隐藏企划字段为复数（越境）的名片"
+            onCheckedChange={(excludeCross) =>
+              onChange({ ...value, excludeCross })
+            }
+          />
+          <FilterCheckbox
+            checked={value.invert}
+            disabled={disabled}
+            label="反向排除"
+            hint="排除符合上方筛选条件的名片"
+            onCheckedChange={(invert) => onChange({ ...value, invert })}
+          />
         </div>
       </div>
     </div>

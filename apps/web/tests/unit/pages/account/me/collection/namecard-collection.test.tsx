@@ -10,11 +10,13 @@ import { renderPage } from "@/tests/unit/support/harness"
 
 const apiMocks = vi.hoisted(() => ({
   getNamecardCollectionPage: vi.fn(),
+  getNamecardCollectionOwners: vi.fn(),
   setNamecardCollectionHidden: vi.fn(),
   getFudabaSeries: vi.fn(),
   getNamecardReactions: vi.fn(),
   addNamecardReaction: vi.fn(),
   sendPage: vi.fn(),
+  sendOwners: vi.fn(),
   sendHide: vi.fn(),
   sendReactions: vi.fn(),
   sendAddReaction: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     getNamecardCollectionPage: apiMocks.getNamecardCollectionPage,
+    getNamecardCollectionOwners: apiMocks.getNamecardCollectionOwners,
     setNamecardCollectionHidden: apiMocks.setNamecardCollectionHidden,
     getFudabaSeries: apiMocks.getFudabaSeries,
     getNamecardReactions: apiMocks.getNamecardReactions,
@@ -47,6 +50,29 @@ vi.mock("~/lib/use-namecard-character-catalog", () => ({
 }))
 
 vi.mock("sonner", () => ({ toast: toastMocks }))
+
+vi.mock(
+  "~/components/platform/platform-session-provider",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("~/components/platform/platform-session-provider")
+      >()
+    return {
+      ...actual,
+      useOptionalPlatformSession: () =>
+        ({
+          status: "authenticated",
+          session: { account: { id: "acc-1" } },
+          error: null,
+          acceptSession: vi.fn(),
+          acceptProfile: vi.fn(),
+          reload: vi.fn(),
+          logout: vi.fn(),
+        }) as unknown as ReturnType<typeof actual.useOptionalPlatformSession>,
+    }
+  }
+)
 
 const snapshot: NamecardCollectionEntry["snapshot"] = {
   producerName: "天海春香",
@@ -76,6 +102,7 @@ function entry(
     hiddenAt: null,
     available: true,
     own: false,
+    owner: { accountId: "acc-1", uid: "4242", displayName: "春日未来" },
     card: makeNamecard({
       id: cardNumber,
       cardNumber,
@@ -106,8 +133,12 @@ function renderCollection() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  window.localStorage.clear()
   apiMocks.getNamecardCollectionPage.mockReturnValue({
     send: apiMocks.sendPage,
+  })
+  apiMocks.getNamecardCollectionOwners.mockReturnValue({
+    send: apiMocks.sendOwners,
   })
   apiMocks.setNamecardCollectionHidden.mockReturnValue({
     send: apiMocks.sendHide,
@@ -124,12 +155,75 @@ beforeEach(() => {
     }),
   })
   apiMocks.sendPage.mockResolvedValue(pageResult())
+  apiMocks.sendOwners.mockResolvedValue({
+    list: [
+      {
+        accountId: "acc-1",
+        uid: 7,
+        displayName: "春日未来",
+        avatarUrl: null,
+      },
+    ],
+  })
   apiMocks.sendHide.mockResolvedValue({ success: true })
   apiMocks.sendReactions.mockResolvedValue({})
   apiMocks.sendAddReaction.mockResolvedValue({ ok: true })
 })
 
 describe("NamecardCollection", () => {
+  it("searches the collection owners by nickname", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText("所属用户"), "未来")
+
+    await waitFor(
+      () =>
+        expect(apiMocks.getNamecardCollectionOwners).toHaveBeenCalledWith({
+          q: "未来",
+          limit: 8,
+        }),
+      { timeout: 3000 }
+    )
+    expect(
+      await screen.findByRole("option", { name: "春日未来" })
+    ).toBeVisible()
+  })
+
+  it("filters by the chosen owner and clears the choice", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText("所属用户"), "未来")
+    await user.click(await screen.findByRole("button", { name: "春日未来" }))
+
+    await waitFor(() =>
+      expect(lastQuery()).toMatchObject({ owner: "acc-1", page: 1 })
+    )
+
+    await user.click(screen.getByRole("button", { name: "清空所属用户" }))
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ owner: undefined }))
+    expect(screen.getByLabelText("所属用户")).toBeVisible()
+  })
+
+  it("clears the owner filter from the reset button", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText("所属用户"), "未来")
+    await user.click(await screen.findByRole("button", { name: "春日未来" }))
+    await waitFor(() => expect(lastQuery()).toMatchObject({ owner: "acc-1" }))
+
+    await user.click(screen.getByRole("button", { name: "清空筛选" }))
+
+    await waitFor(() => expect(lastQuery()).toMatchObject({ owner: undefined }))
+    expect(screen.getByLabelText("所属用户")).toBeVisible()
+  })
+
   it("asks for the first page of 24 with the default sort", async () => {
     renderCollection()
 
@@ -142,10 +236,13 @@ describe("NamecardCollection", () => {
       q: undefined,
       series: [],
       group: undefined,
+      owner: undefined,
       character: [],
       match: "any",
       excludeOther: false,
       excludeCross: false,
+      invert: false,
+      declaration: undefined,
       includeOwn: false,
       includeHidden: false,
     })
@@ -156,17 +253,22 @@ describe("NamecardCollection", () => {
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
-    await user.type(screen.getByLabelText("搜索制作人"), "春香")
+    await user.type(screen.getByLabelText("制作人名称"), "春香")
     await waitFor(() => expect(lastQuery()).toMatchObject({ q: "春香" }), {
       timeout: 3000,
     })
 
     await user.click(screen.getByRole("button", { name: /高级筛选/ }))
+    await user.click(screen.getByRole("textbox", { name: "搜索担当角色" }))
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
     await user.click(screen.getByRole("checkbox", { name: /同时包含/ }))
+    await user.click(screen.getByRole("textbox", { name: "搜索企划" }))
     await user.click(screen.getByRole("checkbox", { name: /本家/ }))
     await user.type(screen.getByLabelText("所属团体"), "765")
     await user.click(screen.getByRole("checkbox", { name: /不含越境/ }))
+    await user.click(screen.getByRole("checkbox", { name: /反向排除/ }))
+    await user.click(screen.getByRole("combobox", { name: "创作声明" }))
+    await user.click(await screen.findByRole("option", { name: "AI" }))
 
     await waitFor(() =>
       expect(lastQuery()).toMatchObject({
@@ -176,6 +278,8 @@ describe("NamecardCollection", () => {
         series: ["765"],
         group: "765",
         excludeCross: true,
+        invert: true,
+        declaration: "ai",
       })
     )
   })
@@ -185,10 +289,11 @@ describe("NamecardCollection", () => {
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
-    await user.click(screen.getByRole("checkbox", { name: /显示我的名片/ }))
-    await waitFor(() =>
-      expect(lastQuery()).toMatchObject({ includeOwn: true })
+    await user.click(screen.getByRole("button", { name: "显示设置" }))
+    await user.click(
+      await screen.findByRole("checkbox", { name: /显示我的名片/ })
     )
+    await waitFor(() => expect(lastQuery()).toMatchObject({ includeOwn: true }))
 
     await user.click(screen.getByRole("checkbox", { name: /显示隐藏名片/ }))
     await waitFor(() =>
@@ -197,6 +302,63 @@ describe("NamecardCollection", () => {
         includeHidden: true,
       })
     )
+  })
+
+  it("keeps both display switches inside the settings popover", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    expect(
+      screen.queryByRole("checkbox", { name: "显示我的名片" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("checkbox", { name: "显示隐藏名片" })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "显示设置" }))
+
+    expect(
+      await screen.findByRole("checkbox", { name: "显示我的名片" })
+    ).toBeVisible()
+    expect(screen.getByRole("checkbox", { name: "显示隐藏名片" })).toBeVisible()
+  })
+
+  it("contains the thumbnail in a square frame and names the producer below", async () => {
+    renderCollection()
+
+    const tile = await screen.findByRole("button", { name: "查看名片 #42" })
+    expect(tile).toHaveClass("aspect-square", "rounded-lg", "border")
+    const image = tile.querySelector("img")
+    expect(image).toHaveClass("object-contain", "border")
+    const grid = screen.getByRole("region", { name: "收集的名片" })
+    expect(within(grid).getByText("天海春香")).toBeVisible()
+    expect(
+      within(grid).getByRole("link", { name: "天海春香" })
+    ).toHaveAttribute("href", "/user/4242")
+  })
+
+  it("falls back to plain text when the owner is unknown", async () => {
+    apiMocks.sendPage.mockResolvedValue(pageResult([entry({ owner: null })]))
+    renderCollection()
+
+    const grid = await screen.findByRole("region", { name: "收集的名片" })
+    expect(await within(grid).findByText("天海春香")).toBeVisible()
+    expect(
+      within(grid).queryByRole("link", { name: "天海春香" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("renders nothing for an entry whose card was deleted", async () => {
+    apiMocks.sendPage.mockResolvedValue(pageResult([entry({ card: null })]))
+    renderCollection()
+
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+    const grid = screen.getByRole("region", { name: "收集的名片" })
+    expect(within(grid).queryByText("天海春香")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "查看名片 #42" })
+    ).not.toBeInTheDocument()
   })
 
   it("dims manually hidden entries", async () => {
@@ -228,7 +390,9 @@ describe("NamecardCollection", () => {
   it("hides and restores a collected card from the detail dialog", async () => {
     const user = userEvent.setup()
     renderCollection()
-    await user.click(await screen.findByRole("button", { name: "查看名片 #42" }))
+    await user.click(
+      await screen.findByRole("button", { name: "查看名片 #42" })
+    )
 
     const hide = await screen.findByRole("button", { name: "隐藏" })
     await user.click(hide)
@@ -267,7 +431,9 @@ describe("NamecardCollection", () => {
     const user = userEvent.setup()
     renderCollection()
 
-    await user.click(await screen.findByRole("button", { name: "查看名片 #42" }))
+    await user.click(
+      await screen.findByRole("button", { name: "查看名片 #42" })
+    )
     const dialog = await screen.findByRole("dialog")
     expect(
       within(dialog).queryByRole("button", { name: "隐藏" })
@@ -278,5 +444,33 @@ describe("NamecardCollection", () => {
     expect(
       within(dialog).queryByRole("button", { name: "交换名片" })
     ).not.toBeInTheDocument()
+  })
+
+  it("remembers 显示我的名片 per account, defaulting to off", async () => {
+    const user = userEvent.setup()
+    const first = renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.click(screen.getByRole("button", { name: "显示设置" }))
+    const toggle = await screen.findByRole("checkbox", {
+      name: /显示我的名片/,
+    })
+    expect(toggle).not.toBeChecked()
+    expect(lastQuery()).toMatchObject({ includeOwn: false })
+
+    await user.click(toggle)
+    await waitFor(() => expect(lastQuery()).toMatchObject({ includeOwn: true }))
+    expect(
+      window.localStorage.getItem("imsweb.namecard-album.show-own.acc-1")
+    ).toBe("true")
+
+    first.unmount()
+
+    renderCollection()
+    await waitFor(() => expect(lastQuery()).toMatchObject({ includeOwn: true }))
+    await user.click(screen.getByRole("button", { name: "显示设置" }))
+    expect(
+      await screen.findByRole("checkbox", { name: /显示我的名片/ })
+    ).toBeChecked()
   })
 })

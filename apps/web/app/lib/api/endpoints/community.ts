@@ -10,6 +10,7 @@ import {
   namecardPath,
 } from "@imsweb/contracts/paths"
 import {
+  namecardCollectionOwnersSchema,
   namecardCollectionPageSchema,
   namecardCollectionVisibilityResponseSchema,
   namecardCardShareSchema,
@@ -43,6 +44,7 @@ import {
 } from "../cache-policy"
 import {
   normalizeNamecard,
+  normalizeNamecardCollectionOwners,
   normalizeNamecardCollectionPage,
   normalizeNamecardPage,
 } from "../media-urls"
@@ -174,8 +176,14 @@ export interface NamecardCollectionListQuery {
   series?: readonly string[]
   group?: string
   character?: readonly number[]
+  /** 所属用户：卡主的平台账号 id。 */
+  owner?: string
   /** `all` = 【同时包含】。 */
   match?: "any" | "all"
+  /** 创作声明：`original` / `ai`，缺省不限。 */
+  declaration?: "original" | "ai"
+  /** 【反向排除】：把内容条件整体取反。 */
+  invert?: boolean
   excludeOther?: boolean
   excludeCross?: boolean
   includeOwn?: boolean
@@ -195,12 +203,16 @@ function namecardCollectionSearch(query: NamecardCollectionListQuery) {
   for (const code of query.series ?? []) params.append("series", code)
   const group = query.group?.trim()
   if (group) params.set("group", group)
+  const owner = query.owner?.trim()
+  if (owner) params.set("owner", owner)
   for (const id of query.character ?? []) {
     params.append("character", String(id))
   }
   params.set("match", query.match ?? "any")
   if (query.excludeOther) params.set("excludeOther", "true")
   if (query.excludeCross) params.set("excludeCross", "true")
+  if (query.declaration) params.set("declaration", query.declaration)
+  if (query.invert) params.set("invert", "true")
   if (query.includeOwn) params.set("includeOwn", "true")
   if (query.includeHidden) params.set("includeHidden", "true")
   return params.toString()
@@ -222,6 +234,27 @@ export function getNamecardCollectionPage(
       cacheFor: NO_CLIENT_CACHE,
       meta: withPlatformAuth(),
       select: normalizeNamecardCollectionPage,
+    })
+  )
+}
+
+/**
+ * 名片册「所属用户」选择器：只返回自己册内出现过的卡主与自己，按昵称搜索。
+ *
+ * 范围由后端钉死，前端不做二次过滤；头像地址按其它账号头像同一口径归一。
+ */
+export function getNamecardCollectionOwners(
+  query: { q?: string; limit?: number } = {}
+) {
+  const q = query.q?.trim()
+  return platformApiClient.Get(
+    `${exchangeMyCollectionPath()}/owners`,
+    parsed(namecardCollectionOwnersSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      meta: withPlatformAuth(),
+      params: { ...(q ? { q } : {}), limit: query.limit ?? 20 },
+      select: normalizeNamecardCollectionOwners,
     })
   )
 }
@@ -297,10 +330,7 @@ export function getExchangeDetail(exchangeId: string) {
 }
 
 /** 同意或婉拒一笔交换：成功回 `completed` / `declined`；过期或已处理是 409。 */
-function decideExchange(
-  exchangeId: string,
-  decision: "accept" | "decline"
-) {
+function decideExchange(exchangeId: string, decision: "accept" | "decline") {
   return platformApiClient.Post(
     exchangeDecisionPath(exchangeId, decision),
     {},

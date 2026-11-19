@@ -69,6 +69,7 @@ import type {
 } from "@imsweb/contracts/fudaba/card-claims"
 import type {
   Namecard,
+  NamecardCollectionOwners,
   NamecardCollectionPage,
   NamecardPage,
   NamecardQuickSettings,
@@ -475,6 +476,19 @@ export function normalizeNamecardCollectionPage(
     list: page.list.map((entry) =>
       entry.card ? { ...entry, card: namecard(entry.card) } : entry
     ),
+  }
+}
+
+/** 所属用户选择器：头像与其它账号头像同一口径归一。 */
+export function normalizeNamecardCollectionOwners(
+  owners: NamecardCollectionOwners
+): NamecardCollectionOwners {
+  return {
+    ...owners,
+    list: owners.list.map((owner) => ({
+      ...owner,
+      avatarUrl: nullableMediaUrl(owner.avatarUrl),
+    })),
   }
 }
 

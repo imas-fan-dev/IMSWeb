@@ -5,6 +5,7 @@ import {
   ArrowRightIcon,
   ImagesIcon,
   LibraryIcon,
+  Settings2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -16,6 +17,8 @@ import {
   type NamecardFilterValue,
 } from "~/components/community/namecard-filters/namecard-filter-bar"
 import type { SeriesOption } from "~/components/community/series-multi-select"
+import { NavigationLink } from "~/components/navigation/navigation-link"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
 import { Checkbox } from "~/components/ui/checkbox"
@@ -42,6 +45,7 @@ import {
 } from "~/lib/api"
 import type { NamecardCollectionPage, NamecardReactions } from "~/lib/api"
 import { NAMECARD_COLLECTION_PAGE_SIZE } from "~/lib/namecards/collection-query"
+import { readShowOwn, writeShowOwn } from "~/lib/namecards/show-own-preference"
 import { cn } from "~/lib/utils"
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import {
@@ -57,7 +61,13 @@ const EMPTY_REACTIONS: NamecardReactionState = {
   loading: false,
 }
 
-/** 一条瓦片：1:1 容器里只放正面缩略图，不叠背景、边框或信息（PRD §5）。 */
+/**
+ * 一条瓦片：1:1 容器里居中放正面缩略图，底部是制作人名。
+ *
+ * 容器与缩略图各自带边框：容器保持方形并裁掉溢出的边角，图片用
+ * `object-contain` 完整显示，不同比例的图不会被裁。`card` 为空的条目
+ * （后台已过滤，前端兜底）不渲染，名称也只取 `card.producerName`。
+ */
 function CollectionTile({
   entry,
   onOpen,
@@ -65,35 +75,56 @@ function CollectionTile({
   entry: NamecardCollectionEntry
   onOpen: (entry: NamecardCollectionEntry) => void
 }) {
-  const front = entry.card?.pages?.find((page) => page.role === "front")
-  // 原卡删掉后只剩快照，而快照没有页面地址，只能给一块占位。
-  if (!entry.card || !front) {
-    return (
-      <div className="flex aspect-square items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
-        <ImagesIcon className="size-6" aria-hidden="true" />
-        <span className="sr-only">
-          名片 #{entry.cardNumber} 的图片已不可用
-        </span>
-      </div>
-    )
-  }
+  const card = entry.card
+  if (!card) return null
+  const front = card.pages?.find((page) => page.role === "front")
+  const dimmed = entry.hiddenAt !== null
+
   return (
-    <button
-      type="button"
-      className={cn(
-        "relative aspect-square min-w-0 overflow-hidden",
-        entry.hiddenAt !== null && "opacity-70"
+    <div className="flex min-w-0 flex-col gap-1.5">
+      {front ? (
+        <button
+          type="button"
+          className={cn(
+            "flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border bg-muted/40 p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+            dimmed && "opacity-70"
+          )}
+          aria-label={`查看名片 #${entry.cardNumber}`}
+          onClick={() => onOpen(entry)}
+        >
+          <img
+            src={front.thumbUrl ?? front.url}
+            alt=""
+            loading="lazy"
+            className="max-h-full max-w-full border object-contain"
+          />
+        </button>
+      ) : (
+        <div
+          className={cn(
+            "flex aspect-square items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground",
+            dimmed && "opacity-70"
+          )}
+        >
+          <ImagesIcon className="size-6" aria-hidden="true" />
+          <span className="sr-only">
+            名片 #{entry.cardNumber} 的图片已不可用
+          </span>
+        </div>
       )}
-      aria-label={`查看名片 #${entry.cardNumber}`}
-      onClick={() => onOpen(entry)}
-    >
-      <img
-        src={front.thumbUrl ?? front.url}
-        alt=""
-        loading="lazy"
-        className="size-full object-cover"
-      />
-    </button>
+      {entry.owner ? (
+        <NavigationLink
+          to={`/user/${entry.owner.uid}`}
+          className="block truncate px-0.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
+        >
+          {card.producerName ?? "未知制作人"}
+        </NavigationLink>
+      ) : (
+        <p className="truncate px-0.5 text-xs text-muted-foreground">
+          {card.producerName ?? "未知制作人"}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -183,12 +214,16 @@ function CollectionPagination({
  * `active` 由账号工作区传入：名片册默认是隐藏的页签，没打开就不该发请求。
  */
 export function NamecardCollection({ active = true }: { active?: boolean }) {
+  const platform = useOptionalPlatformSession()
+  const accountId = platform.session?.account.id ?? null
+  const [loadedOwnerScope, setLoadedOwnerScope] = useState<string | null>(null)
   const [filters, setFilters] = useState<NamecardFilterValue>(
     DEFAULT_NAMECARD_FILTERS
   )
   const [page, setPage] = useState(1)
   const [includeOwn, setIncludeOwn] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   // 搜索框即时响应，查询串慢半拍。
   const [search, setSearch] = useState("")
 
@@ -198,9 +233,7 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
   const [reload, setReload] = useState(0)
 
   const [series, setSeries] = useState<readonly SeriesOption[]>([])
-  const [selected, setSelected] = useState<NamecardCollectionEntry | null>(
-    null
-  )
+  const [selected, setSelected] = useState<NamecardCollectionEntry | null>(null)
   const [hideBusyCard, setHideBusyCard] = useState<number | null>(null)
   const [reactions, setReactions] =
     useState<NamecardReactionState>(EMPTY_REACTIONS)
@@ -212,7 +245,10 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
   const { q, sort, dir, characterIds, matchAll, excludeOther, seriesCodes } =
     filters
   const group = filters.group
+  const owner = filters.owner
   const excludeCross = filters.excludeCross
+  const invert = filters.invert
+  const declaration = filters.declaration
 
   /** 查询指纹：变化即重新取数，也用来在渲染期清掉上一页。 */
   const queryKey = active
@@ -225,9 +261,12 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
         characterIds.join(","),
         seriesCodes.join(","),
         group,
+        owner?.accountId ?? "",
         matchAll,
         excludeOther,
         excludeCross,
+        invert,
+        declaration ?? "",
         includeOwn,
         includeHidden,
       ].join("|")
@@ -239,6 +278,14 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
     setLoading(active)
     setFailed(false)
     setResult(null)
+  }
+
+  // 【显示我的名片】跟随账号记忆：会话就绪（拿到 accountId）后才读取。
+  // 与查询指纹同一手法——渲染期发现账号换了就同步一次，不在 effect 里 setState；
+  // 没读到值之前也不会把默认值写回存储。
+  if (loadedOwnerScope !== accountId) {
+    setLoadedOwnerScope(accountId)
+    setIncludeOwn(readShowOwn(accountId))
   }
 
   useEffect(() => {
@@ -274,10 +321,13 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
       q: search || undefined,
       series: seriesCodes,
       group: group.trim() || undefined,
+      owner: owner?.accountId,
       character: characterIds,
       match: matchAll ? "all" : "any",
       excludeOther,
       excludeCross,
+      invert,
+      declaration: declaration ?? undefined,
       includeOwn,
       includeHidden,
     })
@@ -300,10 +350,13 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
     dir,
     seriesCodes,
     group,
+    owner,
     characterIds,
     matchAll,
     excludeOther,
     excludeCross,
+    invert,
+    declaration,
     includeOwn,
     includeHidden,
     reload,
@@ -368,7 +421,9 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
           ? {
               ...current,
               list: current.list.map((item) =>
-                item.cardNumber === entry.cardNumber ? { ...item, hiddenAt } : item
+                item.cardNumber === entry.cardNumber
+                  ? { ...item, hiddenAt }
+                  : item
               ),
             }
           : current
@@ -391,10 +446,13 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
 
   const filtered =
     q.trim() !== "" ||
+    owner !== null ||
     characterIds.length > 0 ||
     seriesCodes.length > 0 ||
     group.trim() !== "" ||
     excludeCross ||
+    invert ||
+    declaration !== null ||
     matchAll ||
     excludeOther
   const list = result?.list ?? []
@@ -414,6 +472,49 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
             交换得来的名片会收在这里。
           </p>
         </div>
+
+        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                aria-label="显示设置"
+              />
+            }
+          >
+            <Settings2Icon aria-hidden="true" />
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-56">
+            <PopoverTitle className="mb-2">显示选项</PopoverTitle>
+            <div className="flex flex-col gap-1">
+              <label className="flex min-h-9 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={includeOwn}
+                  onCheckedChange={(next) => {
+                    const checked = next === true
+                    setIncludeOwn(checked)
+                    setPage(1)
+                    writeShowOwn(accountId, checked)
+                  }}
+                />
+                显示我的名片
+              </label>
+              <label className="flex min-h-9 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={includeHidden}
+                  onCheckedChange={(next) => {
+                    setIncludeHidden(next === true)
+                    setPage(1)
+                  }}
+                />
+                显示隐藏名片
+              </label>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="mt-6">
@@ -427,36 +528,7 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-b pb-4">
-        <label className="flex min-h-9 items-center gap-2 text-sm">
-          <Checkbox
-            checked={includeOwn}
-            aria-label="显示我的名片"
-            onCheckedChange={(next) => {
-              setIncludeOwn(next === true)
-              setPage(1)
-            }}
-          />
-          显示我的名片
-        </label>
-        <label className="flex min-h-9 items-center gap-2 text-sm">
-          <Checkbox
-            checked={includeHidden}
-            aria-label="显示隐藏名片"
-            onCheckedChange={(next) => {
-              setIncludeHidden(next === true)
-              setPage(1)
-            }}
-          />
-          显示隐藏名片
-        </label>
-      </div>
-
-      <section
-        className="mt-4"
-        aria-label="收集的名片"
-        aria-busy={loading}
-      >
+      <section className="mt-4" aria-label="收集的名片" aria-busy={loading}>
         {loading && !result ? (
           <div role="status">
             <span className="sr-only">正在读取名片册…</span>

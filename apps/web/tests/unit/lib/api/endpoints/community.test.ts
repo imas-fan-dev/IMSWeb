@@ -109,6 +109,7 @@ function collectionPayload() {
         hiddenAt: null,
         available: true,
         own: false,
+        owner: { accountId: "acc-1", uid: "1", displayName: "测试用户" },
         card: makeNamecard({ id: 42, cardNumber: 42, cardId: "card-42" }),
         snapshot: collectionSnapshot,
       },
