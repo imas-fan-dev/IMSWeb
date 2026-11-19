@@ -173,7 +173,8 @@ describe("CommunityExchangePage App search tools", () => {
       expect(screen.getByRole("heading", { name: "筛选地图" })).toHaveFocus()
     )
     expect(screen.getByRole("textbox", { name: "城市" })).not.toHaveFocus()
-    await user.click(screen.getByRole("button", { name: "关闭" }))
+    // 底部抽屉的关闭走 Esc（把手/遮罩同效）；不再有右上角 X。
+    await user.keyboard("{Escape}")
     expect(await screen.findByText("搜索可见")).toBeVisible()
   })
 
