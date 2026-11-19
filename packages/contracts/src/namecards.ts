@@ -560,10 +560,6 @@ export const namecardMediaParamsSchema = legacyStripRequestObject({
 export const publicProfileParamsSchema = legacyStripRequestObject({
   accountId: z.string().min(1),
 })
-export const namecardListQuerySchema = legacyStripRequestObject({
-  page: z.unknown().optional(),
-  size: z.unknown().optional(),
-})
 export const adminNamecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   query: z.unknown().optional(),
@@ -1008,6 +1004,53 @@ function repeatableQueryTextList(maxItems: number, maxLength: number) {
     )
     .pipe(z.array(z.string().trim().min(1).max(maxLength)).max(maxItems))
 }
+
+/** 名片墙排序键：墙上没有交换时间，`created` 用名片创建时间。 */
+export const namecardWallSortSchema = z.enum([
+  "created",
+  "name",
+  "series",
+  "date",
+])
+
+export type NamecardWallSort = z.infer<typeof namecardWallSortSchema>
+
+/**
+ * 名片墙列表：筛选与排序参数与名片册同名，`created` 取代交换时间；
+ * 所属用户与「显示我的 / 隐藏名片」开关不属于墙。
+ *
+ * `page` / `size` 保留旧的 parseInt 兼容语义（由 API 适配器归一化），
+ * 其余参数在这里做形状校验。
+ */
+export const namecardListQuerySchema = legacyStripRequestObject({
+  page: z.unknown().optional(),
+  size: z.unknown().optional(),
+  sort: namecardWallSortSchema.default("created"),
+  /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序（读取侧补默认值）。 */
+  dir: namecardCollectionDirectionSchema.optional(),
+  q: queryText(64),
+  series: repeatableQueryTextList(16, 40),
+  group: queryText(64),
+  /** 担当角色目录 id；重复出现即多选。 */
+  character: repeatableQueryTextList(64, 18)
+    .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
+    .transform((values) => [...new Set(values.map(Number))]),
+  /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
+  match: z.enum(["any", "all"]).default("any"),
+  /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
+  excludeOther: queryBoolean,
+  /** 【不含越境】：排除企划数为复数的名片。 */
+  excludeCross: queryBoolean,
+  /**
+   * 创作声明：`original` 只留原创（`is_original`），`ai` 只留 AI 制作
+   * （`made_with_ai`）。与其它内容条件同属「命中集合」，可被 `invert` 一并取反。
+   */
+  declaration: z.enum(["original", "ai"]).optional(),
+  /**
+   * 反向排除：把内容筛选整体取反；没有任何内容条件时等价于不筛。
+   */
+  invert: queryBoolean,
+})
 
 /** 复用 `fudabaCardQuerySchema` 的 series 写法：重复出现即多值。 */
 export const namecardPageQueryShape = {

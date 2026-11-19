@@ -77,6 +77,8 @@ import type {
     NamecardExchangeRecord,
     NamecardExchangeSkipRecord,
     NamecardScanSessionRecord,
+    NamecardWallQueryRecord,
+    NamecardWallSortRecord,
     PendingCardInput
 } from '@/ports/repositories';
 import type {
@@ -192,31 +194,19 @@ interface NamecardCollectionQueryRow {
     live_owner_account_id: string | null;
 }
 
-/** 排序 / 筛选用的归一视图：实时列与快照列在这里已经合成一份。 */
-interface NamecardCollectionViewRow {
-    row: NamecardCollectionQueryRow;
-    own: boolean;
+/** 排序器只读的列：名片册与名片墙共用同一套排序语义。 */
+interface NamecardSortView {
     cardNumber: number;
+    /** 名片册是交换时间；名片墙没有交换时间，用名片创建时间。 */
     obtainedAtMs: number;
-    snapshot: NamecardCollectionSnapshotRecord;
-    seriesCodes: string[];
     /** 「按企划」的层级：两个及以上企划的卡片整组排在单一企划之后。 */
     multiSeries: boolean;
     /** 单一企划的目录位次（`agencies.display_order, code`）；多企划不参与。 */
     seriesRank: number;
     /** 单一企划的 code：目录位次相同时按 code 收尾。 */
     seriesCode: string;
-    characterIds: number[];
     /** 每个担当角色的目录排序值；「按企划」取业务分类最小、同分类目录值最小的一项。 */
     characterKeys: { category: string; order: number }[];
-    producerName: string | null;
-    groupName: string | null;
-    /** 创作声明：实时列优先，原卡删除后回退快照。 */
-    isOriginal: boolean;
-    madeWithAi: boolean;
-    /** 卡主账号：已收集条目取原卡卡主，`own` 行回退当前用户。 */
-    ownerAccountId: string | null;
-    madeOn: string | null;
     /** 0=有月日、1=只有年份、2=没有。精度层级固定，不随升降序翻转（PRD §3.3）。 */
     madeOnRank: number;
     /** 日期排序的比较值：`madeOn` 或创建时间回退。 */
@@ -225,12 +215,139 @@ interface NamecardCollectionViewRow {
     sortNameBucket: 0 | 1 | 2 | 3;
 }
 
+/** 排序 / 筛选用的归一视图：实时列与快照列在这里已经合成一份。 */
+interface NamecardCollectionViewRow extends NamecardSortView {
+    row: NamecardCollectionQueryRow;
+    own: boolean;
+    snapshot: NamecardCollectionSnapshotRecord;
+    seriesCodes: string[];
+    characterIds: number[];
+    producerName: string | null;
+    groupName: string | null;
+    /** 创作声明：实时列优先，原卡删除后回退快照。 */
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    madeOn: string | null;
+    /** 卡主账号：已收集条目取原卡卡主，`own` 行回退当前用户。 */
+    ownerAccountId: string | null;
+}
+
+/** 名片墙的归一视图：只有实时列，没有交换快照。 */
+interface NamecardWallViewRow extends NamecardSortView {
+    card: NamecardPublicRecord;
+    seriesCodes: string[];
+    characterIds: number[];
+    producerName: string | null;
+    groupName: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    madeOn: string | null;
+}
+
 function compareText(a: string, b: string): number {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function compareNumber(a: number, b: number): number {
     return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** 内容筛选的归一条件：名片册与名片墙共用（范围类开关不在这里）。 */
+interface NamecardContentFilter {
+    q?: string;
+    seriesCodes?: readonly string[];
+    groupName?: string;
+    characterIds?: readonly number[];
+    match?: 'any' | 'all';
+    excludeOther?: boolean;
+    excludeCross?: boolean;
+    declaration?: 'original' | 'ai';
+}
+
+/** 内容筛选读到的列。 */
+interface NamecardContentCandidate {
+    seriesCodes: readonly string[];
+    characterIds: readonly number[];
+    producerName: string | null;
+    groupName: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+}
+
+/**
+ * 把查询条件预计算成闭包：集合只建一次，筛选逐行调用。
+ * 命中集合只有内容条件；范围条件（所属用户 / 显示开关）在调用方处理。
+ */
+function namecardContentMatcher(filter: NamecardContentFilter): {
+    hasContentFilter: boolean;
+    matches(candidate: NamecardContentCandidate): boolean;
+} {
+    const needle = filter.q?.trim().toLowerCase() ?? '';
+    const groupNeedle = filter.groupName?.trim().toLowerCase() ?? '';
+    const seriesFilter = new Set(filter.seriesCodes ?? []);
+    const characterFilter = new Set(filter.characterIds ?? []);
+    const declaration = filter.declaration ?? null;
+    return {
+        hasContentFilter:
+            filter.excludeCross === true ||
+            seriesFilter.size > 0 ||
+            groupNeedle.length > 0 ||
+            characterFilter.size > 0 ||
+            needle.length > 0 ||
+            declaration !== null,
+        matches(candidate) {
+            // 【不含越境】：企划数是复数的整张排除（PRD §4）。
+            if (filter.excludeCross && candidate.seriesCodes.length > 1) {
+                return false;
+            }
+            if (
+                seriesFilter.size > 0 &&
+                !candidate.seriesCodes.some((code) => seriesFilter.has(code))
+            ) {
+                return false;
+            }
+            if (
+                groupNeedle.length > 0 &&
+                !candidate.groupName?.trim().toLowerCase().includes(groupNeedle)
+            ) {
+                return false;
+            }
+            if (characterFilter.size > 0) {
+                const held = new Set(candidate.characterIds);
+                if (filter.match === 'all') {
+                    for (const characterId of characterFilter) {
+                        if (!held.has(characterId)) return false;
+                    }
+                } else if (
+                    !candidate.characterIds.some((characterId) =>
+                        characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+                // 【不含其他】：担当角色必须全部落在筛选项里（PRD §4）。
+                if (
+                    filter.excludeOther &&
+                    candidate.characterIds.some(
+                        (characterId) => !characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+            }
+            if (needle.length > 0) {
+                // 制作人名称为空时改用团体名称（团体名片的检索口径，PRD §7.1）。
+                const producer = candidate.producerName?.trim() ?? '';
+                const haystack = (producer || candidate.groupName?.trim() || '')
+                    .toLowerCase();
+                if (!haystack.includes(needle)) return false;
+            }
+            // 创作声明与其它内容条件同属命中集合，可被 `invert` 一并取反。
+            if (declaration === 'original' && !candidate.isOriginal) return false;
+            if (declaration === 'ai' && !candidate.madeWithAi) return false;
+            return true;
+        }
+    };
 }
 
 /**
@@ -252,7 +369,7 @@ function characterCategoryRank(category: string): number {
 
 /** 「按企划」的第一个担当角色：业务分类最小、同分类里目录排序值最小。 */
 function firstCharacterKey(
-    view: NamecardCollectionViewRow
+    view: NamecardSortView
 ): { category: string; order: number } | null {
     let best: { category: string; order: number } | null = null;
     for (const candidate of view.characterKeys) {
@@ -272,8 +389,8 @@ function firstCharacterKey(
 
 /** 首担当角色的比较；没有担当角色的卡片垫底（与 `dir` 一起翻转到最前）。 */
 function compareFirstCharacters(
-    a: NamecardCollectionViewRow,
-    b: NamecardCollectionViewRow
+    a: NamecardSortView,
+    b: NamecardSortView
 ): number {
     const left = firstCharacterKey(a);
     const right = firstCharacterKey(b);
@@ -291,19 +408,20 @@ function compareFirstCharacters(
 }
 
 /**
- * 名片册排序（PRD §3）：
+ * 名片册 / 名片墙排序（PRD §3）：
  * - `name` 只用「是否特殊符号」分层（符号永远垫底），其余按同一个拉丁键比较——
  *   英文名、假名罗马音与中文拼音直接混排；分桶值只用来标记符号。
  * - `date` 的「没有日期」层级固定垫底；只有比较键跟着 `dir` 翻转。
  * - `series` 的三层语义：单一企划卡片整组在前、多企划整组在后（层级固定）；
  *   单企划组内按企划目录顺序（`dir` 翻转），多企划组内不比较企划；两组都用
- *   首担当角色的业务分类 → 目录排序值（`dir` 翻转）比较，最后按交换时间兜底。
- * 除 `series` 外所有排序都以交换时间、名片编号兜底，保证分页稳定。
+ *   首担当角色的业务分类 → 目录排序值（`dir` 翻转）比较，最后按时间兜底。
+ * 兜底与 `created` 用 `obtainedAtMs`：名片册是交换时间，名片墙是名片创建时间。
+ * 除 `series` 外所有排序都以时间、名片编号兜底，保证分页稳定。
  */
 function compareCollectionRows(
-    a: NamecardCollectionViewRow,
-    b: NamecardCollectionViewRow,
-    sort: NamecardCollectionSortRecord,
+    a: NamecardSortView,
+    b: NamecardSortView,
+    sort: NamecardCollectionSortRecord | NamecardWallSortRecord,
     direction: 'asc' | 'desc'
 ): number {
     const factor = direction === 'desc' ? -1 : 1;
@@ -568,6 +686,12 @@ type NamecardCardRow = {
     owner_account_id?: string | null;
     review_submitted_at?: string | Date | null;
     created_at: string | Date | null;
+};
+
+/** 墙的候选行：卡片列 + 读侧排序元数据（与名片册排序同源）。 */
+type NamecardWallCardRow = NamecardCardRow & {
+    sort_name_key: string | null;
+    sort_name_bucket: number | string | null;
 };
 
 /**
@@ -1065,6 +1189,103 @@ export class SqlCoreRepository implements NamecardRepository {
             rows,
             'live'
         ) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 名片墙的分页列表：筛选 / 排序与名片册同一套语义，可见性口径与
+     * `listApprovedCards` 相同；墙上没有交换时间，`created` 与排序兜底都用
+     * 名片创建时间。排序键、担当角色与企划目录各批量查一次，不做逐行回库。
+     */
+    async listApprovedCardsPage(
+        input: NamecardWallQueryRecord
+    ): Promise<{ rows: NamecardPublicRecord[]; total: number }> {
+        const rows = await queryAll<NamecardWallCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS}, sort_name_key, sort_name_bucket
+               FROM fudaba_cards
+              WHERE publication_status='published'
+                AND visible=TRUE
+                AND ${NAMECARD_PUBLIC_ORIGIN}
+                AND deleted_at IS NULL
+              ORDER BY card_number DESC`,
+            []
+        );
+        const cards = (await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+        const cardIds = rows.map((row) => row.internal_id);
+        const sort = input.sort ?? 'created';
+        // 缺省方向与名片册同一规则：创建时间与制作日期倒序，其余正序。
+        const direction =
+            input.dir ??
+            (sort === 'created' || sort === 'date' ? 'desc' : 'asc');
+        const [favoriteOrders, seriesRanks] = await Promise.all([
+            this.listCollectionFavoriteOrders(this.database, cardIds),
+            // 企划目录顺序只差一次查询；其它排序用不上，别为它多跑一趟。
+            sort === 'series'
+                ? this.listCollectionSeriesRanks(this.database)
+                : Promise.resolve(new Map<string, number>())
+        ]);
+
+        const views = rows.map((row, index): NamecardWallViewRow => {
+            const card = cards[index]!;
+            const favoriteKeys = favoriteOrders.get(row.internal_id) ?? [];
+            const seriesCodes = [...(card.series_codes ?? [])];
+            const madeOn = card.made_on?.trim() || null;
+            const createdAtMs = card.created_at
+                ? new Date(card.created_at).getTime()
+                : 0;
+            const madeOnRank = madeOn === null ? 2 : madeOn.length >= 7 ? 0 : 1;
+            // 多企划不参与目录比较；单一企划（含零企划）按位次排序，
+            // 目录里查不到（或没有企划）的位次垫底，再按 code 收尾。
+            const seriesCode = seriesCodes[0] ?? '';
+            return {
+                card,
+                // 墙上没有交换时间：创建时间同时承担 `created` 与排序兜底。
+                obtainedAtMs: createdAtMs,
+                cardNumber: Number(card.card_number ?? card.id),
+                seriesCodes,
+                multiSeries: seriesCodes.length > 1,
+                seriesRank:
+                    seriesRanks.get(seriesCode) ?? Number.MAX_SAFE_INTEGER,
+                seriesCode,
+                characterIds: favoriteKeys.map(({ id }) => id),
+                characterKeys: favoriteKeys.map(({ category, order }) => ({
+                    category,
+                    order
+                })),
+                producerName: card.producer_name ?? null,
+                groupName: card.group_name ?? null,
+                isOriginal: card.is_original === true,
+                madeWithAi: card.made_with_ai === true,
+                madeOn,
+                madeOnRank,
+                dateSortValue:
+                    madeOnRank < 2
+                        ? (madeOn ?? '')
+                        : new Date(createdAtMs).toISOString(),
+                sortNameKey: row.sort_name_key ?? '',
+                sortNameBucket: snapshotBucket(row.sort_name_bucket)
+            };
+        });
+
+        // 内容条件与名片册共用同一个命中集合；墙没有范围类开关需要排除。
+        const content = namecardContentMatcher(input);
+        const invert = input.invert === true && content.hasContentFilter;
+        const filtered = views.filter((view) => {
+            const matched = content.matches(view);
+            return invert ? !matched : matched;
+        });
+        filtered.sort((left, right) =>
+            compareCollectionRows(left, right, sort, direction)
+        );
+        const page = filtered.slice(input.offset, input.offset + input.limit);
+        return {
+            total: filtered.length,
+            rows: page.map((view) => view.card)
+        };
     }
 
     async findApprovedCard(
@@ -4094,11 +4315,6 @@ export class SqlCoreRepository implements NamecardRepository {
             )
         );
 
-        const needle = input.q?.trim().toLowerCase() ?? '';
-        const groupNeedle = input.groupName?.trim().toLowerCase() ?? '';
-        const seriesFilter = new Set(input.seriesCodes ?? []);
-        const characterFilter = new Set(input.characterIds ?? []);
-
         const views = prepared.map(
             ({ row, snapshot }): NamecardCollectionViewRow => {
                 const live = row.live_id !== null;
@@ -4181,73 +4397,15 @@ export class SqlCoreRepository implements NamecardRepository {
             }
         );
 
-        const declaration = input.declaration ?? null;
-        // 内容筛选的「命中集合」：只有这些条件参与【反向排除】。`owner` /
+        // 内容筛选的「命中集合」：只有内容条件参与【反向排除】。`owner` /
         // `includeOwn` / `includeHidden` 与 `locked` / 已删卡在 SQL 与合并阶段处理，
         // 不属于这里，因此不会被取反。
-        const matchesContent = (view: NamecardCollectionViewRow): boolean => {
-            // 【不含越境】：企划数是复数的整张排除（PRD §4）。
-            if (input.excludeCross && view.seriesCodes.length > 1) return false;
-            if (
-                seriesFilter.size > 0 &&
-                !view.seriesCodes.some((code) => seriesFilter.has(code))
-            ) {
-                return false;
-            }
-            if (
-                groupNeedle.length > 0 &&
-                !view.groupName?.trim().toLowerCase().includes(groupNeedle)
-            ) {
-                return false;
-            }
-            if (characterFilter.size > 0) {
-                const held = new Set(view.characterIds);
-                if (input.match === 'all') {
-                    for (const characterId of characterFilter) {
-                        if (!held.has(characterId)) return false;
-                    }
-                } else if (
-                    !view.characterIds.some((characterId) =>
-                        characterFilter.has(characterId)
-                    )
-                ) {
-                    return false;
-                }
-                // 【不含其他】：担当角色必须全部落在筛选项里（PRD §4）。
-                if (
-                    input.excludeOther &&
-                    view.characterIds.some(
-                        (characterId) => !characterFilter.has(characterId)
-                    )
-                ) {
-                    return false;
-                }
-            }
-            if (needle.length > 0) {
-                // 制作人名称为空时改用团体名称（团体名片的检索口径，PRD §7.1）。
-                const producer = view.producerName?.trim() ?? '';
-                const haystack = (producer || view.groupName?.trim() || '')
-                    .toLowerCase();
-                if (!haystack.includes(needle)) return false;
-            }
-            // 创作声明与其它内容条件同属命中集合，可被 `invert` 一并取反。
-            if (declaration === 'original' && !view.isOriginal) return false;
-            if (declaration === 'ai' && !view.madeWithAi) return false;
-            return true;
-        };
-
-        const hasContentFilter =
-            input.excludeCross === true ||
-            seriesFilter.size > 0 ||
-            groupNeedle.length > 0 ||
-            characterFilter.size > 0 ||
-            needle.length > 0 ||
-            declaration !== null;
+        const content = namecardContentMatcher(input);
         // 没有任何内容条件时【反向排除】等价于不筛：不能把所有行都排除。
-        const invert = input.invert === true && hasContentFilter;
+        const invert = input.invert === true && content.hasContentFilter;
 
         const filtered = views.filter((view) => {
-            const matched = matchesContent(view);
+            const matched = content.matches(view);
             return invert ? !matched : matched;
         });
 

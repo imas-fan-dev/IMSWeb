@@ -176,6 +176,7 @@ import { test } from 'vitest';
             'handleGetQuickExchange',
             'handleGetQuickSettings',
             'handleListCollection',
+            'handleListCollectionOwners',
             'handleListExchanges',
             'handlePutCardLayout',
             'handlePutQuickSettings',
@@ -521,7 +522,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 174);
+            assert.equal(Object.values(actual).flat().length, 175);
         });
 
 
@@ -769,6 +770,10 @@ import { test } from 'vitest';
             async listApprovedCards(limit, offset) {
                 calls.namecardListApproved.push([limit, offset]);
                 return [];
+            },
+            async listApprovedCardsPage(input) {
+                calls.namecardListApproved.push([input.limit, input.offset]);
+                return { rows: [], total: 0 };
             },
             async listAdminCards(limit, offset) {
                 calls.namecardListAdmin.push([limit, offset]);

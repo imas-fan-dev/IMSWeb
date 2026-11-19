@@ -19,6 +19,7 @@ import type {
 import type {
     NamecardPublicRecord,
     NamecardRepository,
+    NamecardWallQueryRecord,
 } from '@/ports/repositories/namecards';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { assertContractJson } from '../contracts/contract-json';
@@ -105,6 +106,9 @@ function fixture(overrides: {
         async listApprovedCards() {
             return cards;
         },
+        async listApprovedCardsPage() {
+            return { rows: cards, total: cards.length };
+        },
         async findApprovedCard(id) {
             return cards.find((card) => card.card_number === id) ?? null;
         },
@@ -171,6 +175,53 @@ test('the wall lists published cards with the shared page contract', async () =>
     assert.equal(body.list[0]?.pages?.[0]?.url?.startsWith(FRONT_PAGE), true);
     assert.equal(body.list[0]?.pages?.[1]?.url?.startsWith(BACK_PAGE), true);
     assert.equal(body.list[0]?.hasOwner, false);
+});
+
+test('the wall normalizes the shared filter and sort query', async () => {
+    const received: NamecardWallQueryRecord[] = [];
+    const app = fixture({
+        repository: {
+            async listApprovedCardsPage(input) {
+                received.push(input);
+                return { rows: [], total: 0 };
+            },
+        },
+    });
+
+    await app.request('/api/cards');
+    await app.request(
+        '/api/cards?page=2&size=10&sort=name&dir=desc&q=alice' +
+            '&series=cg&series=765&group=beta' +
+            '&character=900001&character=900002&match=all' +
+            '&excludeOther=1&excludeCross=true&declaration=ai&invert=1',
+    );
+
+    // 缺省：创建时间倒序，内容开关全部关闭。
+    assert.deepEqual(received[0], {
+        limit: 25,
+        offset: 0,
+        sort: 'created',
+        dir: 'desc',
+        match: 'any',
+        excludeOther: false,
+        excludeCross: false,
+        invert: false,
+    });
+    assert.deepEqual(received[1], {
+        limit: 10,
+        offset: 10,
+        sort: 'name',
+        dir: 'desc',
+        q: 'alice',
+        seriesCodes: ['cg', '765'],
+        groupName: 'beta',
+        characterIds: [900_001, 900_002],
+        match: 'all',
+        excludeOther: true,
+        excludeCross: true,
+        declaration: 'ai',
+        invert: true,
+    });
 });
 
 test('one card by number keeps the list projection and 404s on unknown numbers', async () => {

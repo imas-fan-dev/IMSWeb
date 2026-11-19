@@ -473,6 +473,39 @@ export interface NamecardCollectionQueryRecord {
     invert?: boolean;
 }
 
+/** 名片墙排序键：墙上没有交换时间，`created` 用名片创建时间。 */
+export type NamecardWallSortRecord = 'created' | 'name' | 'series' | 'date';
+
+/** 名片墙列表的查询：筛选与排序参数与名片册同名，但没有范围类开关。 */
+export interface NamecardWallQueryRecord {
+    limit: number;
+    offset: number;
+    sort?: NamecardWallSortRecord;
+    /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序。 */
+    dir?: 'asc' | 'desc';
+    /** 制作人名称搜索；为空时改用团体名称。 */
+    q?: string;
+    /** 企划筛选；命中其中任意一个即保留。 */
+    seriesCodes?: readonly string[];
+    /** 所属团体（`groupName`）不区分大小写的子串匹配。 */
+    groupName?: string;
+    /** 担当角色筛选；`match` 决定「或」还是「同时包含」。 */
+    characterIds?: readonly number[];
+    /** `all` = 【同时包含】。 */
+    match?: 'any' | 'all';
+    /** 【不含其他】：担当角色必须全部落在筛选项里。 */
+    excludeOther?: boolean;
+    /** 【不含越境】：排除企划数为复数的名片。 */
+    excludeCross?: boolean;
+    /** 创作声明：`original` = `is_original`，`ai` = `made_with_ai`。 */
+    declaration?: 'original' | 'ai';
+    /**
+     * 【反向排除】：把内容筛选整体取反；没有内容条件时等价于不筛。
+     * 墙没有范围类开关，因此不存在需要排除在取反之外的条件。
+     */
+    invert?: boolean;
+}
+
 /** 属主清单布局的原始形态：分组 + 默认分组顺序。 */
 export interface NamecardCardLayoutRecord {
     groups: { id: string; title: string; cardNumbers: number[] }[];
@@ -705,6 +738,14 @@ export interface NamecardRepository {
         limit: number,
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
+    /**
+     * 名片墙的分页列表：可见性口径与 {@link listApprovedCards} 相同，额外支持
+     * 与名片册同名的筛选 / 排序；墙上没有交换时间，`created` 与排序兜底都用
+     * 名片创建时间。
+     */
+    listApprovedCardsPage(
+        input: NamecardWallQueryRecord,
+    ): Promise<{ rows: NamecardPublicRecord[]; total: number }>;
     /** One published card by its wall number, with the same projection the list uses. */
     findApprovedCard(cardNumber: number): Promise<NamecardPublicRecord | null>;
     findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
