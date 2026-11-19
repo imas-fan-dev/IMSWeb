@@ -595,6 +595,11 @@ test.describe("namecard claim workflow", () => {
       }))
       expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight)
 
+      // 打开弹窗本身可能让页面滚动到卡片所在位置；要断言的是「滚动弹窗 body 不会带动页面」，
+      // 因此以打开后的页面滚动位置为基准，而不是硬编码 0。
+      const pageScrollBefore = await page.evaluate(
+        () => document.scrollingElement?.scrollTop ?? 0
+      )
       const footerBefore = await footer.boundingBox()
       const closeBefore = await close.boundingBox()
       await body.evaluate((node) => {
@@ -607,7 +612,7 @@ test.describe("namecard claim workflow", () => {
       expectSameBox(closeBefore, await close.boundingBox())
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
     })
   })
 

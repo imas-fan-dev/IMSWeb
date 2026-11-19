@@ -1,5 +1,6 @@
 import { test as base } from "@playwright/test"
 import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
+import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import {
   namecardNotificationListResponseSchema,
   type NamecardNotification,
@@ -87,6 +88,20 @@ function installPlatformAccountsProbe(dispatcher: ApiDispatcher) {
  * The wall detail dialog resolves series names and colours for the cards it
  * shows, so any spec that opens it would otherwise fail on this request.
  */
+function installCharactersProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/characters"),
+    responses: { 200: namecardCharacterCatalogSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 200,
+      json: { agencies: [], categories: [], characters: [], units: [] },
+    }),
+  })
+}
+
 function installSeriesProbe(dispatcher: ApiDispatcher) {
   dispatcher.expect({
     method: "GET",
@@ -168,6 +183,7 @@ export const test = base.extend<
       await dispatcher.install(context)
       installInboxProbe(dispatcher, inboxNotifications)
       installSeriesProbe(dispatcher)
+      installCharactersProbe(dispatcher)
       installWallInsightsProbe(dispatcher)
       installPlatformAccountsProbe(dispatcher)
       installCardLayoutProbe(dispatcher)

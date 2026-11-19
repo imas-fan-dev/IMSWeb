@@ -1025,7 +1025,7 @@ export type NamecardWallSort = z.infer<typeof namecardWallSortSchema>
 export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   size: z.unknown().optional(),
-  sort: namecardWallSortSchema.default("created"),
+  sort: namecardWallSortSchema.optional(),
   /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序（读取侧补默认值）。 */
   dir: namecardCollectionDirectionSchema.optional(),
   q: queryText(64),
@@ -1036,7 +1036,7 @@ export const namecardListQuerySchema = legacyStripRequestObject({
     .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
     .transform((values) => [...new Set(values.map(Number))]),
   /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
-  match: z.enum(["any", "all"]).default("any"),
+  match: z.enum(["any", "all"]).optional(),
   /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
   excludeOther: queryBoolean,
   /** 【不含越境】：排除企划数为复数的名片。 */
@@ -1077,7 +1077,7 @@ export const namecardCollectionQuerySchema = strictRequestObject({
     .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
     .transform((values) => [...new Set(values.map(Number))]),
   /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
-  match: z.enum(["any", "all"]).default("any"),
+  match: z.enum(["any", "all"]).optional(),
   /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
   excludeOther: queryBoolean,
   /** 【不含越境】：排除企划数为复数的名片。 */
