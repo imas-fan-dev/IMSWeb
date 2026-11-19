@@ -23,6 +23,7 @@ export interface NamecardNotificationRow {
     id: string;
     kind: string;
     card_number: number | string | null;
+    exchange_id: string | null;
     title: string;
     body: string;
     read_at: Date | string | null;
@@ -33,11 +34,14 @@ export interface NewNamecardNotificationInput {
     recipientAccountId: string;
     kind: NamecardNotificationKind;
     cardNumber: number | null;
+    /** 交换类通知带上对应的交换行；其它种类不传，落库为 NULL。 */
+    exchangeId?: string | null;
     title: string;
     body: string;
 }
 
-const NOTIFICATION_COLUMNS = 'id, kind, card_number, title, body, read_at, created_at';
+const NOTIFICATION_COLUMNS =
+    'id, kind, card_number, exchange_id, title, body, read_at, created_at';
 
 /** 事务内直接写入一条通知，并按上限裁剪（供审核处理器复用）。 */
 export async function insertNamecardNotification(
@@ -48,12 +52,62 @@ export async function insertNamecardNotification(
     await sqlStatement(
         database,
         `INSERT INTO public.namecard_notifications
-             (id, recipient_account_id, kind, card_number, title, body)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, input.recipientAccountId, input.kind, input.cardNumber, input.title, input.body]
+             (id, recipient_account_id, kind, card_number, exchange_id, title, body)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+            id,
+            input.recipientAccountId,
+            input.kind,
+            input.cardNumber,
+            input.exchangeId ?? null,
+            input.title,
+            input.body
+        ]
     ).run();
     await trimNamecardNotifications(database, input.recipientAccountId);
     return id;
+}
+
+/**
+ * 重复发起覆盖同一笔待确认交换时，目标方那条请求通知原地刷新：仍是同一行，
+ * 正文与卡号换成最新一次，重新变成未读，时间也跟着刷新（收件箱把它排到最前）。
+ * 通知行不在了（被保留策略裁掉）才补一条新的。
+ */
+export async function refreshNamecardExchangeRequestNotification(
+    database: SqlDatabase,
+    input: {
+        recipientAccountId: string;
+        exchangeId: string;
+        cardNumber: number | null;
+        title: string;
+        body: string;
+        at: string;
+    }
+): Promise<void> {
+    const result = await sqlStatement(
+        database,
+        `UPDATE public.namecard_notifications
+            SET card_number = ?, title = ?, body = ?, read_at = NULL, created_at = ?
+          WHERE recipient_account_id = ? AND exchange_id = ?
+            AND kind = 'card-exchange-requested'`,
+        [
+            input.cardNumber,
+            input.title,
+            input.body,
+            input.at,
+            input.recipientAccountId,
+            input.exchangeId
+        ]
+    ).run();
+    if ((result.meta.changes ?? 0) > 0) return;
+    await insertNamecardNotification(database, {
+        recipientAccountId: input.recipientAccountId,
+        kind: 'card-exchange-requested',
+        cardNumber: input.cardNumber,
+        exchangeId: input.exchangeId,
+        title: input.title,
+        body: input.body
+    });
 }
 
 /** 只保留每个账号最新的 {@link NAMECARD_NOTIFICATION_LIMIT} 条。 */

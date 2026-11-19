@@ -200,9 +200,26 @@ describe("PlatformAccountMenu", () => {
       "href",
       "/account/me"
     )
-    const entry = screen.getByRole("link", { name: "帐号安全" })
-    expect(entry).toHaveAttribute("href", "/account/security")
-    expect(entry.querySelector("svg")).toHaveClass("lucide-shield-check")
+    // Web 目标不路由 /account/me，头部菜单是 ·/account/security 唯一的入口。
+    expect(screen.getByRole("link", { name: "帐号安全" })).toHaveAttribute(
+      "href",
+      "/account/security"
+    )
+  })
+
+  it("links a signed-in account to the namecard manager", async () => {
+    sessionMocks.usePlatformSession.mockReturnValue(
+      sessionState("authenticated")
+    )
+    renderMenu()
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "帐号：Platform Producer" })
+    )
+
+    const entry = screen.getByRole("link", { name: "名片管理" })
+    expect(entry).toHaveAttribute("href", "/account/me/namecards")
+    expect(entry.querySelector("svg")).toHaveClass("lucide-credit-card")
   })
 
   it("keeps account security out of the anonymous menu", async () => {
@@ -212,5 +229,6 @@ describe("PlatformAccountMenu", () => {
     await userEvent.click(screen.getByRole("button", { name: "帐号：未登录" }))
 
     expect(screen.queryByRole("link", { name: "帐号安全" })).toBeNull()
+    expect(screen.queryByRole("link", { name: "名片管理" })).toBeNull()
   })
 })

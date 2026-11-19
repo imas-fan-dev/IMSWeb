@@ -2,9 +2,14 @@ import { isTauri } from "@tauri-apps/api/core"
 import {
   BookOpenTextIcon,
   CircleUserIcon,
+  HandshakeIcon,
   HouseIcon,
   MapPinnedIcon,
+  NfcIcon,
+  QrCodeIcon,
   UsersIcon,
+  UsersRoundIcon,
+  XIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -13,6 +18,9 @@ import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
 import { useNamecardUnread } from "~/lib/use-namecard-unread"
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
+import { ScanShareDialog } from "~/components/community/exchange/scan-share-dialog"
 import { useAppNavigation } from "~/components/app/app-navigation-provider"
 import {
   APP_TABS,
@@ -88,6 +96,131 @@ const tabs = APP_TABS.map((tab) => ({
 }))
 
 /**
+ * 弧形子菜单的几何：以中央按钮顶部为原点，左右各外扩再向上抬，
+ * 中间那颗最高，形成一条拱形而不是一条直线。
+ */
+const EXCHANGE_SUB_ACTIONS = [
+  { id: "qr", label: "二维码", icon: QrCodeIcon, x: -76, y: -24 },
+  { id: "nfc", label: "碰一碰", icon: NfcIcon, x: 0, y: -60 },
+  { id: "group", label: "多人交换", icon: UsersRoundIcon, x: 76, y: -24 },
+] as const satisfies readonly {
+  id: "qr" | "nfc" | "group"
+  label: string
+  icon: LucideIcon
+  x: number
+  y: number
+}[]
+
+/** 本片只有【二维码】接通；其余两颗按要求置灰，等后续切片接入。 */
+const EXCHANGE_SUB_ACTION_DISABLED: Record<
+  (typeof EXCHANGE_SUB_ACTIONS)[number]["id"],
+  boolean
+> = { qr: false, nfc: true, group: true }
+
+function ExchangeActionButton({
+  open,
+  onToggle,
+  onOpenQr,
+}: {
+  open: boolean
+  onToggle: () => void
+  onOpenQr: () => void
+}) {
+  return (
+    <>
+      <div
+        id="exchange-action-menu"
+        aria-hidden={open ? undefined : true}
+        inert={!open}
+        className="pointer-events-none absolute bottom-[calc(50%+2rem)] left-1/2 size-0"
+      >
+        {EXCHANGE_SUB_ACTIONS.map((action, index) => {
+          const disabled = EXCHANGE_SUB_ACTION_DISABLED[action.id]
+          const Icon = action.icon
+          return (
+            <span
+              key={action.id}
+              className="absolute bottom-0 left-0"
+              style={{
+                transform: `translate(calc(-50% + ${action.x}px), ${action.y}px)`,
+              }}
+            >
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={action.label}
+                onClick={disabled ? undefined : onOpenQr}
+                style={{
+                  transitionDelay: open
+                    ? `${index * 45}ms`
+                    : `${(EXCHANGE_SUB_ACTIONS.length - 1 - index) * 35}ms`,
+                }}
+                className={cn(
+                  "group flex flex-col items-center gap-1.5 outline-none",
+                  "transition-[scale,translate,opacity] duration-420 ease-interactive motion-reduce:transition-none",
+                  open
+                    ? "pointer-events-auto translate-y-0 scale-100"
+                    : "pointer-events-none translate-y-3 scale-50",
+                  open ? (disabled ? "opacity-60" : "opacity-100") : "opacity-0"
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid size-14 place-items-center rounded-full shadow-[0_12px_26px_-14px_rgb(0_0_0/0.55)] ring-1 transition-colors",
+                    disabled
+                      ? "bg-muted text-muted-foreground ring-foreground/10"
+                      : "bg-card text-primary ring-primary/20"
+                  )}
+                >
+                  <Icon aria-hidden="true" className="size-6" />
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[0.6875rem] leading-none font-semibold whitespace-nowrap ring-1",
+                    disabled
+                      ? "bg-muted text-muted-foreground ring-foreground/10"
+                      : "bg-card text-primary ring-primary/25"
+                  )}
+                >
+                  {action.label}
+                </span>
+              </button>
+            </span>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="exchange-action-menu"
+        aria-label={open ? "收起名片交换菜单" : "打开名片交换菜单"}
+        onClick={onToggle}
+        className="absolute top-1/2 left-1/2 z-10 grid size-16 -translate-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
+      >
+        <span
+          className={cn(
+            "flex flex-col items-center gap-0.5 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            open ? "scale-75 -rotate-45 opacity-0" : "scale-100 opacity-100"
+          )}
+        >
+          <HandshakeIcon aria-hidden="true" className="size-5.5" />
+          <span className="text-[0.625rem] leading-none font-semibold">
+            交换
+          </span>
+        </span>
+        <XIcon
+          aria-hidden="true"
+          className={cn(
+            "absolute size-5 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            open ? "scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0"
+          )}
+        />
+      </button>
+    </>
+  )
+}
+
+/**
  * Modifier clicks and non-primary buttons that the browser is expected to
  * handle itself: open in a new tab, open in a new window, download. Mirrors
  * React Router's own link handler so an intercepted tab still behaves like the
@@ -139,6 +272,14 @@ export function AppTabBar() {
   )
   const [initialInteractionBlocked] = useState(interactionBlocked)
   const [nativeGlassActive, setNativeGlassActive] = useState(false)
+  const [exchangeMenuOpen, setExchangeMenuOpen] = useState(false)
+  const [scanPickerOpen, setScanPickerOpen] = useState(false)
+  const [scanShareCards, setScanShareCards] = useState<readonly number[] | null>(
+    null
+  )
+  const [scanGiveCards, setScanGiveCards] = useState<readonly number[] | null>(
+    null
+  )
   const nativeItems = useMemo(
     () =>
       tabs.map((tab) => ({
@@ -185,6 +326,23 @@ export function AppTabBar() {
       )
     }
   }, [])
+
+  // 导航后收起子菜单：动作按钮不是 tab，跨页时不该留下一个悬空的展开层。
+  // 与下面的 lens 位移同一手法——渲染期发现路由换了就同步一次，不进 effect。
+  const [menuRouteKey, setMenuRouteKey] = useState(routeKey)
+  if (menuRouteKey !== routeKey) {
+    setMenuRouteKey(routeKey)
+    setExchangeMenuOpen(false)
+  }
+
+  useEffect(() => {
+    if (!exchangeMenuOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExchangeMenuOpen(false)
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [exchangeMenuOpen])
 
   useEffect(() => {
     if (!shouldAttemptNativeGlass()) return
@@ -268,7 +426,7 @@ export function AppTabBar() {
     !(useLightMapGlass && nativeTabBarSuppressedState)
   const androidMapGlass = androidDragEnabled && useLightMapGlass
   const drag = useAndroidTabDrag({
-    enabled: androidDragEnabled && !interactionBlocked,
+    enabled: androidDragEnabled && !interactionBlocked && !exchangeMenuOpen,
     selectedIndex: activeIndex,
     count: tabs.length,
     routeKey,
@@ -307,14 +465,15 @@ export function AppTabBar() {
     return null
 
   return (
-    <nav
-      aria-label={t("navigation.mainLabel")}
-      inert={interactionBlocked}
-      className={cn(
-        "pointer-events-none fixed inset-x-0 z-50 flex justify-center px-3",
-        BAR_OFFSET
-      )}
-    >
+    <>
+      <nav
+        aria-label={t("navigation.mainLabel")}
+        inert={interactionBlocked}
+        className={cn(
+          "pointer-events-none fixed inset-x-0 z-50 flex justify-center px-3",
+          BAR_OFFSET
+        )}
+      >
       <div
         {...drag}
         data-android-tab-drag={androidDragEnabled ? "" : undefined}
@@ -340,7 +499,11 @@ export function AppTabBar() {
             squash-and-stretch without interrupting the travel underneath. */}
         <span
           aria-hidden="true"
-          data-visible={activeIndex >= 0 ? "true" : undefined}
+          data-visible={
+            activeIndex >= 0 && !(IS_APP_TARGET && activeId === "map")
+              ? "true"
+              : undefined
+          }
           className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/var(--app-tab-count))] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
         >
           <span
@@ -350,43 +513,101 @@ export function AppTabBar() {
         </span>
 
         <ul className="relative flex items-stretch">
-          {tabs.map((tab) => (
-            <li key={tab.to} className="flex-1">
-              <NavigationLink
-                to={tab.to}
-                aria-current={tab.id === activeId ? "page" : undefined}
-                className={cn(
-                  "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
-                  tab.id === activeId
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                onClick={(event) => handleTabClick(event, tab.id)}
-              >
-                <tab.icon
-                  aria-hidden="true"
-                  data-glass-tab-icon=""
+          {tabs.map((tab) => {
+            if (IS_APP_TARGET && tab.id === "map") {
+              return (
+                <li key={tab.to} className="relative flex-1">
+                  <ExchangeActionButton
+                    open={exchangeMenuOpen}
+                    onToggle={() => setExchangeMenuOpen((open) => !open)}
+                    onOpenQr={() => {
+                      setExchangeMenuOpen(false)
+                      setScanPickerOpen(true)
+                    }}
+                  />
+                </li>
+              )
+            }
+            // Expanded means the page behind is frozen; the other four tabs
+            // belong to that page, so they stop responding too.
+            const frozen = IS_APP_TARGET && exchangeMenuOpen
+            return (
+              <li key={tab.to} className="flex-1" inert={frozen}>
+                <NavigationLink
+                  to={tab.to}
+                  aria-current={tab.id === activeId ? "page" : undefined}
                   className={cn(
-                    "size-5",
-                    tab.id === activeId && "fill-primary/15"
+                    "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
+                    tab.id === activeId
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                    frozen && "pointer-events-none opacity-50"
                   )}
-                />
-                <span className="relative">
-                  {t(tab.label)}
-                  {tab.id === "account" && unread > 0 ? (
-                    <span
-                      className="absolute -top-6.5 -right-3 grid size-3.5 place-items-center rounded-full bg-destructive text-[9px] leading-none font-medium text-destructive-foreground"
-                      aria-label={`${unread} 条未读消息`}
-                    >
-                      {unread > 9 ? "9+" : unread}
-                    </span>
-                  ) : null}
-                </span>
-              </NavigationLink>
-            </li>
-          ))}
+                  onClick={(event) => handleTabClick(event, tab.id)}
+                >
+                  <tab.icon
+                    aria-hidden="true"
+                    data-glass-tab-icon=""
+                    className={cn(
+                      "size-5",
+                      tab.id === activeId && "fill-primary/15"
+                    )}
+                  />
+                  <span className="relative">
+                    {t(tab.label)}
+                    {tab.id === "account" && unread > 0 ? (
+                      <span
+                        className="absolute -top-6.5 -right-3 grid size-3.5 place-items-center rounded-full bg-destructive text-[9px] leading-none font-medium text-destructive-foreground"
+                        aria-label={`${unread} 条未读消息`}
+                      >
+                        {unread > 9 ? "9+" : unread}
+                      </span>
+                    ) : null}
+                  </span>
+                </NavigationLink>
+              </li>
+            )
+          })}
         </ul>
       </div>
-    </nav>
+      </nav>
+      {IS_APP_TARGET ? (
+        <div
+          data-slot="exchange-scrim"
+          data-open={exchangeMenuOpen ? "true" : undefined}
+          aria-hidden="true"
+          onClick={() => setExchangeMenuOpen(false)}
+          className={cn(
+            "fixed inset-0 z-40 bg-background/50 backdrop-blur-sm transition-opacity duration-300 ease-out motion-reduce:transition-none",
+            exchangeMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          )}
+        />
+      ) : null}
+      {IS_APP_TARGET ? (
+        <>
+          <ExchangeCardPickerDialog
+            open={scanPickerOpen}
+            onOpenChange={setScanPickerOpen}
+            variant="scan-share"
+            onSubmit={(cardNumbers) => setScanShareCards(cardNumbers)}
+            onScan={(cardNumbers) => setScanGiveCards(cardNumbers)}
+          />
+          <ScanShareDialog
+            open={scanShareCards !== null}
+            onOpenChange={(open) => {
+              if (!open) setScanShareCards(null)
+            }}
+            cardNumbers={scanShareCards ?? []}
+          />
+          <ScanExchangeDialog
+            open={scanGiveCards !== null}
+            onOpenChange={(open) => {
+              if (!open) setScanGiveCards(null)
+            }}
+            cardNumbers={scanGiveCards ?? []}
+          />
+        </>
+      ) : null}
+    </>
   )
 }

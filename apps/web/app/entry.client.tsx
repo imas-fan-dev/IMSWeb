@@ -20,6 +20,12 @@ async function startMockApi(): Promise<void> {
 }
 
 startMockApi().then(() => {
+  // 扫码交换离线队列：装上 `online` 监听并尝试重放一次上次没提交成功的交换。
+  // 动态引入让队列与 API 客户端离开首屏 hydration 的关键路径。
+  void import("~/lib/namecards/scan-exchange-queue").then((queue) =>
+    queue.startScanExchangeReplay()
+  )
+
   startTransition(() => {
     hydrateRoot(
       document,

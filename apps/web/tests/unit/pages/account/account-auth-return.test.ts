@@ -52,4 +52,29 @@ describe("account authentication return", () => {
       "/account/security#sessions"
     )
   })
+
+  it("returns to the namecard share pages it hands out", () => {
+    for (const destination of [
+      "/exchange/card/abcdefghijkl",
+      "/exchange/haruka",
+      // handle 恰好叫 card 的快速页（与 `/exchange/card/<slug>` 是两个形状）。
+      "/exchange/card",
+      "/exchange/1?from=qr",
+    ]) {
+      expect(accountReturnTo(destination)).toBe(destination)
+      expect(
+        new URL(
+          accountAuthPath("login", destination),
+          "https://site.example"
+        ).searchParams.get("returnTo")
+      ).toBe(destination)
+    }
+    for (const value of [
+      "/exchange",
+      "/exchange/card/one/two",
+      "/exchange//card",
+    ]) {
+      expect(accountReturnTo(value)).toBeNull()
+    }
+  })
 })

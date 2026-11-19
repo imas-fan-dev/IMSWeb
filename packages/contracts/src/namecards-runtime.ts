@@ -10,8 +10,17 @@
 /** 单次交换的名片数量上限：快速列表、发起与扫码出示同受此限。 */
 export const NAMECARD_EXCHANGE_CARD_LIMIT = 20
 
+/** 属主清单里最多能建多少个分组（不含默认分组）。 */
+export const NAMECARD_PROFILE_GROUP_LIMIT = 20
+
 /** 扫码出示的二维码一周内有效。 */
 export const NAMECARD_SCAN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * 待确认交换的有效期：超过这个时长仍 `pending` 的交换由读取侧投影成 `expired`。
+ * 放在运行时常量里而不是 `domains/` 下，是因为基础设施（仓储）也要按它投影。
+ */
+export const NAMECARD_EXCHANGE_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /** The fields the editor needs to turn raw input into the stored value. */
 export interface PlatformAccountFormat {

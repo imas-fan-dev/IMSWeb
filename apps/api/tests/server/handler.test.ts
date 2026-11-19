@@ -169,11 +169,18 @@ import { test } from 'vitest';
             'handleCommitScanSession',
             'handleCreateScanSession',
             'handleDeclineExchange',
+            'handleGetCardLayout',
             'handleGetCardShare',
+            'handleGetCardShareLink',
+            'handleGetExchange',
             'handleGetQuickExchange',
             'handleGetQuickSettings',
+            'handleGetScanSessionStatus',
+            'handleGiftCard',
             'handleListCollection',
+            'handleListCollectionOwners',
             'handleListExchanges',
+            'handlePutCardLayout',
             'handlePutQuickSettings',
             'handleRequestCard',
             'handleSetCollectionVisibility'
@@ -517,7 +524,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 170);
+            assert.equal(Object.values(actual).flat().length, 177);
         });
 
 
@@ -766,6 +773,10 @@ import { test } from 'vitest';
                 calls.namecardListApproved.push([limit, offset]);
                 return [];
             },
+            async listApprovedCardsPage(input) {
+                calls.namecardListApproved.push([input.limit, input.offset]);
+                return { rows: [], total: 0 };
+            },
             async listAdminCards(limit, offset) {
                 calls.namecardListAdmin.push([limit, offset]);
                 return [];
@@ -833,23 +844,30 @@ import { test } from 'vitest';
             async listPlatformAccountEntries() { return []; },
             async upsertPlatformAccountEntry() {},
             async deletePlatformAccountEntry() { return 0; },
-            async listOwnedPublishedCards() { return []; },
-            async countOwnedPublishedCards() { return 0; },
+            async listOwnedPublishedCardsAll() { return []; },
+            async getCardLayout() { return null; },
+            async saveCardLayout() {},
             async findExchangeByClientId() { return null; },
             async commitExchange() { throw new Error('unexpected exchange commit'); },
             async decideExchange() { return { status: 'not-found' }; },
             async listExchanges() { return { rows: [], total: 0 }; },
+            async findExchangeDetail() { return null; },
             async listCollection() { return { rows: [], total: 0 }; },
+            async listCollectionOwners() { return []; },
             async setCollectionHidden() { return false; },
+            async listCollectedCardNumbers() { return new Set<number>(); },
+            async findHeldCardPageKey() { return null; },
             async countMissingCollectionCards() { return 0; },
             async listQuickExchangeCards() { return []; },
             async replaceQuickExchangeCards() {},
             async listExchangeCandidates() { return []; },
             async ensureExchangeLink(cardId) { return cardId; },
+            async ensureExchangeSlugForOwnerCard() { return null; },
             async findCardByExchangeSlug() { return null; },
             async findExchangeTarget() { return null; },
             async createScanSession() {},
             async findScanSession() { return null; },
+            async findOwnedScanSession() { return null; },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {
@@ -1809,13 +1827,14 @@ import { test } from 'vitest';
             }
         });
 
-        test('namecard public and admin pagination preserve parseInt aliases and fallbacks', async () => {
+        test('namecard public pagination preserves parseInt aliases, clamps the page size, and falls back safely', async () => {
             const fixture = createCompatibilityFixture();
             const publicCases = [
                 ['page=abc&size=abc', [25, 0]],
                 ['page=0&size=0', [25, 0]],
                 ['page=1foo&size=1foo', [1, 0]],
-                ['page=101&size=101', [101, 10_100]]
+                // 每页条数上限 100：size=101 收到 100，offset 随之为 100 * 100。
+                ['page=101&size=101', [100, 10_000]]
             ] as const;
             for (const [query, repositoryArgs] of publicCases) {
                 const response = await fixture.request(`/api/cards?${query}`);

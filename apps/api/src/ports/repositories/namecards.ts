@@ -344,12 +344,13 @@ export interface NamecardAdminFilter {
     ownerAccountId?: string | null;
 }
 
-/** 交换入口：单卡分享、从墙上发起、快速交换页、扫码。 */
+/** 交换入口：单卡分享、从墙上发起、快速交换页、扫码、单向送礼。 */
 export type NamecardExchangeSourceRecord =
     | 'card-share'
     | 'card-request'
     | 'quick'
-    | 'scan';
+    | 'scan'
+    | 'gift';
 
 export type NamecardExchangeStatusRecord =
     | 'pending'
@@ -390,6 +391,9 @@ export interface NamecardExchangeRecord {
 export interface NamecardCollectionSnapshotRecord {
     producerName: string | null;
     producerReading: string | null;
+    /** PRD §3.4 的排序键，与名片行上的 `sort_name_key` 同一规则。 */
+    sortNameKey: string;
+    sortNameBucket: 0 | 1 | 2 | 3;
     groupName: string | null;
     madeOn: string | null;
     bio: string | null;
@@ -399,6 +403,8 @@ export interface NamecardCollectionSnapshotRecord {
     exchangeMode: 'auto' | 'manual' | 'none';
     accent: string | null;
     seriesCodes: string[];
+    /** 担当角色目录 id（顺序即名片上的担当顺序）；原卡删除后筛选与「按企划」排序靠它。 */
+    favoriteCharacterIds: number[];
     credits: FudabaCardCredit[];
 }
 
@@ -406,10 +412,123 @@ export interface NamecardCollectionEntryRecord {
     card_number: number;
     obtained_at: string | Date;
     hidden_at: string | Date | null;
-    /** 原卡仍在时带实时投影，否则为 null。 */
+    /** 「我自己的名片」带出的条目：没有交换时间（回退创建时间）与隐藏入口。 */
+    own: boolean;
+    /**
+     * 卡主身份（瓦片底部的制作人名称 → `/user/<uid>`）：已收集条目取原卡卡主，
+     * `own` 行取当前用户。账号停用/删除或历史数据缺资料时为 null。
+     */
+    owner: { account_id: string; uid: string; display_name: string } | null;
+    /**
+     * 原卡行还在且未被 `locked` 时带实时投影：`published` **与 `hidden`（持有者删卡）都给**，
+     * 因为「我收到的那张」不该因为对方下线而消失。卡行被删除（物理删除或后台判删）的条目
+     * 根本不会出现在列表里；`null` 只剩「行还在但当前状态不进册」（如 `approving`），
+     * 此时渲染 `snapshot`。整卡 `locked` 的条目同样不会出现（doc §5）。
+     */
     card: NamecardPublicRecord | null;
+    /** 原卡当前是否仍对外可见（`published`）；`hidden` 时为 false 但 `card` 仍在。 */
+    card_status: 'published' | 'hidden' | null;
     snapshot: NamecardCollectionSnapshotRecord;
 }
+
+/** 名片册排序键（PRD §3）。 */
+export type NamecardCollectionSortRecord = 'exchange' | 'name' | 'series' | 'date';
+
+/** 名片册列表的查询（PRD §7.1）：分页、排序、搜索与高级筛选。 */
+export interface NamecardCollectionQueryRecord {
+    accountId: string;
+    limit: number;
+    offset: number;
+    /** 【显示隐藏名片】：不排除 `hidden_at` 非空的条目。 */
+    includeHidden?: boolean;
+    /** 【显示我的名片】：并入自己 `published` 的名片（交换时间回退创建时间）。 */
+    includeOwn?: boolean;
+    sort?: NamecardCollectionSortRecord;
+    dir?: 'asc' | 'desc';
+    /** 制作人名搜索；为空时改用团体名称（PRD §7.1）。 */
+    q?: string;
+    /**
+     * 所属用户（卡主账号 id）：只保留该账号名下的条目；卡行被删除的条目已经不在
+     * 列表里，因此不需要再回退快照判断。`includeOwn` 与不同账号同用时自己的名片不参与。
+     */
+    owner?: string;
+    /** 企划筛选；命中其中任意一个即保留。 */
+    seriesCodes?: readonly string[];
+    /** 所属团体（`groupName`）精确匹配（忽略大小写）。 */
+    groupName?: string;
+    /** 担当角色筛选；`match` 决定「或」还是「同时包含」。 */
+    characterIds?: readonly number[];
+    /** `all` = 【同时包含】。 */
+    match?: 'any' | 'all';
+    /** 【不含其他】：担当角色必须全部落在筛选项里。 */
+    excludeOther?: boolean;
+    /** 【不含越境】：排除企划数为复数的名片。 */
+    excludeCross?: boolean;
+    /** 创作声明：`original` = `is_original`，`ai` = `made_with_ai`。 */
+    declaration?: 'original' | 'ai';
+    /**
+     * 【反向排除】：把内容筛选（搜索 / 企划 / 团体 / 角色 / 声明）整体取反；
+     * `owner` / `includeOwn` / `includeHidden` 这类范围条件不受影响。
+     * 没有任何内容条件时等价于不筛（不能把所有行都排除）。
+     */
+    invert?: boolean;
+}
+
+/** 名片墙排序键：墙上没有交换时间，`created` 用名片创建时间。 */
+export type NamecardWallSortRecord = 'created' | 'name' | 'series' | 'date';
+
+/** 名片墙列表的查询：筛选与排序参数与名片册同名，但没有范围类开关。 */
+export interface NamecardWallQueryRecord {
+    limit: number;
+    offset: number;
+    sort?: NamecardWallSortRecord;
+    /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序。 */
+    dir?: 'asc' | 'desc';
+    /** 制作人名称搜索；为空时改用团体名称。 */
+    q?: string;
+    /** 企划筛选；命中其中任意一个即保留。 */
+    seriesCodes?: readonly string[];
+    /** 所属团体（`groupName`）不区分大小写的子串匹配。 */
+    groupName?: string;
+    /** 担当角色筛选；`match` 决定「或」还是「同时包含」。 */
+    characterIds?: readonly number[];
+    /** `all` = 【同时包含】。 */
+    match?: 'any' | 'all';
+    /** 【不含其他】：担当角色必须全部落在筛选项里。 */
+    excludeOther?: boolean;
+    /** 【不含越境】：排除企划数为复数的名片。 */
+    excludeCross?: boolean;
+    /** 创作声明：`original` = `is_original`，`ai` = `made_with_ai`。 */
+    declaration?: 'original' | 'ai';
+    /**
+     * 【反向排除】：把内容筛选整体取反；没有内容条件时等价于不筛。
+     * 墙没有范围类开关，因此不存在需要排除在取反之外的条件。
+     */
+    invert?: boolean;
+}
+
+/** 属主清单布局的原始形态：分组 + 默认分组顺序。 */
+export interface NamecardCardLayoutRecord {
+    groups: { id: string; title: string; cardNumbers: number[] }[];
+    defaultCardNumbers: number[];
+}
+
+export interface NamecardCardLayoutSaveInput {
+    accountId: string;
+    groups: { id: string | null; title: string; cardNumbers: number[] }[];
+    defaultCardNumbers: number[];
+    quickCardNumbers: number[];
+    /** 只放有变化的卡：可见性与交换模式都是免审字段。 */
+    cardSettings: {
+        cardId: string;
+        visible?: boolean;
+        exchangeMode?: 'auto' | 'manual' | 'none';
+    }[];
+    at: string;
+}
+
+/** 布局保存被拒绝时抛出；`message` 直接给用户看。 */
+export class NamecardCardLayoutError extends Error {}
 
 export interface NamecardExchangeCommitInput {
     id: string;
@@ -431,10 +550,38 @@ export interface NamecardExchangeCommitResult {
     targetMissingCount: number;
 }
 
+/**
+ * `expired` 的两种来源：`stale` 表示它确实是超过 7 天还没裁决的 pending（这次顺手落了库），
+ * 否则就是早就被处理过、或已被判定过期的状态。handler 据此给不同的 409 文案。
+ */
 export type NamecardExchangeDecisionRecord =
     | { status: 'completed' | 'declined' }
     | { status: 'not-found' }
-    | { status: 'expired' };
+    | { status: 'expired'; stale: boolean };
+
+/** 交换详情窗口的一方：账号与展示名。 */
+export interface NamecardExchangePartyRecord {
+    account_id: string;
+    display_name: string;
+}
+
+/**
+ * 单笔交换的详情：两侧卡片的实时公开投影 + 双方名字。
+ * 参与者校验在 SQL 里做，非参与者读不到。
+ */
+export interface NamecardExchangeDetailRecord {
+    id: string;
+    source: NamecardExchangeSourceRecord;
+    status: NamecardExchangeStatusRecord;
+    created_at: string | Date;
+    /** `created_at + TTL`；仅 `pending` / `expired` 给值。 */
+    expires_at: string | null;
+    initiator: NamecardExchangePartyRecord;
+    target: NamecardExchangePartyRecord;
+    target_cards: NamecardPublicRecord[];
+    initiator_cards: NamecardPublicRecord[];
+    skipped: NamecardExchangeSkipRecord[];
+}
 
 export interface NamecardScanSessionRecord {
     id: string;
@@ -442,6 +589,8 @@ export interface NamecardScanSessionRecord {
     card_numbers: number[];
     expires_at: string | Date;
     consumed_at: string | Date | null;
+    /** 消费掉这张二维码的交换；与 `consumed_at` 同进同出。 */
+    consumed_by_exchange_id: string | null;
 }
 
 export interface NamecardRepository {
@@ -471,12 +620,6 @@ export interface NamecardRepository {
         at: string;
     }): Promise<void>;
     deletePlatformAccountEntry(accountId: string, kindId: string): Promise<number>;
-    countOwnedPublishedCards(accountId: string): Promise<number>;
-    listOwnedPublishedCards(
-        accountId: string,
-        limit: number,
-        offset: number,
-    ): Promise<NamecardPublicRecord[]>;
     /* ---- 名片册与交换（docs/architecture/namecard-exchange.md） ---- */
     /** 幂等锚点：同一次提交重试时先查这里。 */
     findExchangeByClientId(
@@ -497,11 +640,27 @@ export interface NamecardRepository {
         limit: number;
         offset: number;
     }): Promise<{ rows: NamecardExchangeRecord[]; total: number }>;
-    listCollection(input: {
+    /**
+     * 通知窗口的详情：只有发起方或目标方能读，其它人（含不存在的 id）一律 null，
+     * 详情端点据此回 404。
+     */
+    findExchangeDetail(input: {
+        exchangeId: string;
         accountId: string;
+    }): Promise<NamecardExchangeDetailRecord | null>;
+    listCollection(
+        input: NamecardCollectionQueryRecord,
+    ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
+    /**
+     * 所属用户选择器：自己 + 自己名片册里出现过的卡主（卡行仍在、未锁定），
+     * 按显示名做不区分大小写的包含搜索。不暴露全站用户。
+     */
+    listCollectionOwners(input: {
+        accountId: string;
+        /** 显示名子串；缺省 / 空白表示不过滤。 */
+        q?: string;
         limit: number;
-        offset: number;
-    }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }>;
+    }): Promise<PublicProfileRecord[]>;
     /** 隐藏或恢复名片册里的一条；false 表示这一条不存在。 */
     setCollectionHidden(input: {
         accountId: string;
@@ -509,6 +668,34 @@ export interface NamecardRepository {
         hidden: boolean;
         at: string;
     }): Promise<boolean>;
+    /**
+     * 名片册里已经收着哪些卡（一次批量查，不看 `hidden_at`）。公开主页用它给
+     * 登录浏览者标出「已交换」，判定口径与交换系统的 `already-owned` 一致。
+     */
+    listCollectedCardNumbers(input: {
+        collectorAccountId: string;
+        cardNumbers: readonly number[];
+    }): Promise<Set<number>>;
+    /** 属主清单布局的原始形态；没有保存过时返回 null，由读取侧归一出默认布局。 */
+    getCardLayout(accountId: string): Promise<NamecardCardLayoutRecord | null>;
+    /** 整份保存布局 + 快速清单 + 批量字段（同一事务）；校验失败抛 `NamecardCardLayoutError`。 */
+    saveCardLayout(input: NamecardCardLayoutSaveInput): Promise<void>;
+    /** 公开主页用：该账号全部「已发布 + 允许展示」的名片（自然顺序 `card_number DESC`）。 */
+    listOwnedPublishedCardsAll(
+        accountId: string
+    ): Promise<NamecardPublicRecord[]>;
+    /**
+     * 已经收到这张卡的人可以继续读它的页面对象：原卡被持有者下线（`hidden`）后仍然放行。
+     * `published` 走公开读取、`locked` 谁都不放，因此这里只认 `hidden`（doc §5）。
+     */
+    findHeldCardPageKey(input: {
+        /** 读图的人。 */
+        viewerAccountId: string;
+        /** 卡片的内部 id：交换媒体地址用的就是它。 */
+        cardId: string;
+        /** 页面 id：`front` / `back` / `page-<uuid>`。 */
+        pageId: string;
+    }): Promise<string | null>;
     /** 我有、仍可交换、且对方名片册里还没有的张数。 */
     countMissingCollectionCards(input: {
         /** 名片属于谁。 */
@@ -516,7 +703,7 @@ export interface NamecardRepository {
         /** 已经收着这些名片的另一方。 */
         otherAccountId: string;
     }): Promise<number>;
-    /** 快速交换清单：只有持有者勾选的卡，读取时再过滤一次可用性。 */
+    /** 快速交换清单：只有持有者勾选的卡，读取时再按 `published` + `auto` 过滤一次。 */
     listQuickExchangeCards(accountId: string): Promise<NamecardPublicRecord[]>;
     replaceQuickExchangeCards(input: {
         accountId: string;
@@ -526,6 +713,14 @@ export interface NamecardRepository {
     listExchangeCandidates(accountId: string): Promise<NamecardPublicRecord[]>;
     /** 固定不变的分享短链；卡片没有短链时补一条。 */
     ensureExchangeLink(cardId: string): Promise<string>;
+    /**
+     * 属主侧单卡分享链接：先确认这张卡属于该账号，再取（或补）固定短链。
+     * 卡片不存在或不属于该账号时回 `null`，由路由翻成 404。
+     */
+    ensureExchangeSlugForOwnerCard(input: {
+        ownerAccountId: string;
+        cardNumber: number;
+    }): Promise<string | null>;
     findCardByExchangeSlug(slug: string): Promise<NamecardPublicRecord | null>;
     /** 快速交换页：按 uid、主页路径或账号 ID 找到对方与他的可交换名片。 */
     findExchangeTarget(handle: string): Promise<{
@@ -540,12 +735,28 @@ export interface NamecardRepository {
         expiresAt: string;
     }): Promise<void>;
     findScanSession(tokenHash: string): Promise<NamecardScanSessionRecord | null>;
+    /**
+     * 出示方轮询自己的二维码：只有创建者本人能读到，别人的 token 与不存在的
+     * token 一样回 `null`，由路由统一翻成 404。
+     */
+    findOwnedScanSession(
+        tokenHash: string,
+        accountId: string,
+    ): Promise<NamecardScanSessionRecord | null>;
 
     countAdminCards(filter?: NamecardAdminFilter): Promise<number>;
     listApprovedCards(
         limit: number,
         offset: number,
     ): Promise<NamecardPublicRecord[]>;
+    /**
+     * 名片墙的分页列表：可见性口径与 {@link listApprovedCards} 相同，额外支持
+     * 与名片册同名的筛选 / 排序；墙上没有交换时间，`created` 与排序兜底都用
+     * 名片创建时间。
+     */
+    listApprovedCardsPage(
+        input: NamecardWallQueryRecord,
+    ): Promise<{ rows: NamecardPublicRecord[]; total: number }>;
     /** One published card by its wall number, with the same projection the list uses. */
     findApprovedCard(cardNumber: number): Promise<NamecardPublicRecord | null>;
     findCardDiff(cardNumber: number): Promise<NamecardDiffRecord | null>;
@@ -644,6 +855,7 @@ export interface NamecardRepository {
             id: string;
             kind: string;
             card_number: number | string | null;
+            exchange_id: string | null;
             title: string;
             body: string;
             read_at: Date | string | null;

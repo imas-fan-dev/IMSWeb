@@ -513,9 +513,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         readonly interactionInputs: Array<
             Parameters<FudabaRepository['setCardInteraction']>[0]
         > = [];
-        readonly cardListInputs: ListFudabaPublicCardsInput[] = [];
         readonly likes = new Set<string>();
-        readonly favorites = new Set<string>();
         readonly app: ReturnType<typeof createHonoApp>;
 
         constructor(options: FixtureOptions = {}) {
@@ -527,9 +525,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         private state(): FudabaCardInteractionStateRecord {
             return {
                 like_count: 2 + (this.likes.has(ACCOUNT_ID) ? 1 : 0),
-                favorite_count: 1 + (this.favorites.has(ACCOUNT_ID) ? 1 : 0),
-                viewer_liked: this.likes.has(ACCOUNT_ID),
-                viewer_favorited: this.favorites.has(ACCOUNT_ID)
+                viewer_liked: this.likes.has(ACCOUNT_ID)
             };
         }
 
@@ -539,10 +535,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ) => {
                 this.interactionInputs.push(input);
                 if (input.cardId !== CARD_ID) return false;
-                const set = input.kind === 'like' ? this.likes : this.favorites;
-                if (input.active) return !set.has(input.accountId) &&
-                    Boolean(set.add(input.accountId));
-                return set.delete(input.accountId);
+                if (input.active) return !this.likes.has(input.accountId) &&
+                    Boolean(this.likes.add(input.accountId));
+                return this.likes.delete(input.accountId);
             },
             findPublicCardInteractions: async (
                 cardId: string,
@@ -551,18 +546,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 if (cardId !== CARD_ID) return null;
                 assert.equal(viewerAccountId, ACCOUNT_ID);
                 return this.state();
-            },
-            listPublicCards: async (input: ListFudabaPublicCardsInput) => {
-                this.cardListInputs.push(input);
-                if (input.favoritedByAccountId !== ACCOUNT_ID) return [];
-                return this.favorites.has(ACCOUNT_ID)
-                    ? [
-                          makeFudabaPublicCardRecord(CARD_ID, {
-                              viewer_favorited: true,
-                              favorite_count: 2
-                          })
-                      ]
-                    : [];
             }
         } as unknown as FudabaRepository;
 
@@ -647,7 +630,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         return fudabaCookieHeaders(TOKEN, CSRF, includeCsrfHeader);
     }
 
-    function interactionPath(kind: 'like' | 'favorite', cardId = CARD_ID): string {
+    function interactionPath(kind: 'like', cardId = CARD_ID): string {
         return `http://ims.test/api/community/exchange/cards/${cardId}/${kind}`;
     }
 
@@ -672,7 +655,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 const restricted = new InteractionFixture({
                     accountStatus: 'restricted'
                 });
-                assert.equal((await restricted.app.request(interactionPath('favorite'), {
+                assert.equal((await restricted.app.request(interactionPath('like'), {
                     method: 'PUT',
                     headers: bearerHeaders()
                 })).status, 403);
@@ -704,9 +687,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     cardId: CARD_ID,
                     interactions: {
                         likes: 3,
-                        favorites: 1,
-                        viewerLiked: true,
-                        viewerFavorited: false
+                        viewerLiked: true
                     }
                 });
 
@@ -720,9 +701,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                     cardId: CARD_ID,
                     interactions: {
                         likes: 2,
-                        favorites: 1,
-                        viewerLiked: false,
-                        viewerFavorited: false
+                        viewerLiked: false
                     }
                 });
 
@@ -756,7 +735,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             async () => {
                 const fixture = new InteractionFixture();
                 const missing = await fixture.app.request(
-                    interactionPath('favorite', 'other-card'),
+                    interactionPath('like', 'other-card'),
                     { method: 'PUT', headers: cookieHeaders(true) }
                 );
                 assert.equal(missing.status, 404);
@@ -766,54 +745,10 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 });
 
                 const invalid = await fixture.app.request(
-                    interactionPath('favorite', 'bad%2Fcard'),
+                    interactionPath('like', 'bad%2Fcard'),
                     { method: 'PUT', headers: cookieHeaders(true) }
                 );
                 assert.equal(invalid.status, 404);
-            });
-
-        test('the favourite collection lists only cards the viewer favourited',
-            async () => {
-                const fixture = new InteractionFixture();
-                const empty = await fixture.app.request(
-                    'http://ims.test/api/community/exchange/me/favorites?limit=12',
-                    { headers: bearerHeaders() }
-                );
-                assert.equal(empty.status, 200);
-                assert.deepEqual(await empty.json(), {
-                    items: [],
-                    pageInfo: { hasNextPage: false, nextCursor: null }
-                });
-
-                assert.equal((await fixture.app.request(
-                    interactionPath('favorite'),
-                    { method: 'PUT', headers: cookieHeaders(true) }
-                )).status, 200);
-
-                const collection = await fixture.app.request(
-                    'http://ims.test/api/community/exchange/me/favorites?limit=12',
-                    { headers: bearerHeaders() }
-                );
-                assert.equal(collection.status, 200);
-                const body = await contractJson(collection, fudabaCardPageSchema);
-                assert.equal(body.items.length, 1);
-                assert.equal(body.items[0].id, CARD_ID);
-                assert.deepEqual(body.items[0].interactions, {
-                    likes: 2,
-                    favorites: 2,
-                    viewerLiked: false,
-                    viewerFavorited: true
-                });
-                assert.equal(
-                    fixture.cardListInputs.at(-1)?.favoritedByAccountId,
-                    ACCOUNT_ID
-                );
-                assert.equal(fixture.cardListInputs.at(-1)?.viewerAccountId, ACCOUNT_ID);
-
-                const anonymous = await fixture.app.request(
-                    'http://ims.test/api/community/exchange/me/favorites'
-                );
-                assert.equal(anonymous.status, 401);
             });
     });
 }
@@ -3973,6 +3908,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261112120000_namecard_media_retire',
                 '20261112130000_namecard_page_object_queue',
                 '20261112140000_namecard_retire_card_key_columns',
+                '20261116120000_namecard_profile_layouts',
+                '20261118100000_namecard_notification_exchange',
+                '20261118120000_namecard_exchange_expired_notification',
+                '20261118140000_namecard_drop_fudaba_card_favorites',
+                '20261118150000_namecard_sort_metadata',
+                '20261119120000_namecard_exchange_gift',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');
@@ -10450,7 +10391,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         for (const [kind, accountId] of [
             ["like", "viewer"],
             ["like", "other-viewer"],
-            ["favorite", "viewer"],
         ] as const) {
             assert.equal(
                 await fixture.repository.setCardInteraction({
@@ -10463,16 +10403,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 true,
             );
         }
-        assert.equal(
-            await fixture.repository.setCardInteraction({
-                kind: "favorite",
-                cardId: "card-y-new",
-                accountId: "other-viewer",
-                active: true,
-                createdAt: CARD_DELETED_AT,
-            }),
-            true,
-        );
 
         const detail = await fixture.repository.findPublicOfficeBySlug(
             "office-b-open",
@@ -10497,9 +10427,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         const likedCard = detail.cards.find((item) => item.id === "card-z-new");
         assert.ok(likedCard);
         assert.equal(likedCard.like_count, 2);
-        assert.equal(likedCard.favorite_count, 1);
         assert.equal(likedCard.viewer_liked, true);
-        assert.equal(likedCard.viewer_favorited, true);
         assert.equal(likedCard.viewer_owned, false);
         assert.equal(likedCard.revision, 0);
         assert.equal(likedCard.updated_at, CARD_OLD_AT);
@@ -10547,7 +10475,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ["card-z-new"],
         );
         assert.equal(firstCardPage[0].viewer_liked, false);
-        assert.equal(firstCardPage[0].viewer_favorited, false);
         assert.equal(firstCardPage[0].like_count, 2);
         assert.equal("owner_account_id" in firstCardPage[0], false);
         const allPublicCards = await fixture.repository.listPublicCards({
@@ -10672,44 +10599,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
         );
 
         assert.deepEqual(
-            await fixture.repository
-                .listPublicCards({
-                    favoritedByAccountId: "viewer",
-                    viewerAccountId: "viewer",
-                    limit: 10,
-                })
-                .then((items) => items.map((item) => item.id)),
-            ["card-z-new"],
-        );
-        assert.deepEqual(
-            await fixture.repository
-                .listPublicCards({
-                    favoritedByAccountId: "other-viewer",
-                    viewerAccountId: "other-viewer",
-                    limit: 10,
-                })
-                .then((items) => items.map((item) => item.id)),
-            ["card-y-new"],
-        );
-        assert.deepEqual(
-            await fixture.repository.listPublicCards({
-                favoritedByAccountId: "owner",
-                viewerAccountId: "owner",
-                limit: 10,
-            }),
-            [],
-        );
-
-        assert.deepEqual(
             await fixture.repository.findPublicCardInteractions(
                 "card-z-new",
                 "viewer",
             ),
             {
                 like_count: 2,
-                favorite_count: 1,
                 viewer_liked: true,
-                viewer_favorited: true,
             },
         );
         assert.deepEqual(
@@ -10719,9 +10615,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ),
             {
                 like_count: 2,
-                favorite_count: 1,
                 viewer_liked: false,
-                viewer_favorited: false,
             },
         );
         for (const hiddenId of [
@@ -10742,7 +10636,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
 
         assert.equal(
             await fixture.repository.setCardInteraction({
-                kind: "favorite",
+                kind: "like",
                 cardId: "card-z-new",
                 accountId: "viewer",
                 active: false,
@@ -10756,19 +10650,9 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 "viewer",
             ),
             {
-                like_count: 2,
-                favorite_count: 0,
-                viewer_liked: true,
-                viewer_favorited: false,
+                like_count: 1,
+                viewer_liked: false,
             },
-        );
-        assert.deepEqual(
-            await fixture.repository.listPublicCards({
-                favoritedByAccountId: "viewer",
-                viewerAccountId: "viewer",
-                limit: 10,
-            }),
-            [],
         );
     }
 
@@ -10940,7 +10824,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                         {
                             ...this.card,
                             viewer_liked: viewerAccountId === "platform-viewer",
-                            viewer_favorited: viewerAccountId === "platform-viewer",
                             pinned_at: CREATED_AT,
                             position_x: 50,
                             position_y: 40,
@@ -10958,7 +10841,6 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 const row = {
                     ...this.card,
                     viewer_liked: input.viewerAccountId === "platform-viewer",
-                    viewer_favorited: input.viewerAccountId === "platform-viewer",
                 };
                 return input.limit > 1 ? [row, { ...row, id: "card-b" }] : [row];
             },
@@ -11220,9 +11102,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             const body = await contractJson(authenticated, fudabaCardPageSchema);
             assert.deepEqual(body.items[0].interactions, {
                 likes: 2,
-                favorites: 1,
                 viewerLiked: true,
-                viewerFavorited: true,
             });
             assert.equal(JSON.stringify(body).includes("object_key"), false);
 

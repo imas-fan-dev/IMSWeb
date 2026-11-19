@@ -1511,7 +1511,9 @@ export function createWikiFixture(): WikiFixture {
                 if (path.startsWith('/icon/')) return new Response('fixture-icon', { headers: { 'Content-Type': 'image/webp' } });
                 if (path.startsWith('/css/')) return new Response('fixture-css', { headers: { 'Content-Type': 'text/css' } });
                 return new Response('asset not found', { status: 404 });
-            }
+            },
+            // Wiki 契约不碰分享页，空壳一律当作缺失。
+            async fetchShell() { return new Response('asset not found', { status: 404 }); }
         },
         fetch: (async () => { throw new Error('real network is disabled in Wiki contracts'); }) as typeof globalThis.fetch
     };

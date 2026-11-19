@@ -141,13 +141,11 @@ export const fudabaCharacterSelectionSchema = z
 export const fudabaCardInteractionsSchema = z
   .object({
     likes: z.number().int().nonnegative(),
-    favorites: z.number().int().nonnegative(),
     viewerLiked: z.boolean(),
-    viewerFavorited: z.boolean(),
   })
   .strict();
 
-export const fudabaCardInteractionKindSchema = z.enum(["like", "favorite"]);
+export const fudabaCardInteractionKindSchema = z.enum(["like"]);
 
 export const namecardReactionEmojiSchema = z.enum(NAMECARD_REACTION_EMOJIS);
 

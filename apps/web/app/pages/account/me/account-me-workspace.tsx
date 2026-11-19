@@ -5,11 +5,19 @@ import {
   RefreshCwIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useLocation, useSearchParams } from "react-router"
 import { readOfficeCreateIntent } from "~/lib/maps/office-create-intent"
 
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
+import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { SeriesAccentStrip } from "~/components/shared/series-accent-strip"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -22,6 +30,7 @@ import {
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
+  getCardLayout,
   getFudabaOwnerCard,
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
@@ -29,6 +38,7 @@ import {
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
+  type NamecardCardLayout,
   type PlatformAccountStatus,
   type PlatformProfile,
 } from "~/lib/api"
@@ -37,7 +47,7 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
 import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
 import { PlatformAccountsEditor } from "./platform-accounts-editor"
-import { FavoriteCollection } from "./favorites/favorite-collection"
+import { NamecardCollection } from "./collection/namecard-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
 import { OfficeLocationWorkspace } from "./offices/office-location-workspace"
 import { ProfileEditor } from "./profile/profile-editor"
@@ -61,6 +71,8 @@ type WorkspaceState = {
   writeEnabled: boolean
   series: FudabaSeries[]
   cards: FudabaOwnerCard[]
+  /** 展示顺序与分组；读失败时为 `null`，清单退化成「只有默认分组」。 */
+  cardLayout: NamecardCardLayout | null
   error: string | null
 }
 
@@ -71,7 +83,34 @@ const initialState: WorkspaceState = {
   writeEnabled: false,
   series: [],
   cards: [],
+  cardLayout: null,
   error: null,
+}
+
+/**
+ * 布局只决定分组与展示顺序：读不到就退回「只有默认分组」，不能让一次展示偏好请求
+ * 把整个工作区打成错误页。同步抛错（例如客户端手里没有对应端点）也要吃掉。
+ */
+async function loadCardLayout(): Promise<NamecardCardLayout | null> {
+  try {
+    return await getCardLayout().send()
+  } catch {
+    return null
+  }
+}
+
+/** App 目标下名片管理面板自带的滚动区：高度 = 视口 − 面板顶部 − 底栏净空（实测）。 */
+function applyNamecardsScrollHeight(element: HTMLElement | null) {
+  if (!element) return
+  const clearance =
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--app-bottom-clearance"
+      )
+    ) || 84
+  const top = element.getBoundingClientRect().top
+  const next = `${Math.max(240, Math.floor(window.innerHeight - top - clearance))}px`
+  if (element.style.maxHeight !== next) element.style.maxHeight = next
 }
 
 function AccountWorkspaceBackLink() {
@@ -129,6 +168,11 @@ function ProfileWorkspace({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  /** 名片管理器的编辑草稿有没有未保存改动（由 `CardManager` 上抛）。 */
+  const [cardDraftDirty, setCardDraftDirty] = useState(false)
+  const [confirmDiscardReload, setConfirmDiscardReload] = useState(false)
+  /** App 目标：名片管理面板的滚动容器（拖拽边缘滚动作用在它上面）。 */
+  const namecardsScrollRef = useRef<HTMLDivElement | null>(null)
   const workspaceGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const closingNavigationRef = useRef(false)
@@ -146,6 +190,20 @@ function ProfileWorkspace({
   const activeSection =
     section ??
     (isProfileWorkspaceSection(requestedSection) ? requestedSection : "profile")
+  // 面板高度只在「切换分区 / 数据加载完成」时重算：每次渲染都写 style 会在子组件的
+  // 滚动补偿之后又改一次布局，制造一帧「内容从页头后面穿过」的中间态。
+  useLayoutEffect(() => {
+    if (!IS_APP_TARGET) return
+    applyNamecardsScrollHeight(namecardsScrollRef.current)
+    const onResize = () =>
+      applyNamecardsScrollHeight(namecardsScrollRef.current)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [activeSection, state.phase])
+  useLayoutEffect(() => {
+    if (!IS_APP_TARGET) return
+    applyNamecardsScrollHeight(namecardsScrollRef.current)
+  }, [state.cards.length, state.cardLayout])
   const profileAccountId = platform.session?.account.id
   const profileOperationGeneration = workspaceGeneration.current
 
@@ -157,11 +215,13 @@ function ProfileWorkspace({
       error: null,
     }))
     try {
-      const [profileResult, seriesResult, cardResult] = await Promise.all([
-        getPlatformProfile().send(),
-        getFudabaOwnerSeries().send(),
-        getFudabaOwnerCards().send(),
-      ])
+      const [profileResult, seriesResult, cardResult, layoutResult] =
+        await Promise.all([
+          getPlatformProfile().send(),
+          getFudabaOwnerSeries().send(),
+          getFudabaOwnerCards().send(),
+          loadCardLayout(),
+        ])
       if (workspaceGeneration.current !== generation) return
       setState({
         phase: "ready",
@@ -170,6 +230,7 @@ function ProfileWorkspace({
         writeEnabled: profileResult.capabilities.fudabaWrite,
         series: seriesResult.items,
         cards: cardResult.items,
+        cardLayout: layoutResult,
         error: null,
       })
       setCreating(false)
@@ -184,6 +245,19 @@ function ProfileWorkspace({
       }))
     }
   }, [])
+
+  /**
+   * 用户主动刷新：名片管理器里有未保存草稿时先确认。`loadWorkspace()` 会把 `phase`
+   * 置成 `loading`、把整个 `CardManager` 卸掉，勾选与批量字段会被静默丢弃（§12 要求
+   * 脏标记确认）。初挂载、保存成功等内部加载不走这里，不弹确认。
+   */
+  function requestWorkspaceReload() {
+    if (cardDraftDirty) {
+      setConfirmDiscardReload(true)
+      return
+    }
+    void loadWorkspace()
+  }
 
   useEffect(() => {
     if (
@@ -223,22 +297,30 @@ function ProfileWorkspace({
     const resolved =
       activeSection !== "namecards" || !requestedCard
         ? null
-        : (cardsRef.current.find((card) => card.id === requestedCard) ??
-          cardsRef.current.find(
-            (card) => String(card.cardNumber) === requestedCard
-          ))?.id ?? null
+        : ((
+            cardsRef.current.find((card) => card.id === requestedCard) ??
+            cardsRef.current.find(
+              (card) => String(card.cardNumber) === requestedCard
+            )
+          )?.id ?? null)
     setSelectedCardId(resolved)
     // 只看导航与地址栏：名片列表刷新（新建后重载）不应把当前选择清掉。
   }, [state.phase, location.key, activeSection, requestedCard])
 
   function syncCardQuery(cardId: string | null) {
     if (embedded) return
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current)
-      if (cardId) next.set("card", cardId)
-      else next.delete("card")
-      return next
-    })
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current)
+        if (cardId) next.set("card", cardId)
+        else next.delete("card")
+        return next
+      },
+      // 同路径只改 search：这是「当前页面的选择状态」，不是一次导航。少了它，
+      // react-router 挂在 root-layout 上的 <ScrollRestoration> 会按新页面处理
+      // （它用 window.scrollTo(0, 0)），打开/切换/关闭名片编辑窗口就把页面拉回顶部。
+      { preventScrollReset: true }
+    )
   }
 
   function closeCard() {
@@ -519,7 +601,7 @@ function ProfileWorkspace({
                 size="icon"
                 aria-label="刷新个人档案"
                 title="刷新"
-                onClick={() => void loadWorkspace()}
+                onClick={requestWorkspaceReload}
               >
                 <RefreshCwIcon aria-hidden="true" />
               </Button>
@@ -552,7 +634,12 @@ function ProfileWorkspace({
             "min-w-0",
             accountSectionBasePath
               ? IS_APP_TARGET
-                ? "px-(--app-safe-inline) py-5"
+                ? cn(
+                    "px-(--app-safe-inline) py-5",
+                    // 名片管理面板自带滚动区：上下内边距移进内容里，sticky 才能真正贴顶，
+                    // 文档也不再残留 20px 溢出（否则 body 还会出一条滚动条）。
+                    activeSection === "namecards" && "py-0"
+                  )
                 : "px-4 py-12 sm:px-6 sm:py-16 lg:px-8"
               : "px-4 py-8 sm:px-6 lg:px-8"
           )}
@@ -586,7 +673,9 @@ function ProfileWorkspace({
             <div className="mt-8 border-t pt-6">
               <h2 className="text-xl font-semibold">平台账号</h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                {"按需添加个人主页、游戏 ID 或社交账号；社交平台粘贴主页链接即可添加，每个平台一条。"}
+                {
+                  "按需添加个人主页、游戏 ID 或社交账号；社交平台粘贴主页链接即可添加，每个平台一条。"
+                }
               </p>
               <div className="mt-6">
                 <PlatformAccountsEditor
@@ -605,76 +694,102 @@ function ProfileWorkspace({
             aria-labelledby="profile-workspace-namecards-title"
             hidden={activeSection !== "namecards"}
           >
-            <div className="border-b pb-5">
-              <h2
-                id="profile-workspace-namecards-title"
-                className="text-xl font-semibold"
-              >
-                交换名片
-              </h2>
-              <p className="mt-2 text-sm/6 text-muted-foreground">
-                管理双面名片素材、担当角色和公开交换状态。
-              </p>
-            </div>
-            <div className="mt-6">
-              <CardWorkspace
-                active={activeSection === "namecards"}
-                onClose={closeCard}
-                cards={state.cards}
-                selectedCardId={selectedCardId}
-                creating={creating}
-                loadingDetail={loadingDetail}
-                profile={state.profile}
-                series={state.series}
-                readOnly={exchangeReadOnly}
-                readOnlyReason={exchangeReadOnlyReason}
-                onSelect={(cardId) => {
-                  syncCardQuery(cardId)
-                  void loadCard(cardId)
-                }}
-                onCreate={() => {
-                  detailGeneration.current += 1
-                  setCreating(true)
-                  setSelectedCardId(null)
-                  setLoadingDetail(false)
-                }}
-                onCreated={(card) =>
-                  createCard(
-                    card,
-                    selectionOperationGeneration,
-                    profileOperationGeneration
-                  )
-                }
-                onSaved={(card) => {
-                  replaceCard(card)
-                  mapDialog?.changed?.()
-                }}
-                onDeleted={deleteCard}
-                onReload={async (cardId) => {
-                  const workspaceRequest = workspaceGeneration.current
-                  const detailRequest = detailGeneration.current
-                  const result = await getFudabaOwnerCard(cardId).send()
-                  if (
-                    workspaceGeneration.current !== workspaceRequest ||
-                    detailGeneration.current !== detailRequest
-                  ) {
-                    throw new Error("当前名片已切换，请重新打开后重试。")
+            <div
+              ref={namecardsScrollRef}
+              data-namecards-scroller=""
+              className={
+                IS_APP_TARGET
+                  ? // 滚动条不在页面边缘，露出来很难看：直接隐藏（滚动能力不变）。
+                    "overflow-y-auto overscroll-contain [overflow-anchor:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
+                  : undefined
+              }
+            >
+              <div className={cn("border-b pb-5", IS_APP_TARGET && "pt-5")}>
+                <h2
+                  id="profile-workspace-namecards-title"
+                  className="text-xl font-semibold"
+                >
+                  名片管理
+                </h2>
+                <p className="mt-2 text-sm/6 text-muted-foreground">
+                  管理名片信息、展示分组和快速交换列表。
+                </p>
+              </div>
+              <div className="mt-6">
+                <CardWorkspace
+                  active={activeSection === "namecards"}
+                  onClose={closeCard}
+                  cards={state.cards}
+                  cardLayout={state.cardLayout}
+                  accountId={profileAccountId ?? null}
+                  selectedCardId={selectedCardId}
+                  creating={creating}
+                  loadingDetail={loadingDetail}
+                  profile={state.profile}
+                  series={state.series}
+                  readOnly={exchangeReadOnly}
+                  readOnlyReason={exchangeReadOnlyReason}
+                  onSelect={(cardId) => {
+                    syncCardQuery(cardId)
+                    void loadCard(cardId)
+                  }}
+                  onCreate={() => {
+                    detailGeneration.current += 1
+                    setCreating(true)
+                    setSelectedCardId(null)
+                    setLoadingDetail(false)
+                  }}
+                  onCreated={(card) =>
+                    createCard(
+                      card,
+                      selectionOperationGeneration,
+                      profileOperationGeneration
+                    )
                   }
-                  replaceCard(result.card)
-                  return result.card
-                }}
-                onWriteClosed={closeWrites}
-              />
+                  onSaved={(card) => {
+                    replaceCard(card)
+                    mapDialog?.changed?.()
+                  }}
+                  onDeleted={deleteCard}
+                  onLayoutSaved={(layout, patches) =>
+                    // 只合并差异：请求在飞期间新建/删除的卡不会被闭包快照覆盖掉。
+                    setState((current) => ({
+                      ...current,
+                      cardLayout: layout,
+                      cards: current.cards.map((item) => {
+                        const patch = patches[item.id]
+                        return patch ? { ...item, ...patch } : item
+                      }),
+                    }))
+                  }
+                  onDirtyChange={setCardDraftDirty}
+                  onReload={async (cardId) => {
+                    const workspaceRequest = workspaceGeneration.current
+                    const detailRequest = detailGeneration.current
+                    const result = await getFudabaOwnerCard(cardId).send()
+                    if (
+                      workspaceGeneration.current !== workspaceRequest ||
+                      detailGeneration.current !== detailRequest
+                    ) {
+                      throw new Error("当前名片已切换，请重新打开后重试。")
+                    }
+                    replaceCard(result.card)
+                    return result.card
+                  }}
+                  onWriteClosed={closeWrites}
+                  scrollContainerRef={namecardsScrollRef}
+                />
+              </div>
             </div>
           </section>
 
           <section
-            id="profile-workspace-section-favorites"
+            id="profile-workspace-section-collection"
             className={sectionReadOnlyReason ? "mt-6" : undefined}
-            aria-labelledby="profile-workspace-favorites-title"
-            hidden={activeSection !== "favorites"}
+            aria-labelledby="profile-workspace-collection-title"
+            hidden={activeSection !== "collection"}
           >
-            <FavoriteCollection series={state.series} />
+            <NamecardCollection active={activeSection === "collection"} />
           </section>
 
           <div
@@ -703,6 +818,20 @@ function ProfileWorkspace({
           </div>
         </div>
       </div>
+
+      <ConfirmActionDialog
+        open={confirmDiscardReload}
+        onOpenChange={setConfirmDiscardReload}
+        title="放弃未保存的名片改动并刷新？"
+        description="刷新会重新载入名片清单，编辑模式里未保存的批量改动与快速清单调整都会丢失。"
+        confirmLabel="放弃并刷新"
+        cancelLabel="继续编辑"
+        submitting={false}
+        onConfirm={() => {
+          setConfirmDiscardReload(false)
+          void loadWorkspace()
+        }}
+      />
     </ExchangePageSurface>
   )
 }

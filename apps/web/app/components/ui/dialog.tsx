@@ -123,7 +123,10 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-body"
       className={cn(
-        "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain",
+        // `pb-px`：按钮的按下反馈是 `active:translate-y-px`（见 button.tsx），那 1px 会算进这个
+        // 滚动容器的可滚动溢出。内容刚好铺满时（弹窗高度由内容决定），按住按钮就会多出 1px
+        // 溢出、Chrome 当场画一道滚动条。留 1px 余量正好吃掉它，视觉上不可见。
+        "min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-px",
         className
       )}
       {...props}

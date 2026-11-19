@@ -24,7 +24,11 @@ async function decide(
     }
     if (result.status === 'expired') {
         return c.json(
-            { error: '这条交换请求已经处理过了' } satisfies NamecardErrorResponse,
+            {
+                error: result.stale
+                    ? '这条交换请求已过期，对方需要重新发起'
+                    : '这条交换请求已经处理过了',
+            } satisfies NamecardErrorResponse,
             409,
         );
     }

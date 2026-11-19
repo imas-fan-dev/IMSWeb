@@ -103,16 +103,11 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   await api.mock(
     {
       method: "GET",
-      path: "/api/community/exchange/me/favorites",
-      times: workspaceTimes,
+      path: "/api/community/exchange/me/collection",
+      times: { min: 0, max: 12 },
     },
     (route) =>
-      route.fulfill({
-        json: {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
+      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
   )
   await page.goto("/account/me")
   for (const [path, json] of [
@@ -208,8 +203,8 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
 
   for (const [section, label] of [
     ["profile", "个人资料"],
-    ["namecards", "交换名片"],
-    ["favorites", "收藏夹"],
+    ["namecards", "名片管理"],
+    ["collection", "名片册"],
     ["offices", "事务所与位置"],
     ["claims", "消息"],
   ]) {
@@ -304,7 +299,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       }
       await expect(root).toHaveCSS("color-scheme", theme)
       for (const [section, label] of [
-        ["namecards", /^交换名片/],
+        ["namecards", /^名片管理/],
         ["claims", /^消息/],
       ] as const) {
         await page
@@ -415,11 +410,13 @@ test("desktop root and section preserve pending, failed, retry and successful lo
     )
   }
   await api.mock(
-    { method: "GET", path: "/api/community/exchange/me/favorites", times: 2 },
+    {
+      method: "GET",
+      path: "/api/community/exchange/me/collection",
+      times: { min: 0, max: 12 },
+    },
     (route) =>
-      route.fulfill({
-        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-      })
+      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
   )
   const releases: Array<() => void> = []
   const gates = Array.from(
@@ -518,15 +515,10 @@ for (const section of ["offices", "namecards"] as const) {
       "/api/community/exchange/me/series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
-        "/api/community/exchange/me/favorites",
     ]
     for (const path of ownerPaths)
       await api.mock({ method: "GET", path, times: 1 }, (route) =>
-        route.fulfill({
-          json: path.endsWith("favorites")
-            ? { items: [], pageInfo: { hasNextPage: false, nextCursor: null } }
-            : { items: [] },
-        })
+        route.fulfill({ json: { items: [] } })
       )
     if (section === "namecards")
       await api.mock(

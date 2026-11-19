@@ -1,5 +1,10 @@
 import type { CardPage } from "@imsweb/contracts/fudaba"
-import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
+import {
+  type Namecard,
+  type NamecardCardLayout,
+  type NamecardPage,
+} from "@imsweb/contracts/namecards"
+import { NAMECARD_EXCHANGE_CARD_LIMIT } from "@imsweb/contracts/namecards/runtime"
 
 /**
  * The namecard schema embeds this idol shape but exports no type for it, so it
@@ -90,6 +95,18 @@ export function makeNamecard(overrides: Partial<Namecard> = {}): Namecard {
     supplementPending: false,
     status: "approved",
     created_at: "2026-01-01T00:00:00+08:00",
+    ...overrides,
+  }
+}
+
+export function makeNamecardCardLayout(
+  overrides: Partial<NamecardCardLayout> = {}
+): NamecardCardLayout {
+  return {
+    groups: [],
+    defaultCardNumbers: [],
+    quickCardNumbers: [],
+    limit: NAMECARD_EXCHANGE_CARD_LIMIT,
     ...overrides,
   }
 }

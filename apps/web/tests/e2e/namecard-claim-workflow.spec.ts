@@ -1,4 +1,3 @@
-import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
@@ -596,6 +595,11 @@ test.describe("namecard claim workflow", () => {
       }))
       expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight)
 
+      // 打开弹窗本身可能让页面滚动到卡片所在位置；要断言的是「滚动弹窗 body 不会带动页面」，
+      // 因此以打开后的页面滚动位置为基准，而不是硬编码 0。
+      const pageScrollBefore = await page.evaluate(
+        () => document.scrollingElement?.scrollTop ?? 0
+      )
       const footerBefore = await footer.boundingBox()
       const closeBefore = await close.boundingBox()
       await body.evaluate((node) => {
@@ -608,7 +612,7 @@ test.describe("namecard claim workflow", () => {
       expectSameBox(closeBefore, await close.boundingBox())
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
     })
   })
 
@@ -654,6 +658,7 @@ test.describe("namecard claim workflow", () => {
           id: "legacy-envelope-1",
           kind: "legacy-card-match",
           cardNumber: 42,
+          exchangeId: null,
           title: "这张旧名片是您的吗？",
           body: "名片墙上有一张无主名片 #42，制作人名称是「认领测试制作人」。",
           readAt: null,
@@ -712,17 +717,6 @@ test.describe("namecard claim workflow", () => {
         },
         "POST",
         { min: 0, max: 12 }
-      )
-      await api.mockRoute(
-        "**/api/community/exchange/me/favorites?**",
-        async (route) => {
-          const response = {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          } satisfies FudabaCardPage
-          await route.fulfill({ status: 200, json: response })
-        },
-        "GET"
       )
       await api.mockRoute(
         "**/api/cards**",

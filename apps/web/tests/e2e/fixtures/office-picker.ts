@@ -46,10 +46,6 @@ export function officePickerScenario() {
           `/api/community/exchange/me/${name}`,
           { items: [] },
         ]),
-        [
-          "/api/community/exchange/me/favorites",
-          { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-        ],
       ] as const) {
         await api.mock(
           { method: "GET", path: path as string, times: { min: 1, max: 4 } },

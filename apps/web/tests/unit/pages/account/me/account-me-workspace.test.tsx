@@ -1,10 +1,13 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
+  createMemoryRouter,
   MemoryRouter,
   Route,
+  RouterProvider,
   Routes,
   Link,
+  ScrollRestoration,
   useLocation,
   useNavigate,
   useParams,
@@ -19,7 +22,7 @@ import { isProfileWorkspaceSection } from "~/pages/account/me/profile-workspace-
 import { ProfileEditor } from "~/pages/account/me/profile/profile-editor"
 import { ExchangeManagementDialog } from "~/pages/community/exchange/components/exchange-management-dialog"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
-import { makeCardPage } from "@/mocks/data/namecards"
+import { makeCardPage, makeNamecardCardLayout } from "@/mocks/data/namecards"
 
 const sessionMocks = vi.hoisted(() => ({
   usePlatformSession: vi.fn(),
@@ -35,6 +38,7 @@ const apiMocks = vi.hoisted(() => ({
   getPlatformProfile: vi.fn(),
   getFudabaOwnerSeries: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
+  getCardLayout: vi.fn(),
   getFudabaOwnerCard: vi.fn(),
   getFudabaClaimEnvelopes: vi.fn(),
   getWikiCatalog: vi.fn(),
@@ -49,6 +53,7 @@ const apiMocks = vi.hoisted(() => ({
   sendProfile: vi.fn(),
   sendSeries: vi.fn(),
   sendCards: vi.fn(),
+  sendCardLayout: vi.fn(),
   sendCard: vi.fn(),
   sendCatalog: vi.fn(),
   sendCharacterCatalog: vi.fn(),
@@ -101,6 +106,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getPlatformProfile: apiMocks.getPlatformProfile,
     getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
+    getCardLayout: apiMocks.getCardLayout,
     getFudabaOwnerCard: apiMocks.getFudabaOwnerCard,
     getFudabaClaimEnvelopes: apiMocks.getFudabaClaimEnvelopes,
     getWikiCatalog: apiMocks.getWikiCatalog,
@@ -307,6 +313,8 @@ describe("AccountMeWorkspace", () => {
     apiMocks.getPlatformProfile.mockReturnValue({ send: apiMocks.sendProfile })
     apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOwnerCards.mockReturnValue({ send: apiMocks.sendCards })
+    apiMocks.getCardLayout.mockReturnValue({ send: apiMocks.sendCardLayout })
+    apiMocks.sendCardLayout.mockResolvedValue(makeNamecardCardLayout())
     apiMocks.getFudabaOwnerCard.mockReturnValue({ send: apiMocks.sendCard })
     apiMocks.getFudabaClaimEnvelopes.mockReturnValue({
       send: apiMocks.sendEnvelopes,
@@ -435,6 +443,52 @@ describe("AccountMeWorkspace", () => {
     )
   })
 
+  it("asks before a manual refresh drops an unsaved namecard draft", async () => {
+    const user = userEvent.setup()
+    // 已发布才有复选框；这个 fixture 默认还是草稿。
+    apiMocks.sendCards.mockResolvedValue({
+      items: [{ ...card, publicationStatus: "published" }],
+    })
+    render(
+      <MemoryRouter initialEntries={["/account/me?section=namecards"]}>
+        <Routes>
+          <Route path="/account/me/:section?" element={<WorkspaceRoute />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    await user.click(await screen.findByRole("button", { name: "编辑模式" }))
+    // 移动端批量区默认折叠（用户口径）：先展开，才按得到批量按钮。
+    await user.click(screen.getByRole("button", { name: "批量操作" }))
+    await user.click(screen.getByRole("checkbox", { name: /周末交换名片/ }))
+    await user.click(screen.getByRole("button", { name: "隐藏" }))
+
+    // 手动刷新会把 CardManager 整个卸掉：有脏草稿时先确认。
+    expect(apiMocks.sendCards).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole("button", { name: "刷新个人档案" }))
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "放弃未保存的名片改动并刷新？",
+    })
+    await user.click(within(dialog).getByRole("button", { name: "继续编辑" }))
+
+    // 取消就是真的不加载：草稿与列表都还在。
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+    expect(apiMocks.sendCards).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("button", { name: "保存" })).toBeEnabled()
+
+    await user.click(screen.getByRole("button", { name: "刷新个人档案" }))
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "放弃未保存的名片改动并刷新？",
+        })
+      ).getByRole("button", { name: "放弃并刷新" })
+    )
+
+    await waitFor(() => expect(apiMocks.sendCards).toHaveBeenCalledTimes(2))
+  })
+
   it("opens a card addressed by its wall number instead of the internal id", async () => {
     apiMocks.sendCards.mockResolvedValue({
       items: [{ ...card, cardNumber: 793 }],
@@ -527,7 +581,7 @@ describe("AccountMeWorkspace", () => {
     })
     expect(await screen.findByText("制作人资料已保存。")).toBeVisible()
 
-    await user.click(screen.getByRole("link", { name: "交换名片" }))
+    await user.click(screen.getByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -909,7 +963,7 @@ describe("AccountMeWorkspace", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -928,7 +982,7 @@ describe("AccountMeWorkspace", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -947,7 +1001,7 @@ describe("AccountMeWorkspace", () => {
     stubArtworkSizes()
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -1037,7 +1091,7 @@ describe("AccountMeWorkspace", () => {
     apiMocks.sendCards.mockResolvedValue({ items: [awaiting] })
     apiMocks.sendCard.mockResolvedValue({ card: awaiting })
     renderPage()
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -1068,7 +1122,7 @@ describe("AccountMeWorkspace", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await user.click(screen.getAllByRole("button", { name: "新建名片" })[0])
     const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
@@ -1134,7 +1188,7 @@ describe("AccountMeWorkspace", () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole("link", { name: "交换名片" }))
+    await user.click(await screen.findByRole("link", { name: "名片管理" }))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     await user.click(screen.getAllByRole("button", { name: "新建名片" })[0])
     const cardName = await screen.findByRole("textbox", { name: "制作人名称" })
@@ -1171,7 +1225,7 @@ describe("AccountMeWorkspace", () => {
 
     expect(await screen.findByText("帐号受限")).toBeVisible()
     expect(screen.getByRole("textbox", { name: "显示名称" })).toBeDisabled()
-    await user.click(screen.getByRole("link", { name: "交换名片" }))
+    await user.click(screen.getByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -1198,7 +1252,7 @@ describe("AccountMeWorkspace", () => {
     expect(screen.getByRole("button", { name: "保存资料" })).toBeEnabled()
     expect(screen.queryByText("编辑暂未开放")).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("link", { name: "交换名片" }))
+    await user.click(screen.getByRole("link", { name: "名片管理" }))
     await user.click(
       await screen.findByRole("button", { name: /周末交换名片/ })
     )
@@ -1208,7 +1262,7 @@ describe("AccountMeWorkspace", () => {
     ).toBeDisabled()
   })
 
-  it.each(["namecards", "favorites", "offices", "claims"])(
+  it.each(["namecards", "collection", "offices", "claims"])(
     "renders the %s App section while the other panels stay hidden",
     async (section) => {
       renderAccountSection(section)
@@ -1221,7 +1275,7 @@ describe("AccountMeWorkspace", () => {
       for (const other of [
         "profile",
         "namecards",
-        "favorites",
+        "collection",
         "offices",
         "claims",
       ]) {
@@ -1320,5 +1374,79 @@ describe("AccountMeWorkspace", () => {
     expect(screen.getByRole("button", { name: "更换" })).toBeDisabled()
     expect(apiMocks.replaceFudabaCardMedia).not.toHaveBeenCalled()
     expect(apiMocks.updateFudabaCard).not.toHaveBeenCalled()
+  })
+
+  it("keeps the page scroll position while the card editor is opened, switched and closed", async () => {
+    // 打开编辑器只是在同一条路径上改 `?card=`。react-router 的 <ScrollRestoration>
+    // 会把它当成一次导航，用 window.scrollTo(0, 0) 把窗口拉回顶部；这条用例把
+    // 「选择名片后页面停在原地」钉在真实的滚动复位实现上（root-layout 也挂着它）。
+    const secondCard = {
+      ...card,
+      id: "card-2",
+      cardNumber: 2,
+      producerName: "夏日交换名片",
+    }
+    apiMocks.sendCards.mockResolvedValue({ items: [card, secondCard] })
+    apiMocks.sendCard.mockImplementation(async (cardId: string) => ({
+      card: cardId === "card-2" ? secondCard : card,
+    }))
+
+    let position = 0
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => position)
+    vi.spyOn(window, "scrollTo").mockImplementation(
+      (optionsOrX?: ScrollToOptions | number, y?: number) => {
+        position =
+          typeof optionsOrX === "number"
+            ? (y ?? 0)
+            : (optionsOrX?.top ?? position)
+      }
+    )
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/account/me/:section?",
+          element: (
+            <>
+              <ScrollRestoration />
+              <WorkspaceRoute />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: ["/account/me/namecards"] }
+    )
+    render(<RouterProvider router={router} />)
+
+    const firstCard = await screen.findByRole("button", {
+      name: /周末交换名片/,
+    })
+    // 用户已经滚到清单中部才点开名片。
+    position = 640
+
+    const user = userEvent.setup()
+    await user.click(firstCard)
+    expect(
+      await screen.findByRole("dialog", { name: "名片详情与编辑" })
+    ).toBeVisible()
+    expect(position).toBe(640)
+
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(position).toBe(640)
+
+    await user.click(screen.getByRole("button", { name: /夏日交换名片/ }))
+    expect(
+      await screen.findByRole("dialog", { name: "名片详情与编辑" })
+    ).toBeVisible()
+    expect(position).toBe(640)
+
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(position).toBe(640)
   })
 })

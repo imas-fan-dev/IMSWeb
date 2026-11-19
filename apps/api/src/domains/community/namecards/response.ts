@@ -24,15 +24,20 @@ import type {
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    NamecardCardLayout as NamecardCardLayoutContract,
     NamecardCardShare as NamecardCardShareContract,
+    NamecardCardShareLink as NamecardCardShareLinkContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
+    NamecardCollectionOwners as NamecardCollectionOwnersContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
+    NamecardExchangeDetail as NamecardExchangeDetailContract,
     NamecardExchangeHistoryPage as NamecardExchangeHistoryPageContract,
     NamecardExchangeResult as NamecardExchangeResultContract,
     NamecardQuickExchange as NamecardQuickExchangeContract,
     NamecardQuickSettings as NamecardQuickSettingsContract,
     NamecardScanSession as NamecardScanSessionContract,
+    NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
@@ -71,10 +76,22 @@ export type NamecardQuickExchangeResponse = NamecardQuickExchangeContract;
 export type NamecardQuickSettingsResponse = NamecardQuickSettingsContract;
 export type NamecardExchangeResultResponse = NamecardExchangeResultContract;
 export type NamecardCollectionPageResponse = NamecardCollectionPageContract;
+/** 所属用户选择器只回一份精简名单（卡主 + 自己）。 */
+export type NamecardCollectionOwnersResponse =
+    NamecardCollectionOwnersContract;
 export type NamecardExchangeHistoryPageResponse =
     NamecardExchangeHistoryPageContract;
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
+/** 通知窗口的交换详情。 */
+export type NamecardExchangeDetailResponse = NamecardExchangeDetailContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
+/** 出示方轮询二维码状态：未扫 / 已过期 / 已被某次交换消费。 */
+export type NamecardScanSessionStatusResponse =
+    NamecardScanSessionStatusContract;
+/** 属主清单布局的读写共用一份返回体。 */
+export type NamecardCardLayoutResponse = NamecardCardLayoutContract;
+/** 属主侧单卡分享链接：只回短链路径段，URL 由前端按当前 origin 拼。 */
+export type NamecardCardShareLinkResponse = NamecardCardShareLinkContract;
 /** 名片册的可见性切换只回一个确认标记。 */
 export type NamecardCollectionVisibilityResponse =
     NamecardCollectionVisibilityContract;
@@ -240,7 +257,11 @@ export function toPublicNamecardResponse(
         claimStatus: responseClaimStatus(row.claim_status),
         supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
-        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
+        // 页数只在真的读到页面行时给出（同 `pages` 的出现条件），
+        // 与后台 `toAdminNamecardResponse` 的「正 + 中间 + 反」是同一个数。
+        ...(pages && pages.length > 0
+            ? { pages: [...pages], pageCount: pages.length }
+            : {}),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };

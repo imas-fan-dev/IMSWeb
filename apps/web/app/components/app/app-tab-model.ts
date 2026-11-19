@@ -158,6 +158,8 @@ const APP_BACK_RULES: readonly AppBackRule[] = [
   { path: "/community/cards", target: { kind: "parent", href: "/community" } },
   // 公开主页只从名片墙的作者链接进入，退回到名片墙。
   { path: "/user", target: { kind: "parent", href: "/community/cards" } },
+  // 分享页（`/exchange/card/<slug>` 与 `/exchange/<handle>`）通常从名片墙或详情窗发出。
+  { path: "/exchange", target: { kind: "parent", href: "/community/cards" } },
   {
     path: "/events",
     exact: true,

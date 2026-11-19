@@ -406,10 +406,11 @@ export const NAMECARD_NOTIFICATION_KINDS = [
   // An ownerless card whose producer name matches an account invites that
   // account to claim it.
   "legacy-card-match",
-  // 手动交换：待确认与两种结果各通知一次。
+  // 手动交换：待确认与三种结果（同意 / 拒绝 / 超时）各通知一次。
   "card-exchange-requested",
   "card-exchange-accepted",
   "card-exchange-declined",
+  "card-exchange-expired",
   // Backoffice station messages share this inbox; they carry no card number.
   "station-message",
 ] as const
@@ -425,6 +426,8 @@ export const namecardNotificationSchema = z
     id: z.string().min(1),
     kind: namecardNotificationKindSchema,
     cardNumber: z.number().int().positive().nullable(),
+    /** 这条通知对应的交换记录；只有 `card-exchange-*` 四类带，其余为 null。 */
+    exchangeId: z.string().min(1).nullable(),
     title: z.string().min(1),
     body: z.string().max(4000),
     readAt: z.string().nullable(),

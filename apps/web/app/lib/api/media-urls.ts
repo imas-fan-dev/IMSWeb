@@ -67,7 +67,13 @@ import type {
   FudabaAdminCardClaim,
   FudabaRegisteredCardReview,
 } from "@imsweb/contracts/fudaba/card-claims"
-import type { Namecard, NamecardPage } from "@imsweb/contracts/namecards"
+import type {
+  Namecard,
+  NamecardCollectionOwners,
+  NamecardCollectionPage,
+  NamecardPage,
+  NamecardQuickSettings,
+} from "@imsweb/contracts/namecards"
 import type {
   PlatformProfileMutationResponse,
   PlatformProfileResponse,
@@ -456,6 +462,47 @@ export function normalizeNamecard(card: Namecard): Namecard {
 
 export function normalizeNamecardPage(page: NamecardPage): NamecardPage {
   return { ...page, list: page.list.map(namecard) }
+}
+
+/**
+ * 名片册逐条归一：只有仍在架上的 `card` 带页面地址；`snapshot` 是纯文本投影，
+ * 原卡删除后没有图可加载，不需要也不应该经过媒体地址解析。
+ */
+export function normalizeNamecardCollectionPage(
+  page: NamecardCollectionPage
+): NamecardCollectionPage {
+  return {
+    ...page,
+    list: page.list.map((entry) =>
+      entry.card ? { ...entry, card: namecard(entry.card) } : entry
+    ),
+  }
+}
+
+/** 所属用户选择器：头像与其它账号头像同一口径归一。 */
+export function normalizeNamecardCollectionOwners(
+  owners: NamecardCollectionOwners
+): NamecardCollectionOwners {
+  return {
+    ...owners,
+    list: owners.list.map((owner) => ({
+      ...owner,
+      avatarUrl: nullableMediaUrl(owner.avatarUrl),
+    })),
+  }
+}
+
+/** 选卡窗口的候选与分享页同口径：逐卡归一页面地址，App 目标才点得开。 */
+export function normalizeNamecardQuickSettings(
+  settings: NamecardQuickSettings
+): NamecardQuickSettings {
+  return {
+    ...settings,
+    cards: settings.cards.map((card) => ({
+      ...card,
+      pages: cardPages(card.pages),
+    })),
+  }
 }
 
 /* -------------------------------------------------------------------------- */

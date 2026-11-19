@@ -4,13 +4,20 @@ import {
   CalendarDaysIcon,
   ImagesIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { SubmitEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import {
+  DEFAULT_NAMECARD_FILTERS,
+  NamecardFilterBar,
+  type NamecardFilterValue,
+} from "~/components/community/namecard-filters/namecard-filter-bar"
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { WallInsightsPanel } from "./components/wall-insights-panel"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
@@ -56,18 +63,24 @@ import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry
 import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
 import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
 import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
+import type { SeriesOption } from "~/components/community/series-multi-select"
 import {
   addNamecardReaction,
+  getFudabaSeries,
   getNamecardPage,
   getPublicCard,
   getNamecardReactions,
+  requestCardExchange,
 } from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+/** 制作人检索与名片册同一停顿，避免每敲一个字就发一次列表请求。 */
+const SEARCH_DEBOUNCE_MS = 300
 const SESSION_REACTION_LIMIT = 10
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -229,7 +242,45 @@ export default function CommunityCardsPage() {
   const sessionReactionCounts = useRef(new Map<string, number>())
   const [busyReactionCards, setBusyReactionCards] = useState(new Set<number>())
   const [reload, setReload] = useState(0)
-  const listContext = `${page}:${pageSize}`
+  const [filters, setFilters] = useState<NamecardFilterValue>(
+    DEFAULT_NAMECARD_FILTERS
+  )
+  // 搜索框即时响应，查询串慢半拍（与名片册一致）。
+  const [search, setSearch] = useState("")
+  const [series, setSeries] = useState<readonly SeriesOption[]>([])
+  const { catalog, loading: catalogLoading } = useNamecardCharacterCatalog(true)
+
+  /** 共享筛选状态 → 公开墙的查询参数：内部 `exchange` 在墙上叫 `created`。 */
+  const query = useMemo(() => {
+    const { sort, dir, seriesCodes, group, characterIds, matchAll } = filters
+    return {
+      sort: sort === "exchange" ? ("created" as const) : sort,
+      dir,
+      q: search || undefined,
+      series: seriesCodes,
+      group: group.trim() || undefined,
+      character: characterIds,
+      match: matchAll ? ("all" as const) : ("any" as const),
+      excludeOther: filters.excludeOther,
+      excludeCross: filters.excludeCross,
+      declaration: filters.declaration ?? undefined,
+      invert: filters.invert,
+    }
+  }, [filters, search])
+  const filterKey = [
+    query.sort,
+    query.dir,
+    query.q ?? "",
+    query.series.join(","),
+    query.group ?? "",
+    query.character.join(","),
+    query.match,
+    query.excludeOther,
+    query.excludeCross,
+    query.declaration ?? "",
+    query.invert,
+  ].join("|")
+  const listContext = `${page}:${pageSize}:${filterKey}`
   const [loadedContext, setLoadedContext] = useState(listContext)
   if (loadedContext !== listContext) {
     setLoadedContext(listContext)
@@ -245,6 +296,16 @@ export default function CommunityCardsPage() {
   )
   const { fallbackRef, remember, prepareRestore, restore } =
     useNamecardDetailReturn(searchParams.toString())
+  // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它——详情窗保持打开，
+  // 选卡窗口叠在上面。
+  const [exchangeRequest, setExchangeRequest] = useState<{
+    cardNumber: number
+    target?: string | undefined
+    targetCard?: number | undefined
+  } | null>(null)
+  const exchangeSubmit = useExchangeSubmit({
+    onSettled: () => setReload((n) => n + 1),
+  })
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -261,8 +322,31 @@ export default function CommunityCardsPage() {
   }, [page, pageSize, searchParams, setSearchParams])
 
   useEffect(() => {
+    const timer = setTimeout(
+      () => setSearch(filters.q.trim()),
+      SEARCH_DEBOUNCE_MS
+    )
+    return () => clearTimeout(timer)
+  }, [filters.q])
+
+  useEffect(() => {
     let active = true
-    void getNamecardPage(page, pageSize)
+    void getFudabaSeries()
+      .send()
+      .then((payload) => {
+        if (active) setSeries(payload.items)
+      })
+      .catch(() => {
+        if (active) setSeries([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void getNamecardPage(page, pageSize, query)
       .send()
       .then((next) => {
         if (active) setResult(next)
@@ -276,7 +360,7 @@ export default function CommunityCardsPage() {
     return () => {
       active = false
     }
-  }, [page, pageSize, reload])
+  }, [page, pageSize, query, reload])
 
   // 站内信与「随机补充一张」用 ?card=<编号> 深链到任意一张名片，当前页里
   // 通常没有它，所以要单独取一次。
@@ -373,6 +457,16 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
+  function changeFilters(next: NamecardFilterValue) {
+    setFilters(next)
+    if (page === 1) return
+    // 任一筛选/排序变化都回第 1 页；URL 同步仍走下面的 page/size effect。
+    const params = new URLSearchParams(searchParams)
+    params.set("page", "1")
+    params.set("size", String(pageSize))
+    setSearchParams(params)
+  }
+
   function openDetail(
     card: Namecard,
     trigger: HTMLButtonElement,
@@ -462,6 +556,17 @@ export default function CommunityCardsPage() {
     changePage(nextPage)
   }
 
+  const filtered =
+    filters.q.trim() !== "" ||
+    filters.characterIds.length > 0 ||
+    filters.seriesCodes.length > 0 ||
+    filters.group.trim() !== "" ||
+    filters.matchAll ||
+    filters.excludeOther ||
+    filters.excludeCross ||
+    filters.invert ||
+    filters.declaration !== null
+
   return (
     <PageShell
       width="wide"
@@ -484,11 +589,13 @@ export default function CommunityCardsPage() {
         }}
         finalFocus={() => previewReturnTarget}
       />
+      {/* 公开墙只有卡号（投影里 `claimerUid` 恒为 null）：详情窗把卡号交给选卡窗口反查卡主。 */}
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
         initialSide={detailSide}
         busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
+        exchangeTargetCard={detail.card?.cardNumber}
         reactions={
           detail.card
             ? (reactionsByCard[detail.card.id] ?? {
@@ -498,18 +605,51 @@ export default function CommunityCardsPage() {
             : { reactions: {}, loading: false }
         }
         onOpenChange={(open) => {
+          // 选卡窗口叠在详情窗上时，只有上层收：下层的关闭请求一律忽略。
+          if (!open && exchangeRequest !== null) return
           if (!open) closeDetail()
         }}
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
         onSupplement={setSupplementCard}
-        dismissible={claimCard === null && supplementCard === null}
+        onExchange={(card, target) => {
+          // 详情窗不收起：选卡窗口叠在它上面，关掉选卡后还能继续看这张卡。
+          setExchangeRequest({
+            cardNumber: card.cardNumber,
+            target: "accountId" in target ? target.accountId : undefined,
+            targetCard: "cardNumber" in target ? target.cardNumber : undefined,
+          })
+        }}
+        dismissible={
+          claimCard === null &&
+          supplementCard === null &&
+          exchangeRequest === null
+        }
         onReact={(emoji) =>
           detail.card
             ? reactToCard(detail.card.id, emoji)
             : Promise.resolve(false)
         }
         onReturnFocus={restore}
+      />
+      {/* 详情窗的【交换】落点：一页一个选卡窗口，成功后用 reload 重取列表与逐卡标记。 */}
+      <ExchangeCardPickerDialog
+        open={exchangeRequest !== null}
+        onOpenChange={(open) => {
+          if (!open) setExchangeRequest(null)
+        }}
+        target={exchangeRequest?.target}
+        targetCard={exchangeRequest?.targetCard}
+        onSubmit={(cardNumbers) => {
+          const request = exchangeRequest
+          if (!request) return
+          void exchangeSubmit.submit((clientExchangeId) =>
+            requestCardExchange(request.cardNumber, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
+        }}
       />
       <NamecardSupplementDialog
         key={`supplement:${supplementCard?.id ?? "none"}`}
@@ -583,6 +723,18 @@ export default function CommunityCardsPage() {
         </h1>
       </header>
 
+      <div className="mt-4">
+        <NamecardFilterBar
+          value={filters}
+          onChange={changeFilters}
+          timeLabel="创建时间"
+          series={series}
+          catalog={catalog}
+          catalogLoading={catalogLoading}
+          showOwner={false}
+        />
+      </div>
+
       <section
         ref={fallbackRef}
         tabIndex={-1}
@@ -631,9 +783,13 @@ export default function CommunityCardsPage() {
               <EmptyMedia variant="icon">
                 <ImagesIcon aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>还没有公开名片</EmptyTitle>
+              <EmptyTitle>
+                {filtered ? "没有符合条件的名片" : "还没有公开名片"}
+              </EmptyTitle>
               <EmptyDescription>
-                你可以提交第一张双面制作人名片。
+                {filtered
+                  ? "换个筛选条件试试。"
+                  : "你可以提交第一张双面制作人名片。"}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

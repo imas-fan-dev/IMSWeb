@@ -14,18 +14,32 @@ import { toPublicNamecardResponse } from '@/domains/community/namecards/response
 import { resolveExchangeCardMedia } from '@/domains/community/namecards/exchange/media';
 import { namecardRepository } from '@/middleware/hono-context';
 
-/** 名片册：原卡还在就给最新投影，删掉了就只剩交换当时留下的快照。 */
+/** 名片册：原卡行还在就给最新投影（含持有者已下线的 `hidden`），行没了才只剩交换当时留下的快照。 */
 export async function handleListCollection(
     c: NamecardCollectionQueryContext,
 ): Promise<Response> {
     const query = c.req.valid('query');
-    const page = query.page ?? 1;
-    const size = query.size ?? 24;
+    const page = query.page;
+    const size = query.size;
     const accountId = c.get('platformUser')!.id;
     const { rows, total } = await namecardRepository(c).listCollection({
         accountId,
         limit: size,
         offset: (page - 1) * size,
+        sort: query.sort,
+        ...(query.dir ? { dir: query.dir } : {}),
+        ...(query.q ? { q: query.q } : {}),
+        ...(query.owner ? { owner: query.owner } : {}),
+        ...(query.series.length > 0 ? { seriesCodes: query.series } : {}),
+        ...(query.group ? { groupName: query.group } : {}),
+        ...(query.character.length > 0 ? { characterIds: query.character } : {}),
+        match: query.match,
+        excludeOther: query.excludeOther,
+        excludeCross: query.excludeCross,
+        ...(query.declaration ? { declaration: query.declaration } : {}),
+        invert: query.invert,
+        includeOwn: query.includeOwn,
+        includeHidden: query.includeHidden,
     });
     const list = await Promise.all(
         rows.map(async (row) => {
@@ -33,7 +47,17 @@ export async function handleListCollection(
                 cardNumber: row.card_number,
                 obtainedAt: new Date(row.obtained_at).toISOString(),
                 hiddenAt: row.hidden_at ? new Date(row.hidden_at).toISOString() : null,
-                available: row.card !== null,
+                own: row.own,
+                owner: row.owner
+                    ? {
+                          accountId: row.owner.account_id,
+                          uid: row.owner.uid,
+                          displayName: row.owner.display_name,
+                      }
+                    : null,
+                // 「在线」只表示原卡仍对外可见；`hidden` 的条目照样带 `card`（图照常显示），
+                // 前端据 `!available && card` 标「对方已删除」（doc §5）。
+                available: row.card_status === 'published',
                 card: row.card
                     ? await resolveExchangeCardMedia(
                           c,

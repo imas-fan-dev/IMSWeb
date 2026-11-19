@@ -6,6 +6,8 @@ import type { ValidatedRequestInput } from "@/middleware/request-validation";
 import type {
     AdminNamecardDeleteRequest,
     AdminNamecardUpdateRequest,
+    NamecardCollectionDirection,
+    NamecardWallSort,
 } from "@imsweb/contracts/namecards";
 import type {
     NamecardFeedbackIdParams,
@@ -20,6 +22,8 @@ import { invalidRequest, requestRecord } from "@/utils/validation/request-data";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
+/** 每页条数上限：与名片册一致，避免一次拉取/排序过大的页。 */
+const MAX_PAGE_SIZE = 100;
 const MAX_REPLACEMENT_IMAGE_BYTES = 3 * 1024 * 1024 + 128 * 1024;
 
 export interface CompatibleNamecardIdParams {
@@ -29,6 +33,18 @@ export interface CompatibleNamecardIdParams {
 export interface NamecardListQuery {
     page: number;
     size: number;
+    /** 墙上没有交换时间：`created` 用名片创建时间。 */
+    sort: NamecardWallSort;
+    dir: NamecardCollectionDirection;
+    q: string | null;
+    series: string[];
+    group: string | null;
+    character: number[];
+    match: "any" | "all";
+    excludeOther: boolean;
+    excludeCross: boolean;
+    declaration: "original" | "ai" | null;
+    invert: boolean;
 }
 
 export interface NamecardContributorsQuery {
@@ -178,11 +194,85 @@ export function validateNamecardImageSideParams(
     return { id, side: params.side as "front" | "back" };
 }
 
+/** 墙的文本筛选：空串与缺省都读成 null；与契约一样截断到 64 字符。 */
+function wallQueryText(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const text = value.trim().slice(0, 64);
+    return text === "" ? null : text;
+}
+
+/** 可重复的文本参数：契约给数组，旧入口给单个字符串。 */
+function wallQueryTextList(value: unknown): string[] {
+    const values = Array.isArray(value)
+        ? value
+        : value === undefined
+          ? []
+          : [value];
+    return [
+        ...new Set(
+            values
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0)
+        )
+    ];
+}
+
+/** 担当角色 id：契约解析成数字数组，旧入口给字符串。 */
+function wallQueryCharacterIds(value: unknown): number[] {
+    const values = Array.isArray(value)
+        ? value
+        : value === undefined
+          ? []
+          : [value];
+    const ids = values.flatMap((item) => {
+        if (typeof item === "number") {
+            return Number.isSafeInteger(item) && item > 0 ? [item] : [];
+        }
+        if (typeof item === "string" && /^[1-9]\d{0,17}$/.test(item.trim())) {
+            return [Number(item.trim())];
+        }
+        return [];
+    });
+    return [...new Set(ids)];
+}
+
 export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     const query = requestRecord(value, "名片分页参数无效");
+    const isSwitch = (item: unknown) =>
+        item === true || item === "true" || item === "1";
+    const sort: NamecardWallSort =
+        query.sort === "name" || query.sort === "series" || query.sort === "date"
+            ? query.sort
+            : "created";
+    // 缺省方向与名片册同一规则：创建时间与制作日期倒序，其余正序。
+    const dir: NamecardCollectionDirection =
+        query.dir === "asc" || query.dir === "desc"
+            ? query.dir
+            : sort === "created" || sort === "date"
+              ? "desc"
+              : "asc";
     return {
-        page: legacyPaginationValue(query.page, DEFAULT_PAGE),
-        size: legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE),
+        // 旧入口的数字别名继续按 parseInt 兼容，但不允许 0 / 负数落到分页切片。
+        page: Math.max(DEFAULT_PAGE, legacyPaginationValue(query.page, DEFAULT_PAGE)),
+        size: Math.min(
+            MAX_PAGE_SIZE,
+            Math.max(1, legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE))
+        ),
+        sort,
+        dir,
+        q: wallQueryText(query.q),
+        series: wallQueryTextList(query.series),
+        group: wallQueryText(query.group),
+        character: wallQueryCharacterIds(query.character),
+        match: query.match === "all" ? "all" : "any",
+        excludeOther: isSwitch(query.excludeOther),
+        excludeCross: isSwitch(query.excludeCross),
+        declaration:
+            query.declaration === "original" || query.declaration === "ai"
+                ? query.declaration
+                : null,
+        invert: isSwitch(query.invert),
     };
 }
 

@@ -1,5 +1,7 @@
 import {
   NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_EXCHANGE_PENDING_TTL_MS,
+  NAMECARD_PROFILE_GROUP_LIMIT,
   NAMECARD_SCAN_TOKEN_TTL_MS,
 } from "./namecards-runtime.js"
 
@@ -137,16 +139,34 @@ export const namecardSchema = exactJsonResponse({
   id: cardIdSchema,
   /** 统一布局的页面：正面在前、背面在后，中间页按顺序排在中间。 */
   pages: z.array(cardPageSchema).optional(),
+  /**
+   * 正面 + 中间页 + 背面（即 `pages` 的长度），与后台同一套算法。
+   * 页面行没读到的入口整份省略，读取侧按「只有正面」处理。
+   */
+  pageCount: z.number().int().positive().optional(),
+  /**
+   * 登录浏览者的名片册里是否已有这张卡（不看 `hidden_at`，与交换系统的
+   * `already-owned` 同口径）。未登录浏览、或读取侧没查时整个字段省略。
+   */
+  collected: z.boolean().optional(),
   ...namecardMetadataSchema,
   ...namecardPublicDetailSchema,
   status: z.string().optional(),
   created_at: z.string().nullable().optional(),
 })
 
+/** 公开主页按属主布局展示的分组；没有布局时整个字段省略。 */
+export const namecardPageGroupSchema = exactJsonResponse({
+  title: z.string().min(1),
+  cardNumbers: z.array(cardIdSchema),
+})
+
 export const namecardPageSchema = exactJsonResponse({
   list: z.array(namecardSchema),
   total: z.number().int().nonnegative(),
   totalPage: z.number().int().nonnegative(),
+  /** 公开主页：属主配置的分组（只含仍有公开卡片的分组）。 */
+  groups: z.array(namecardPageGroupSchema).optional(),
 })
 
 /** One platform handle as the profile page renders it. */
@@ -540,10 +560,6 @@ export const namecardMediaParamsSchema = legacyStripRequestObject({
 export const publicProfileParamsSchema = legacyStripRequestObject({
   accountId: z.string().min(1),
 })
-export const namecardListQuerySchema = legacyStripRequestObject({
-  page: z.unknown().optional(),
-  size: z.unknown().optional(),
-})
 export const adminNamecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   query: z.unknown().optional(),
@@ -674,13 +690,19 @@ export type RandomOwnerlessCardError = z.infer<
   typeof randomOwnerlessCardErrorSchema
 >
 
-export { NAMECARD_EXCHANGE_CARD_LIMIT, NAMECARD_SCAN_TOKEN_TTL_MS }
+export {
+  NAMECARD_EXCHANGE_CARD_LIMIT,
+  NAMECARD_EXCHANGE_PENDING_TTL_MS,
+  NAMECARD_SCAN_TOKEN_TTL_MS,
+}
 
 export const namecardExchangeSourceSchema = z.enum([
   "card-share",
   "card-request",
   "quick",
   "scan",
+  /** 单向送礼：我把它直接放进对方名片册，对方无需确认。 */
+  "gift",
 ])
 
 export const namecardExchangeStatusSchema = z.enum([
@@ -737,28 +759,117 @@ export const namecardQuickExchangeSchema = exactJsonResponse({
   targetMissingCount: z.number().int().nonnegative(),
 })
 
-/** 我一侧的快速交换清单；`cards` 只含当前仍可交换的名片。 */
+/** 属主侧单卡分享链接：只回分享短链的路径段，URL 由前端按当前 origin 拼。 */
+export const namecardCardShareLinkSchema = exactJsonResponse({
+  slug: z.string().regex(/^[a-z0-9]{12}$/),
+})
+
+/**
+ * 选卡界面的一侧投影：`cards` 是**全部**可展示的候选（含 `manual` / `none`），
+ * 只有 `selected` 表示该卡真的在快速交换清单里（清单只收 `published + auto`）。
+ */
 export const namecardQuickCandidateSchema = exactJsonResponse({
   cardNumber: cardIdSchema,
   /** 统一布局的页面，正面在首、背面在末。 */
   pages: z.array(cardPageSchema),
   exchangeMode: z.enum(["auto", "manual", "none"]),
   selected: z.boolean(),
+  /**
+   * 目标用户的名片册里是否已有这张卡（与 `collected` 同口径、同来源）。
+   * 只有带 `target` 查询参数、且命中的卡才出现；没传目标或未命中整份省略。
+   */
+  targetOwns: z.boolean().optional(),
 })
 
 export const namecardQuickSettingsSchema = exactJsonResponse({
   limit: z.number().int().positive(),
   cards: z.array(namecardQuickCandidateSchema),
+  /** 我有、可交换、目标用户还没有的张数；没传目标时整份省略。 */
+  targetMissingCount: z.number().int().nonnegative().optional(),
+})
+
+/**
+ * 选卡窗口的目标视角：`target` 认 uid、主页 slug 或账号 ID（与
+ * `namecardExchangeHandleParamsSchema` 同款校验）；`targetCard` 是目标的公开卡号
+ * （名片墙 / 主页的公开投影里没有可用的 `claimerUid`，只能从卡反查卡主）。
+ * 两者互斥，都不传就是没有目标。
+ */
+export const namecardQuickCandidatesQuerySchema = strictRequestObject({
+  target: z.string().trim().min(1).max(128).optional(),
+  targetCard: z.string().trim().regex(/^\d{1,18}$/).optional(),
 })
 
 export const namecardQuickSelectionSchema = strictRequestObject({
   cardNumbers: z.array(cardIdSchema).max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
+/**
+ * 布局里的一个分组；`id` 传 null 表示新建（服务端分配）。
+ *
+ * 写侧的 `id` 与读侧（`namecardCardLayoutGroupViewSchema`）同口径放开成 `min(1)`：
+ * 库里存过非 uuid 的组 id 时，GET 能正常返回，写侧再用 `uuid()` 会让同一份布局在
+ * 客户端 `.parse()` 永久失败。标题仍按设计保持 1–40 字。
+ */
+export const namecardCardLayoutGroupSchema = strictRequestObject({
+  id: z.string().min(1).nullable(),
+  title: z.string().trim().min(1).max(40),
+  cardNumbers: z.array(cardIdSchema),
+})
+
+/** 一次保存：布局 + 快速清单 + 批量字段差异（同一事务，全成或全不成）。 */
+export const namecardCardLayoutRequestSchema = strictRequestObject({
+  groups: z
+    .array(namecardCardLayoutGroupSchema)
+    .max(NAMECARD_PROFILE_GROUP_LIMIT),
+  /** 默认分组（无标题、永远排第一）的顺序。 */
+  defaultCardNumbers: z.array(cardIdSchema),
+  quickCardNumbers: z
+    .array(cardIdSchema)
+    .max(NAMECARD_EXCHANGE_CARD_LIMIT)
+    .default([]),
+  /** 只放有变化的卡：可见性与交换模式都是免审字段。 */
+  cardSettings: z
+    .array(
+      z
+        .object({
+          cardId: z.string().min(1),
+          visible: z.boolean().optional(),
+          exchangeMode: z.enum(["auto", "manual", "none"]).optional(),
+        })
+        .strict()
+    )
+    .max(500)
+    .default([]),
+})
+
+export const namecardCardLayoutGroupViewSchema = exactJsonResponse({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  cardNumbers: z.array(cardIdSchema),
+})
+
+/** 归一后的布局；读与写都返回它。 */
+export const namecardCardLayoutSchema = exactJsonResponse({
+  groups: z.array(namecardCardLayoutGroupViewSchema),
+  defaultCardNumbers: z.array(cardIdSchema),
+  quickCardNumbers: z.array(cardIdSchema),
+  /** 快速交换清单的上限，前端不要自己写死。 */
+  limit: z.number().int().positive(),
+})
+
 /** 发起一次交换：幂等锚点 + 我交出的名片（可以为空）。 */
 export const namecardExchangeCommitSchema = strictRequestObject({
   clientExchangeId: z.string().trim().min(8).max(64),
   giveCardNumbers: z.array(cardIdSchema).max(NAMECARD_EXCHANGE_CARD_LIMIT).default([]),
+})
+
+/** 单向送名片：只交出我的名片，对方不用确认，也没有要收的卡。 */
+export const namecardExchangeGiftSchema = strictRequestObject({
+  clientExchangeId: z.string().trim().min(8).max(64),
+  cardNumbers: z
+    .array(cardIdSchema)
+    .min(1)
+    .max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
 export const namecardExchangeResultSchema = exactJsonResponse({
@@ -781,23 +892,58 @@ export const namecardCollectionSnapshotSchema =
     .omit({ isGroupCard: true })
     .extend({
       producerName: z.string().min(1).nullable(),
+      /**
+       * PRD §3.4 的排序元数据：原卡删除后仍按同一规则排序。
+       * 旧快照写在两列之前，缺省 / 坏值都退回「特殊符号垫底」。
+       */
+      sortNameKey: z.string().catch(""),
+      sortNameBucket: z.number().int().min(0).max(3).catch(3),
       /** 快照把空文本也记成 null，故没有最小长度。 */
       bio: z.string().nullable(),
       tradeNote: z.string().nullable(),
       accent: z.string().min(1).nullable(),
       seriesCodes: z.array(z.string().min(1)).max(NAMECARD_SERIES_LIMIT),
+      /**
+       * 担当角色的目录 id（顺序就是名片上的担当顺序）。原卡删除后筛选与「按企划」
+       * 排序仍要按同一批角色工作，因此快照也带上；旧快照没有这一项，按空处理。
+       */
+      favoriteCharacterIds: z
+        .array(z.number().int().positive())
+        .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
+        .catch([]),
       /** 快照不截断致谢名单。 */
       credits: z.array(namecardCreditSchema),
     })
     .strict()
 
-/** 名片册里的一条：原卡还在就带最新投影，删掉了就只剩快照。 */
+/** 名片册里的一条：原卡行还在就给最新投影（含持有者已下线的 `hidden`），行被删除才只剩快照。 */
 export const namecardCollectionEntrySchema = exactJsonResponse({
   cardNumber: cardIdSchema,
   obtainedAt: z.string().min(1),
   hiddenAt: z.string().min(1).nullable(),
-  /** 原卡是否仍然在线；为 false 时前端只能渲染 `snapshot`。 */
+  /**
+   * 卡主身份：瓦片底部的制作人名称点击后跳转 `/user/<uid>`。已收集条目取
+   * 原卡卡主，`own` 行取自己；资料不可用（账号停用/删除、历史数据）时为
+   * null，前端降级成纯文本。
+   */
+  owner: z
+    .object({
+      accountId: z.string().min(1),
+      uid: z.string().min(1),
+      displayName: z.string().min(1),
+    })
+    .strict()
+    .nullable(),
+  /**
+   * 原卡是否仍对外可见（`published`）。为 false 时 `card` **可能仍在**——持有者删卡（`hidden`）
+   * 后已收集者照旧拿到投影与图；只有 `card === null` 才必须渲染 `snapshot`。
+   */
   available: z.boolean(),
+  /**
+   * 这一条是「我自己的名片」（【显示我的名片】带出）而不是收到的：没有交换时间
+   * （`obtainedAt` 回退名片创建时间）、没有隐藏入口（PRD §5 / §6）。
+   */
+  own: z.boolean(),
   card: namecardSchema.nullable(),
   snapshot: namecardCollectionSnapshotSchema,
 })
@@ -808,6 +954,21 @@ export const namecardCollectionPageSchema = exactJsonResponse({
   totalPage: z.number().int().nonnegative(),
 })
 
+/**
+ * 筛选项里的一个卡主（含自己）。数据只来自平台账号与自己册内的卡主，
+ * 不是全站用户目录。
+ */
+export const namecardCollectionOwnerSchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  uid: z.number().int().positive(),
+  displayName: z.string().min(1),
+  avatarUrl: z.string().min(1).nullable(),
+})
+
+export const namecardCollectionOwnersSchema = exactJsonResponse({
+  list: z.array(namecardCollectionOwnerSchema),
+})
+
 export const namecardCollectionVisibilityResponseSchema = exactJsonResponse({
   success: z.literal(true),
 })
@@ -816,9 +977,149 @@ export type NamecardCollectionVisibilityResponse = z.infer<
   typeof namecardCollectionVisibilityResponseSchema
 >
 
-export const namecardCollectionQuerySchema = legacyStripRequestObject({
+/**
+ * 名片册排序键（PRD §3）。`exchange` 用交换时间；`name` 用名片上的排序元数据；
+ * `series` 按单一 / 多企划分层（单企划按企划目录顺序，多企划不比较企划），
+ * 再按第一个担当角色的业务分类与目录排序值；`date` 用 `madeOn` 的精度与日期。
+ */
+export const namecardCollectionSortSchema = z.enum([
+  "exchange",
+  "name",
+  "series",
+  "date",
+])
+
+export const namecardCollectionDirectionSchema = z.enum(["asc", "desc"])
+
+export type NamecardCollectionSort = z.infer<typeof namecardCollectionSortSchema>
+export type NamecardCollectionDirection = z.infer<
+  typeof namecardCollectionDirectionSchema
+>
+
+/** 查询串里的布尔开关：接受 `true` / `false` / `1` / `0`，缺省为 false。 */
+const queryBoolean = z
+  .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+  .optional()
+  .transform((value) => value === "true" || value === "1")
+
+/** 单值文本参数；同一键出现多次会被 zod 拒绝（数组进不了 `z.string()`）。 */
+const queryText = (maximum: number) => z.string().trim().max(maximum).optional()
+
+/** 可重复的文本参数：`?series=765&series=cg`；单值时 hono 给字符串。 */
+function repeatableQueryTextList(maxItems: number, maxLength: number) {
+  return z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) =>
+      value === undefined ? [] : Array.isArray(value) ? value : [value]
+    )
+    .pipe(z.array(z.string().trim().min(1).max(maxLength)).max(maxItems))
+}
+
+/** 名片墙排序键：墙上没有交换时间，`created` 用名片创建时间。 */
+export const namecardWallSortSchema = z.enum([
+  "created",
+  "name",
+  "series",
+  "date",
+])
+
+export type NamecardWallSort = z.infer<typeof namecardWallSortSchema>
+
+/**
+ * 名片墙列表：筛选与排序参数与名片册同名，`created` 取代交换时间；
+ * 所属用户与「显示我的 / 隐藏名片」开关不属于墙。
+ *
+ * `page` / `size` 保留旧的 parseInt 兼容语义（由 API 适配器归一化），
+ * 其余参数在这里做形状校验。
+ */
+export const namecardListQuerySchema = legacyStripRequestObject({
+  /** 旧入口的 parseInt 别名由服务端归一化；`size` 归一化后上限 100。 */
   page: z.unknown().optional(),
   size: z.unknown().optional(),
+  sort: namecardWallSortSchema.optional(),
+  /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序（读取侧补默认值）。 */
+  dir: namecardCollectionDirectionSchema.optional(),
+  q: queryText(64),
+  series: repeatableQueryTextList(16, 40),
+  group: queryText(64),
+  /** 担当角色目录 id；重复出现即多选。 */
+  character: repeatableQueryTextList(64, 18)
+    .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
+    .transform((values) => [...new Set(values.map(Number))]),
+  /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
+  match: z.enum(["any", "all"]).optional(),
+  /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
+  excludeOther: queryBoolean,
+  /** 【不含越境】：排除企划数为复数的名片。 */
+  excludeCross: queryBoolean,
+  /**
+   * 创作声明：`original` 只留原创（`is_original`），`ai` 只留 AI 制作
+   * （`made_with_ai`）。与其它内容条件同属「命中集合」，可被 `invert` 一并取反。
+   */
+  declaration: z.enum(["original", "ai"]).optional(),
+  /**
+   * 反向排除：把内容筛选整体取反；没有任何内容条件时等价于不筛。
+   */
+  invert: queryBoolean,
+})
+
+/** 复用 `fudabaCardQuerySchema` 的 series 写法：重复出现即多值。 */
+export const namecardPageQueryShape = {
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(24),
+}
+
+/** 名片册列表（PRD §7.1）：分页 + 排序 + 搜索 + 高级筛选 + 两个开关。 */
+export const namecardCollectionQuerySchema = strictRequestObject({
+  ...namecardPageQueryShape,
+  sort: namecardCollectionSortSchema.default("exchange"),
+  /** 缺省值取决于 `sort`：交换时间与制作日期倒序，其余正序（读取侧补默认值）。 */
+  dir: namecardCollectionDirectionSchema.optional(),
+  q: queryText(64),
+  /**
+   * 所属用户：卡主（平台账号 id）。只保留该账号名片册里的卡主；
+   * `includeOwn` 同用时，卡主不是自己时「我的名片」不参与。
+   */
+  owner: z.string().trim().min(1).max(128).optional(),
+  series: repeatableQueryTextList(16, 40),
+  group: queryText(64),
+  /** 担当角色目录 id；重复出现即多选。 */
+  character: repeatableQueryTextList(64, 18)
+    .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
+    .transform((values) => [...new Set(values.map(Number))]),
+  /** `all` = 【同时包含】：名片必须包含全部筛选项。 */
+  match: z.enum(["any", "all"]).optional(),
+  /** 【不含其他】：名片的担当角色必须全部落在筛选项里。 */
+  excludeOther: queryBoolean,
+  /** 【不含越境】：排除企划数为复数的名片。 */
+  excludeCross: queryBoolean,
+  /**
+   * 创作声明：`original` 只留原创（`is_original`），`ai` 只留 AI 制作
+   * （`made_with_ai`）。与其它内容条件同属「命中集合」，可被 `invert` 一并取反。
+   */
+  declaration: z.enum(["original", "ai"]).optional(),
+  /**
+   * 反向排除：把内容筛选（`q` / `series` / `group` / `character` + `match` +
+   * `excludeOther` / `excludeCross` / `declaration`）整体取反；`owner` /
+   * `includeOwn` / `includeHidden` 这类范围条件不参与。没有任何内容条件时等价于不筛。
+   */
+  invert: queryBoolean,
+  /** 【显示我的名片】：并入自己 `published` 的名片（交换时间回退创建时间）。 */
+  includeOwn: queryBoolean,
+  /** 【显示隐藏名片】：并入被手动隐藏（`hidden_at`）的条目。 */
+  includeHidden: queryBoolean,
+})
+
+/** 所属用户选择器：只按显示名搜索，最多返回 50 条（默认 20）。 */
+export const namecardCollectionOwnersQuerySchema = strictRequestObject({
+  q: queryText(64),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+})
+
+/** 交换记录只有页码（`namecardCollectionQuerySchema` 的其余参数与它无关）。 */
+export const namecardExchangeHistoryQuerySchema = strictRequestObject({
+  ...namecardPageQueryShape,
 })
 
 /** 隐藏或恢复名片册里的一条；隐藏后原卡改动仍然同步。 */
@@ -836,6 +1137,29 @@ export const namecardExchangeHistoryEntrySchema = exactJsonResponse({
   initiatorCardNumbers: z.array(cardIdSchema),
   createdAt: z.string().min(1),
   resolvedAt: z.string().min(1).nullable(),
+})
+
+/** 交换详情窗口里的一方：账号与展示名（名字缺失时由读取侧补默认值）。 */
+export const namecardExchangePartySchema = exactJsonResponse({
+  accountId: z.string().min(1),
+  displayName: z.string().min(1),
+})
+
+/**
+ * 单笔交换的详情：通知窗口据此画出对方要的名片、我给出的名片与过期时间。
+ * `expiresAt` 只在 `pending` / `expired` 有意义，其它状态为 null。
+ */
+export const namecardExchangeDetailSchema = exactJsonResponse({
+  id: z.string().min(1),
+  status: namecardExchangeStatusSchema,
+  source: namecardExchangeSourceSchema,
+  createdAt: z.string().min(1),
+  expiresAt: z.string().min(1).nullable(),
+  initiator: namecardExchangePartySchema,
+  target: namecardExchangePartySchema,
+  targetCards: z.array(namecardSchema),
+  initiatorCards: z.array(namecardSchema),
+  skipped: z.array(namecardExchangeSkippedSchema),
 })
 
 export const namecardExchangeHistoryPageSchema = exactJsonResponse({
@@ -858,6 +1182,11 @@ export const namecardExchangeCardParamsSchema = strictRequestObject({
   cardNumber: z.string().trim().regex(/^\d{1,18}$/),
 })
 
+/** 他人主页上的账号 id：送礼端点用它定位收件人。 */
+export const namecardExchangeAccountParamsSchema = strictRequestObject({
+  accountId: z.string().trim().min(1).max(64),
+})
+
 export const namecardExchangeIdParamsSchema = strictRequestObject({
   id: z.string().trim().min(1).max(64),
 })
@@ -877,10 +1206,24 @@ export const namecardScanSessionRequestSchema = strictRequestObject({
     .max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
+/** 出示方轮询的那一面：二维码还没被扫、已过期，或被某次交换消费掉。 */
+export const namecardScanSessionStatusSchema = z.enum([
+  "active",
+  "expired",
+  "committed",
+])
+
 /** 二维码里放的就是这个令牌；服务端只存它的 sha256。 */
 export const namecardScanSessionSchema = exactJsonResponse({
   token: z.string().min(1),
   expiresAt: z.string().min(1),
+})
+
+/** 只有会话创建者能读；`exchangeId` 仅在被消费后给值。 */
+export const namecardScanSessionStatusResponseSchema = exactJsonResponse({
+  status: namecardScanSessionStatusSchema,
+  expiresAt: z.string().min(1),
+  exchangeId: z.string().min(1).nullable(),
 })
 
 export type NamecardExchangeSource = z.infer<typeof namecardExchangeSourceSchema>
@@ -890,7 +1233,15 @@ export type NamecardExchangeSkipped = z.infer<
 >
 export type NamecardCardShare = z.infer<typeof namecardCardShareSchema>
 export type NamecardQuickExchange = z.infer<typeof namecardQuickExchangeSchema>
+export type NamecardCardShareLink = z.infer<typeof namecardCardShareLinkSchema>
 export type NamecardQuickSettings = z.infer<typeof namecardQuickSettingsSchema>
+export type NamecardQuickCandidatesQuery = z.infer<
+  typeof namecardQuickCandidatesQuerySchema
+>
+export type NamecardCardLayout = z.infer<typeof namecardCardLayoutSchema>
+export type NamecardCardLayoutRequest = z.infer<
+  typeof namecardCardLayoutRequestSchema
+>
 export type NamecardExchangeResult = z.infer<
   typeof namecardExchangeResultSchema
 >
@@ -901,18 +1252,39 @@ export type NamecardCollectionEntry = z.infer<
   typeof namecardCollectionEntrySchema
 >
 export type NamecardCollectionPage = z.infer<typeof namecardCollectionPageSchema>
+export type NamecardCollectionOwnersQuery = z.infer<
+  typeof namecardCollectionOwnersQuerySchema
+>
+export type NamecardCollectionOwner = z.infer<
+  typeof namecardCollectionOwnerSchema
+>
+export type NamecardCollectionOwners = z.infer<
+  typeof namecardCollectionOwnersSchema
+>
+export type NamecardExchangeHistoryQuery = z.infer<
+  typeof namecardExchangeHistoryQuerySchema
+>
 export type NamecardExchangeHistoryEntry = z.infer<
   typeof namecardExchangeHistoryEntrySchema
 >
 export type NamecardExchangeHistoryPage = z.infer<
   typeof namecardExchangeHistoryPageSchema
 >
+export type NamecardExchangeDetail = z.infer<
+  typeof namecardExchangeDetailSchema
+>
 export type NamecardScanSession = z.infer<typeof namecardScanSessionSchema>
+export type NamecardScanSessionStatusResponse = z.infer<
+  typeof namecardScanSessionStatusResponseSchema
+>
 export type NamecardScanSessionRequest = z.infer<
   typeof namecardScanSessionRequestSchema
 >
 export type NamecardExchangeCommitRequest = z.infer<
   typeof namecardExchangeCommitSchema
+>
+export type NamecardExchangeGiftRequest = z.infer<
+  typeof namecardExchangeGiftSchema
 >
 export type NamecardQuickSelection = z.infer<typeof namecardQuickSelectionSchema>
 export type NamecardCollectionVisibilityRequest = z.infer<
@@ -928,6 +1300,9 @@ export type NamecardExchangeHandleParams = z.infer<
 >
 export type NamecardExchangeCardParams = z.infer<
   typeof namecardExchangeCardParamsSchema
+>
+export type NamecardExchangeAccountParams = z.infer<
+  typeof namecardExchangeAccountParamsSchema
 >
 export type NamecardExchangeIdParams = z.infer<typeof namecardExchangeIdParamsSchema>
 export type NamecardScanTokenParams = z.infer<typeof namecardScanTokenParamsSchema>

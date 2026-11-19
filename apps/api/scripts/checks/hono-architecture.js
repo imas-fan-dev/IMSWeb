@@ -401,6 +401,7 @@ const utilsCategories = new Set([
     "crypto",
     "http",
     "media",
+    "sorting",
     "storage",
     "validation",
 ]);

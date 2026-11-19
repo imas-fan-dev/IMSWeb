@@ -23,7 +23,8 @@
 2. 名片可见性（`visible`）只影响名片墙与个人主页的展示，不影响持有者主动分享。
 3. `auto`（自动确认）的名片在交换流程中不产生任何通知。
 4. `manual`（手动确认）的名片被他人申请交换时，持有者收到通知并决定是否同意，申请者随后收到结果通知。
-5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+5. 整卡 `locked` 与 `hidden` 的名片不会出现在持有者的「选择用于交换的名片」列表里，因此不能作为提供方。
+
 11. 团体名片（`is_group_card=true`）的交换模式固定为 `auto`：数据库 CHECK、服务端与编辑器三处同时约束，
     勾选或取消该标记本身要经过版本复审。
 6. 整卡 `locked` 的名片不出现在已交换方的名片册里；整卡 `hidden`（持有者删除）的名片仍然出现在名片册里。
@@ -32,7 +33,7 @@
 9. 名片归属（`owner_account_id`）在交换前后不变。
 10. 每张名片都固定拥有一个交换链接，不存在「撤销」；链接的行为由名片状态与交换模式实时决定。
 
-## 2. 四种入口
+## 2. 五种入口
 
 | 入口 | 链接形态 | 有效期 | 目标卡范围 | 提供卡范围 |
 | --- | --- | --- | --- | --- |
@@ -40,6 +41,7 @@
 | 发起申请 | 无链接，针对墙/主页上的名片 | 即时 | 该名片 | 访问者的可用名片 |
 | 快速交换 | `/exchange/<uid 或 page_slug>` | 长期，随列表变化 | 该账号的快速交换列表 | 访问者的可用名片 |
 | 扫码交换 | 一次性二维码 | 一周或直到交换成功 | 出示方本轮已选名片 | 扫码方本轮已选或现场选择 |
+| 单向送礼 | 无链接，针对他人主页 | 即时 | 无 | 访问者选中的已发布名片 |
 
 ### 2.1 主动分享
 
@@ -52,6 +54,11 @@
 | `locked` / `hidden` | 「此名片暂不可交换」，不解释原因 |
 
 把名片改成 `none` 之前必须提醒持有者并二次确认，因为这会立刻让已经发出去的链接失效。
+
+**双向要分开看**：`none` 只约束「**别人**对这张名片发起交换」——分享链接失效、
+墙与主页不给申请入口；**持有者自己**把这张卡作为「给出卡」参与交换**不受限制**：提交时后端只校验
+给出卡的归属（`acceptedGive`），不校验交换模式。所以选卡窗口的候选里 `none` 与 `manual`、`auto`
+一样可勾选。
 
 ### 2.2 发起申请
 
@@ -66,6 +73,13 @@
 - 名片变为 `locked` 或 `hidden` 时自动移出。
 - 列表内名片被取走的流程与主动分享一致。
 - 任何需要「选择名片参与交换」的场合，都会自动勾选该账号快速交换列表中的名片。
+- 选卡界面里出现的是**候选**，不是清单：`GET` / `PUT /api/community/exchange/me/quick` 的 `cards` 是该账号
+  **全部** `published` 名片（含 `manual` / `none`），只有 `selected: true` 才表示它在快速交换清单里。
+  所以 `selected: false` 的候选要渲染成不可勾选；想分享某张 `manual` / `none` 卡，得先把它改成 `auto`。
+- 快速交换页的「一次收下」（`POST /api/community/exchange/quick/:handle/commit`）收的是**对方快速清单**里的
+  全部名片（`source: 'quick'`）。清单只含 `auto`，所以这类交换必定 `completed`，不会产生待确认、不发通知；
+  对方清单为空（包括「对方只有 `manual` / `none` 名片」）时该接口返回 **409「对方当前没有可交换的名片」**，
+  而页面 `GET /api/community/exchange/quick/:handle` 仍是 200 + 空清单，前端展示空态即可。
 
 ### 2.4 扫码交换
 
@@ -76,6 +90,8 @@
 - 该模式不发送通知，且无论名片交换模式如何都自动通过。
 - 每个二维码仅可使用一次，以交换是否成功为准；因重复被跳过的同样算成功。
 - 二维码有效期一周，或直到该轮交换成功为止，两者先到者生效。
+- 出示方用 `GET /api/community/exchange/scan/sessions/:token` 轮询：`active` 继续等，`expired` 提示重新生成，
+  `committed` 带 `exchangeId` 时收掉二维码并展示本次交换；只有会话创建者本人能读，别人的 token 一律 404。
 - 网络失败时交换记录落本地队列，恢复后重放。
 
 ```mermaid
@@ -89,6 +105,39 @@ stateDiagram-v2
   QRShown --> Expired: 超过一周或已被使用
 ```
 
+### 2.5 手动交换的确认、过期与通知
+
+- **何时需要确认**：目标卡里有 `manual`，且入口不是扫码 → 交换落 `pending`（`resolved_at` 为空），
+  名片册不产生任何条目；`auto`、快速清单（只含 `auto`）与扫码直接 `completed`。
+- **通知**：`pending` 时给目标账号写一条 `card-exchange-requested`，正文
+  「〈发起方〉 希望交换您的名片 #a、#b、#c 等 N 张，一周内不处理将自动过期。」
+  （卡号最多列三个，更多以「等 N 张」收尾）。通知行带 `exchangeId`，接收方在通知里
+  【查看详情】即可看到双方名片并就地同意/婉拒，**不需要**去名片册；名片册也**不展示**待确认交换。
+- **详情**：`GET /api/community/exchange/exchanges/:id`，只有发起方或目标方能读（其它人 404），
+  两侧卡片与分享页同一份投影（含 `pages[].thumbUrl`），并给出 `status` 与 `expiresAt`。
+- **过期**：有效期 7 天。读取侧（历史、详情）把超期 `pending` 呈现为 `expired`；
+  超期后再裁决会让该行落成 `expired`（同时写 `resolved_at`）并回 409，对方需要重新发起。
+  落成 `expired` 的同一事务里给发起方写一条 `card-exchange-expired` 通知
+  「〈目标方〉 未及时处理您的交换申请，本次名片交换自动关闭。」（带 `exchangeId`）。
+- **重复发起**：同一发起方、同一目标方、仍在一周内的 `pending` 只保留一笔。
+  两次发起两侧卡号**完全相同**才是同一次申请——再次提交拿回同一笔（幂等），不再发通知；
+  任一侧卡号有变化就用新的内容**原地覆盖**：交换 id 不变，换掉两侧卡号与 `skipped`，
+  `created_at` 刷新（有效期随之重置 7 天），`resolved_at` 保持空；目标方那条请求通知
+  复用同一行（改正文与卡号、`read_at` 置空、时间刷新），不会新增第二封。
+
+### 2.6 单向送礼
+
+他人主页（头像下方【发送名片】）可以把**自己的**名片直接放进对方的名片册，对方无需确认。
+
+- 端点：`POST /api/community/exchange/users/:accountId/gift`，请求体
+  `{ clientExchangeId, cardNumbers }`（1–20 张）；响应与其它入口同为 `NamecardExchangeResult`。
+- 源记录：`source: 'gift'`，`status: 'completed'`，`target_card_numbers` 为空；
+  只有给出方名片进入对方名片册，发送方名片册**不新增**条目。
+- 可送范围：本人的全部 `published` 名片，包含交换模式 `none` 的卡（给出方不受模式限制）。
+- 已拥有即跳过：对方名片册里已有某张时该张进 `skipped`（`owned-by-target`），其余照常入册，整次仍成功。
+- 静默：不发任何通知；对方可以在自己的交换记录里看到 `incoming` 的 `completed` 记录。
+- 目标账号不存在或已停用 → 404「找不到这位制作人」；送给自己 → 400「不能给自己送名片」。
+
 ## 3. 数据模型
 
 新增迁移（时间戳按提交日生成），全部位于 `apps/api/migrations/postgresql`。
@@ -101,7 +150,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | `id` | uuid PK | |
 | `client_exchange_id` | text UNIQUE | 客户端生成的幂等键，离线重放返回同一条记录 |
-| `source` | text | `card-share` / `card-request` / `quick` / `scan` |
+| `source` | text | `card-share` / `card-request` / `quick` / `scan` / `gift` |
 | `status` | text | `pending` / `completed` / `declined` / `expired` |
 | `initiator_account_id` | text | 发起方（访问者 / 扫码方） |
 | `target_account_id` | text | 目标方（链接持有者 / 出示方） |
@@ -125,7 +174,7 @@ stateDiagram-v2
 | `exchange_id` | uuid | 来自哪次交换 |
 | `obtained_at` | timestamptz | |
 | `hidden_at` | timestamptz NULL | 持有者手动选择「默认不展示」的时间 |
-| `snapshot` | jsonb | 交换时的渲染快照，卡片不存在时兜底 |
+| `snapshot` | jsonb | 交换时的渲染快照，卡片不存在时兜底；含排序键（`sortNameKey` / `sortNameBucket`）与担当角色 id（`favoriteCharacterIds`），删除卡也要能排序与筛选 |
 
 唯一键 `(collector_account_id, card_number)`。索引 `(collector_account_id, obtained_at DESC)`。
 `hidden_at` 只影响列表展示，不影响「已拥有」的判定。
@@ -177,6 +226,27 @@ stateDiagram-v2
 
 `auto` 与扫码模式不产生任何通知。
 
+### 3.7 `namecard_profile_layouts`（属主清单布局）
+
+属主「我的名片」的分组与排序。一行 JSONB，不参与交换：
+
+```sql
+CREATE TABLE public.namecard_profile_layouts (
+    owner_account_id TEXT PRIMARY KEY
+        REFERENCES public.platform_accounts(id) ON DELETE CASCADE,
+    layout JSONB NOT NULL,   -- {"groups":[{"id","title","cardNumbers":[]}],"defaultCardNumbers":[]}
+    updated_at TIMESTAMPTZ NOT NULL
+);
+```
+
+- 卡片以 `card_number` 引用（行生命周期内稳定），**不建外键**：读取侧归一时丢弃已删除/已隐藏的
+  编号，并把「保存之后新建」的卡按自然顺序补进默认分组最前。
+- 默认分组（无标题、永远第一）只体现在 `defaultCardNumbers` 里，不落库为组；空分组在保存时删除。
+- 分组数 ≤ 20、标题 1–40 字（去首尾空白）。
+- 归属是**展示**而不是交换：改它不动卡片可交换性，也不进审核。
+- 公开主页（`GET /api/community/users/<handle>/cards`）按同一份布局返回顺序，并附 `groups`
+  （只含仍有公开卡片的组）；没有布局时回到「按名片编号倒序」。
+
 ## 4. 交换执行
 
 服务端在单个事务内完成，入参统一为
@@ -189,27 +259,81 @@ stateDiagram-v2
 5. **跳过**：目标卡已在发起方名片册、给出卡已在目标方名片册，都记入 `skipped` 且不写入。
 6. **判定确认**：除扫码外，目标卡中存在 `manual` → `pending`；其余 → `completed`。
 7. **写入**：`completed` 时双向插入名片册条目；`pending` 时只写通知，等待目标方接受。
+   已有一笔有效 `pending` 时先比较两侧卡号：完全相同则直接返回旧行；不同则原地覆盖该行
+   （`SELECT ... FOR UPDATE` 与裁决互斥），并刷新它的请求通知。
 8. **扫码语义**：无论模式一律 `completed` 且不发通知；全部被跳过也返回成功，并消费二维码。
 
 确认与拒绝：`POST /exchanges/:id/accept` 把 `pending` 转 `completed` 并写入双向条目；
-`decline` 转 `declined`；超时转 `expired`。两种结果都通知申请者。
+`decline` 转 `declined`；超时转 `expired`。三种结果都通知申请者。
 
 ## 5. 名片册读取
 
+列表是**服务端**参数化的（PRD §7.1，契约见 `namecardCollectionQuerySchema`）：
+
 ```sql
-SELECT entry.*, card.publication_status
+-- 收到的条目（卡片行被后台判删 / 物理删除的条目整条不出现）
+SELECT entry.*, card.*  -- 实时列别名 live_*
 FROM namecard_collection_entries entry
-LEFT JOIN fudaba_cards card ON card.id = entry.card_id
+LEFT JOIN fudaba_cards card
+       ON card.id = entry.card_id AND card.deleted_at IS NULL
 WHERE entry.collector_account_id = ?
-  AND entry.hidden_at IS NULL
-  AND (card.id IS NULL OR card.publication_status <> 'locked')
-ORDER BY entry.obtained_at DESC
+  AND entry.hidden_at IS NULL           -- 除非 includeHidden
+  AND card.id IS NOT NULL               -- 判删与物理删除都不再进册
+  AND card.owner_account_id = ?         -- 可选：owner 筛选（只看该卡主）
+  AND card.publication_status <> 'locked'
+UNION ALL
+-- 自己的名片（includeOwn）：`obtained_at := created_at`、`hidden_at := NULL`、`own := true`
+SELECT card.*, ... FROM fudaba_cards card
+WHERE card.owner_account_id = ? AND card.deleted_at IS NULL
+  AND card.publication_status = 'published'
+  AND NOT EXISTS (SELECT 1 FROM namecard_collection_entries held
+                   WHERE held.collector_account_id = card.owner_account_id
+                     AND held.card_number = card.card_number)
 ```
 
-- `locked` 被过滤；解锁后条目自动重新出现。
-- `hidden` 保留展示，界面标记为已隐藏。
-- 卡片行不存在时用 `snapshot` 渲染。
-- 内容实时读取，对方更新名片后名片册随之更新。
+- `includeHidden` 决定是否排除 `hidden_at`；`locked` 仍被过滤，解锁后条目自动重新出现。
+- **删除卡的条目不再出现**：后台判决删除（`deleted_at`）或物理删除（`card_id` 置空）后，
+  列表与 `total` 同步排除，不再参与排序或筛选；条目与快照仍留在库里，恢复卡片行后会重新出现。
+- `owner` 只保留卡主为该平台账号的条目；`includeOwn` 与「卡主不是自己」的 `owner` 同用时，
+  「我的名片」不参与。`owner` 与 `q` / 企划 / 角色 / 团体筛选可以叠加。
+- `includeOwn` 只并 `published`（整卡 `hidden` 不并）；自己的名片没有交换时间，按名片创建时间参与排序。
+  同名卡已经在册时只保留条目那一份，`total` 不重复计。
+- `hidden`（持有者删卡）保留展示，界面标记为已隐藏，**并照旧拿到最新投影与图**。
+- 原卡**可读**（行在、未被 `deleted_at` 判删、状态为 `published` 或 `hidden`）时给实时投影；卡片行
+  被删除的条目根本不会出现，`card === null` 只剩「行在但当前状态不入册」（如 `approving`）这一种情形，
+  此时才用 `snapshot` 渲染。
+- 排序（在合并后的集合上统一执行，`dir` 缺省：`exchange` / `date` 倒序，其余正序）：
+  - `exchange`：`obtained_at`；
+  - `name`：`sort_name_bucket`（0 英文 / 1 假名罗马音 / 2 拼音 / 3 特殊符号）→ `sort_name_key` → `obtained_at`；
+    特殊符号永远垫底，倒序只翻转比较键；
+  - `series`：单一企划整组在前、多企划整组在后（层级固定）→ 单企划组内按企划目录顺序
+    （`agencies.display_order`，同序按 `code`）→ 首担当角色的分类业务顺序
+    （idol → staff → rival → mascot → chara → other）→ `display_order` → `obtained_at`。
+    多企划组内不比较企划；`dir` 只翻转企划目录顺序与角色比较，层级与
+    `obtained_at`（更早交换在前，再按名片编号）兜底保持升序；
+  - `date`：`madeOn` 精度（有月日 → 只有年份 → 没有，固定顺序）→ 日期值（没有 `madeOn` 时用创建时间）→ `obtained_at`。
+- 筛选：`q` 对制作人名称做不区分大小写的包含匹配（名称为空时改用团体名称）；`series` 命中任意一个即保留；
+  `group` 按 `groupName` 精确匹配（忽略大小写）；`character` + `match=all` 是【同时包含】；
+  `excludeOther` 要求担当角色 ⊆ 筛选项；`excludeCross` 排除企划数为复数的名片；`declaration` 只留
+  `original`（`is_original`）或 `ai`（`made_with_ai`）；`owner` 只保留该卡主。
+- 【反向排除】`invert=true` 把**内容筛选**（`q` / `series` / `group` / `character` + `match` +
+  `excludeOther` / `excludeCross` / `declaration`）整体取反：先算出命中集合，再保留不命中的行。
+  `owner` / `includeOwn` / `includeHidden` 与 `locked`、已删卡这类范围条件不参与取反；没有任何内容条件时
+  等价于不筛（不会把所有行都排除）。
+- 每条条目带 `owner`（`accountId` / `uid` / `displayName`）：瓦片底部的制作人名称据此跳 `/user/<uid>`。
+  已收集条目取原卡卡主，`own` 行取当前用户；本轮按页批量解析（与所属用户选择器共用同一段资料 SQL），
+  不给每条单独查。账号停用/删除或历史数据缺资料时 `owner = null`，前端降级为纯文本。
+- 分页 `total` 是筛选后的条数（含并入的自己的名片，已去重）；`totalPage = ceil(total / size)`。
+- 响应里的 `available` 只表示「原卡是否仍对外可见（`published`）」：`hidden` 时为 false 但 `card` 仍在；
+  被删除的条目不会出现，`card === null` 只在「行在但当前状态不入册」时出现（渲染 `snapshot`）。
+  `own` 标记该条来自【显示我的名片】，前端据此不显示隐藏按钮。
+- **所属用户筛选**：`owner`（平台账号 id）只保留该卡主名下的条目；`includeOwn` 与「卡主不是自己」的
+  `owner` 同用时自己的名片不参与。选择器数据来自 `GET /api/community/exchange/me/collection/owners`
+  （自己 + 册内卡主，去重；`q` 按显示名子串、不区分大小写；`limit` 默认 20、上限 50），不暴露全站账号目录。
+- 媒体准入：公开读取只认 `published`；原卡 `hidden` 之后，**名片册里已经有这张卡的人**仍能读它的页面对象
+  （媒体路由加可选会话 + 一条 `EXISTS namecard_collection_entries` 判断；`hidden_at` 只是展示开关，不影响准入），
+  匿名与没有这张卡的人一律 404。该分支的**最终**响应头由 `/api/community/exchange/*` 的前缀中间件统一设为
+  `private, no-store`（比 handler 里声明的更严）。分享链接本身仍然拒绝 `hidden`（§2.1 不变）。
 
 ## 6. 链接与二维码
 
@@ -227,14 +351,26 @@ ORDER BY entry.obtained_at DESC
 
 ### 6.1 分享页的 OGP
 
-Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是静态文件，因此动态路由拿不到
-服务端数据。交换分享页要被社交平台正确预览，需要：
+Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲染：预渲染路由的 HTML 自带
+`meta()` 标签，而动态路径（`/exchange/card/<slug>`、`/exchange/<handle>`）只能拿到通用空壳
+`__spa-fallback.html`，社交平台抓不到逐卡信息。因此 OGP 由 **API 的 HTML 出口现场注入**
+（`app.ts` 在 `notFound` 之前注册两条站点路由，实现在
+`domains/community/namecards/exchange/handlers/share-page-html.ts`）：
 
-1. `__spa-fallback.html` 改成带占位符的模板（`<!--og-meta-->`）。
-2. API 在返回 `/exchange/*` 的 HTML 时按路径取数据并注入 `og:title`、`og:description`、
-   `og:image`、`og:type`、`twitter:card`，再交给 SPA 启动。
-3. 图片用名片正面的 600×400 缩略图；快速交换用列表首张，扫码页用出示方首张。
-4. 注入结果按 URL 缓存一分钟，避免每次 HTML 请求都查库。
+1. 空壳走 `StaticAssets.fetchShell()`：前端路由策略按契约拒绝「按路径直取 `.html`」
+   （`tests/assets/frontend-routing.contract.test.ts` 的 FRT-04 断言它 404），并且请求**不带**
+   `Accept-Encoding`（带了会拿到 `.br`/`.gz` 字节）。空壳在进程内只取一次；取不到就回 404
+   `Not Found`，不缓存失败。
+2. 数据用与 JSON 接口**同一份**读取函数（`loadCardShareModel` / `loadQuickExchangeModel`），
+   浏览者视角固定 `null`（爬虫没有会话）。查不到目标时注入通用站名标签并**仍然回 200**，
+   具体提示由 SPA 页面渲染。
+3. 注入 `<title>`、`description`、`og:title`、`og:description`、`og:image`(+width/height 400)、
+   `og:url`、`og:type`、`og:site_name`、`twitter:card=summary` 与 twitter 三件套；空壳自带的
+   `<title>`/description 先删掉，新标签插在 `<head>` 之后，所有值 HTML 转义。
+4. 图片取卡片 `pages` 里 `role = 'front'` 那页的 `thumbUrl`（已经是 `?w=400` 变体），补请求
+   origin 成绝对地址（`og:url` 同理）；快速交换清单取 `cards[0]`；没有正面页就整块省略。
+5. 响应 `text/html; charset=UTF-8`、`Cache-Control: public, max-age=300`。页面本身仍是同一个
+   SPA 文档，注入只改 `<head>`，不影响 hydration。
 
 ## 7. 离线与重放
 
@@ -242,6 +378,8 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 网络失败时保留 `{ clientExchangeId, source, target, targetCardNumbers, giveCardNumbers }`。
 - 恢复后按顺序重放，服务端按幂等键返回同一条记录，不重复写入名片册。
 - 扫码 token 只在成功时消费；重放使用同一 token 仍然有效，超过一周则提示重新扫码。
+- 重放先看幂等键：库里已有该 `clientExchangeId` 的记录就直接返回它，此时 token 是否已消费、是否过期都不再拦
+  （扫码 token 的原子消费仍由 `consumed_at` 保证，只是不挡重放）。
 
 ## 8. API 契约
 
@@ -253,9 +391,12 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 | `GET` | `/api/community/exchange/quick/:handle` | 快速交换列表 |
 | `POST` | `/api/community/exchange/quick/:handle/commit` | 提交交换 |
 | `GET` / `PUT` | `/api/community/exchange/me/quick` | 读取/保存快速交换列表 |
+| `GET` / `PUT` | `/api/community/exchange/me/cards/layout` | 读取/整份保存清单布局（分组、排序、快速清单、批量可见性与交换模式；同一事务） |
 | `POST` | `/api/community/exchange/scan/sessions` | 出示方创建二维码会话 |
+| `GET` | `/api/community/exchange/scan/sessions/:token` | 出示方轮询二维码状态（`active` / `expired` / `committed`） |
 | `POST` | `/api/community/exchange/scan/sessions/:token/commit` | 扫码方提交 |
 | `GET` | `/api/community/exchange/me/collection` | 名片册 |
+| `GET` | `/api/community/exchange/me/collection/owners` | 所属用户选择器（自己 + 册内卡主） |
 | `PUT` | `/api/community/exchange/me/collection/:cardNumber` | 切换「默认不展示」 |
 | `GET` | `/api/community/exchange/me/exchanges` | 交换历史（含待确认） |
 | `POST` | `/api/community/exchange/exchanges/:id/accept` / `decline` | 手动确认 |
@@ -264,6 +405,8 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 触发二次确认。
 
 ## 9. 退役清单
+
+**已全部退役。**
 
 - `fudaba_card_favorites` 表、`setCardInteraction` 的 favorite 分支、卡片投影里的 `favorites` 计数、
   `/me/favorites` 端点、`account/me/favorites` 页面、墙与详情窗的收藏按钮。
@@ -281,8 +424,7 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 5. ⏳ 前端：四条入口、名片册页、快速列表管理、二维码绘制与下载。
 6. ⏳ OGP 模板注入（依赖 `__spa-fallback.html` 模板化）。
 7. ⏳ 离线队列与重放（客户端 IndexedDB）。
-8. 部分完成：旧交换表已退役；**收藏按决定保留到前端阶段**，届时再清 `fudaba_card_favorites`、
-   `/me/favorites`、投影里的 `favorites` 计数与按钮。
+8. ✅ 旧交换表已退役；收藏能力已清（`fudaba_card_favorites`、`/me/favorites`、投影里的 `favorites` 计数与按钮）。
 
 ## 11. 测试计划
 
@@ -291,7 +433,8 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 幂等：同一 `clientExchangeId` 重复提交只落一次。
 - 扫码：单次消费、超时、离线重放。
 - 快速列表：模式改动与状态变化的自动移除。
-- 名片册：锁定过滤、隐藏保留、手动不展示、卡片删除后快照渲染。
+- 名片册：锁定过滤、隐藏保留**并继续出图**、手动不展示；被删除（物理或后台判删）的条目连同 `total` 一并排除，
+  只有卡行在而状态暂不入册（`pending` / `approving`）时才快照渲染；`owner` 过滤只回该卡主。
 
 ## 12. 已定的取值与剩余问题
 
@@ -311,7 +454,14 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 旧 `fudaba_exchange_requests` 连同 `fudaba_office_cards` 删除守卫里的 `in_use` 判断、
   `fudaba_moderation_cases.resource_kind='exchange'` 取值与 `FUDABA_CARD_PLACEMENT_IN_USE` 错误码一并删除。
 - OGP 注入本轮不做，留到前端阶段。
-- 名片册快照存**对象键**，读取时经 `resolveSnapshotMedia` 换成存储签名 URL（与墙一致）。
+- ~~名片册快照存对象键、读取时经 `resolveSnapshotMedia` 解析~~ → **更正（复核后）**：
+  `namecardCollectionSnapshotSchema` 只含文本字段（`producerName` / `bio` / `tradeNote` / `accent` /
+  `seriesCodes` / `credits` 等），**不含页面或媒体**，代码里也从未存在 `resolveSnapshotMedia`。
+  **删除规则（最新）**：卡片行被**物理删除**或后台判删（`deleted_at`）后，条目整条不再进名片册，
+  因此不需要为删除卡渲染占位图；`snapshot` 只在卡行还在、状态暂不入册（`pending` / `approving`）时投影。
+  **持有者删卡（`hidden`）不受影响**——条目照旧带最新投影与图。**已定（方案 A）**：快照不带页面键；
+  让 `hidden` 卡继续出图靠「媒体路由加可选会话 + 已收集者判断」（见 §5），公开分享链接仍然关闭。
+  取舍对比见任务 `.trellis/tasks/11-15-namecard-exchange/design.md` §11-D3。
 
 已定（补充）：
 
@@ -320,9 +470,12 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 - 交换在 `pending` 期间不占用名片：同一张卡可以同时出现在多轮交换里，持有者也可以继续分享给别人；
   名片册条目按「谁收藏了哪张卡」记录，不存在排他性。
 
-## 13. 后端实现进展（前端入场前先读）
+## 13. 实现进展
 
-后端（迁移 / 契约 / 仓储 / 服务端）已落地，前端尚未开始。当前代码事实：
+后端（迁移 / 契约 / 仓储 / 服务端）已落地。前端已落地：分享页（单卡 / 快速交换）、
+选卡窗口（分享页、名片墙、用户主页、详情窗四处入口）、通知里交换请求的【查看详情】与就地同意/婉拒、手动交换的一周过期与重复发起去重。**尚未落地**：名片册页、离线队列与重放、收藏能力退役、App 扫码入口。
+
+当前代码事实：
 
 | 层 | 位置 |
 | --- | --- |
@@ -333,17 +486,21 @@ Web 目前是纯 SPA（没有 `entry.server.tsx`），`__spa-fallback.html` 是�
 | 服务端 | `apps/api/src/domains/community/namecards/exchange/`（`commit.ts`、`media.ts`、`scan.ts`、`request.ts`、`handlers/`、`routes.ts`） |
 
 路由全部挂在 **`/api/community/exchange`** 下（`app.route(communityApiPath(), namecardExchangeRoutes())`），
-共 13 条：`card/:slug`（+`/commit`）、`cards/:cardNumber/request`、`quick/:handle`（+`/commit`）、
-`me/quick`（GET/PUT）、`me/collection`（GET）与 `me/collection/:cardNumber`（PUT）、`me/exchanges`、
+共 14 条：`card/:slug`（+`/commit`）、`cards/:cardNumber/request`、`quick/:handle`（+`/commit`）、
+`me/quick`（GET/PUT）、`me/collection`（GET）、`me/collection/owners`（GET）与
+`me/collection/:cardNumber`（PUT）、`me/exchanges`、
 `scan/sessions`（+`/:token/commit`）、`exchanges/:id/accept|decline`。写操作统一走
 `platformAuth + activePlatformMutation + platformCsrf + platformWriteRateLimit`。
 
-实现时必须遵守的两条（都踩过）：
+实现时必须遵守的：
 
-- **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia` /
-  `resolveSnapshotMedia` 换成签名 URL，否则浏览器加载不了。参考 `public-cards/handlers/get-public-card.ts`。
-- **名片册快照存键、读时解析**：`snapshot` 是交换当时那份投影的冻结副本，卡片被删后靠它渲染；
-  签名 URL 会过期，所以库里存键，`me/collection` 读时再解析。
+- **响应里的媒体地址要穿存储**：仓储给的是对象键，handler 必须经 `resolveExchangeCardMedia`
+  （`exchange/media.ts`，内部走 `namecardPagesView`）换成签名 URL，否则浏览器加载不了；参考
+  `public-cards/handlers/get-public-card.ts`。已由 `namecard-exchange.test.ts` 的
+  「the shelf and the share page hand out exchange media addresses」钉住。
+- ~~名片册快照存键、读时解析~~ → **更正**：快照契约是纯文本投影，没有对象键，也没有
+  `resolveSnapshotMedia`。只有卡片行被物理删除时名片册才**没有图片可显示**（前端用占位图）；
+  持有者删卡（`hidden`）按方案 A 照旧出图（见 §5 / §12）。
 
 验证入口：`apps/api/tests/server/namecard-exchange.test.ts`（真库：双向入册、manual 待确认后裁决、
 幂等与跳过、快速清单过滤）与 `namecard-exchange-routes.test.ts`（分享页 404/400、写接口 401、快速页 404）。

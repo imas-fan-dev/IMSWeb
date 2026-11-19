@@ -175,14 +175,12 @@ function hasSameJsonKeys(raw: unknown, parsed: unknown): boolean {
   if (isPlainObject(raw)) {
     if (!isPlainObject(parsed)) return false
     const rawKeys = Object.keys(raw)
-    const parsedKeys = Object.keys(parsed)
-    return (
-      rawKeys.length === parsedKeys.length &&
-      rawKeys.every(
-        (key) =>
-          Object.prototype.hasOwnProperty.call(parsed, key) &&
-          hasSameJsonKeys(raw[key], parsed[key])
-      )
+    // 契约允许给缺省参数补默认值（例如 queryBoolean 补 false、可重复参数补 []），
+    // 只要求原始键都被保留；被契约丢弃/改名的键仍然算违规。
+    return rawKeys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(parsed, key) &&
+        hasSameJsonKeys(raw[key], parsed[key])
     )
   }
   return !Array.isArray(parsed) && !isPlainObject(parsed)

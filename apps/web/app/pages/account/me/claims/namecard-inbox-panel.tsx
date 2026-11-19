@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
+import { ExchangeRequestDialog } from "~/components/community/exchange/exchange-request-dialog"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Badge } from "~/components/ui/badge"
 import { Button, buttonVariants } from "~/components/ui/button"
@@ -48,6 +49,7 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
   const [reloadToken, setReloadToken] = useState(0)
   const [readingId, setReadingId] = useState<string | null>(null)
   const [detail, setDetail] = useState<InboxDetail | null>(null)
+  const [exchangeId, setExchangeId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -136,6 +138,31 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
     if (!entry.readAt) {
       void markOneRead(entry.id)
     }
+  }
+
+  /**
+   * 交换请求打开的是卡片详情窗，其余种类仍是正文详情窗（design §14.1「其余种类
+   * 维持现有展示」）。两扇窗打开都算读过，所以已读标记在这一层统一做。
+   */
+  function openEntry(entry: NamecardNotification) {
+    if (entry.kind === "card-exchange-requested" && entry.exchangeId) {
+      setExchangeId(entry.exchangeId)
+      if (!entry.readAt) {
+        void markOneRead(entry.id)
+      }
+      return
+    }
+    openDetail(entry)
+  }
+
+  /**
+   * 决策落地：通知正文与未读数都变了，重新拉一遍列表（与【刷新】同一条取数路径）。
+   *
+   * 名片册与交换记录由 `onDecided` 的调用方按各自的取数机制失效 —— 本面板只负责
+   * 自己这份通知列表。
+   */
+  function handleExchangeDecided() {
+    setReloadToken((current) => current + 1)
   }
 
   /** 同号名片提示把用户带回名片墙，认领窗口在那张卡自己的详情里。 */
@@ -292,7 +319,7 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => openDetail(entry)}
+                        onClick={() => openEntry(entry)}
                       >
                         查看详情
                         <ChevronRightIcon
@@ -354,6 +381,15 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ExchangeRequestDialog
+        open={exchangeId !== null}
+        onOpenChange={(open) => {
+          if (!open) setExchangeId(null)
+        }}
+        exchangeId={exchangeId}
+        readOnly={readOnly}
+        onDecided={handleExchangeDecided}
+      />
     </section>
   )
 }

@@ -51,7 +51,10 @@ const {
     path.join(SERVER_ROOT, 'routing/frontend-route-delivery.js')
 );
 
-const SPA_ROUTE_CASES = {
+const SPA_ROUTE_CASES: Record<
+    string,
+    { positive: readonly string[]; negative: readonly string[]; injected?: boolean }
+> = {
     admin: {
         positive: ['/admin', '/admin/', '/admin/login', '/admin/login/', '/admin/chronicle/pending'],
         negative: ['/admin%2Flogin', '/ad%6Din/login', '/admin//']
@@ -94,6 +97,18 @@ const SPA_ROUTE_CASES = {
             '/community/exchange/offices/one%5Ctwo',
             '/community/exchange/offices//'
         ]
+    },
+    // 分享页由 API 的 HTML 出口注入 OGP（design §3.4），仍是同一份 SPA 文档：
+    // 只断言路由策略把路径判给前端文档，不断言 HTTP 出口（那是 Hono 层的事）。
+    'exchange/card/:slug': {
+        injected: true,
+        positive: ['/exchange/card/abcdefghijkl', '/exchange/card/abcdefghijkl/'],
+        negative: ['/exchange/card/one/two', '/exchange/card//']
+    },
+    'exchange/:handle': {
+        injected: true,
+        positive: ['/exchange/haruka', '/exchange/1/', '/exchange/card'],
+        negative: ['/exchange/one/two']
     }
 };
 
@@ -163,6 +178,18 @@ test.describe('frontend routing', () => {
         for (const [patternId, cases] of Object.entries(SPA_ROUTE_CASES)) {
             assert.ok(patternsById.has(patternId), `${patternId} has no generated SPA pattern`);
             for (const route of cases.positive) {
+                if (cases.injected) {
+                    // 分享页在 HTTP 层由 API 注册的 OGP 注入路由接管（design §3.4）；这个资产
+                    // 车道只桩了 staticAssets、没有它的仓储，所以这里断言的是路由策略「把路径
+                    // 判给前端文档」。注入本身由 API 自己的分享页测试覆盖。
+                    const pathname = route.replace(/\/$/, '') || '/';
+                    assert.deepEqual(
+                        resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles),
+                        { kind: 'frontend', assetPath: '__spa-fallback.html' },
+                        route
+                    );
+                    continue;
+                }
                 await assertFileResponse(route, fallback);
             }
         }
@@ -248,7 +275,10 @@ test.describe('frontend routing', () => {
             '/chronicle/..',
             '/chronicle/%2e',
             '/chronicle/%2e%2e',
-            '/admin/../api'
+            '/admin/../api',
+            // 编码过的斜杠在 Hono 的分享页 HTML 路由里是「一个段」，但它们绝不能被前端策略认领。
+            '/exchange/card/one%2Ftwo',
+            '/exchange/one%2Ftwo'
         ]) {
             assert.notEqual(
                 resolveFrontendRoute({ method: 'GET', pathname }, frontendFiles).kind,
