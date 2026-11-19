@@ -865,6 +865,7 @@ import { test } from 'vitest';
             async findExchangeTarget() { return null; },
             async createScanSession() {},
             async findScanSession() { return null; },
+            async findOwnedScanSession() { return null; },
             ...namecardOverrides
         };
         const reactions: ReactionRepository = {

@@ -89,6 +89,8 @@
 - 该模式不发送通知，且无论名片交换模式如何都自动通过。
 - 每个二维码仅可使用一次，以交换是否成功为准；因重复被跳过的同样算成功。
 - 二维码有效期一周，或直到该轮交换成功为止，两者先到者生效。
+- 出示方用 `GET /api/community/exchange/scan/sessions/:token` 轮询：`active` 继续等，`expired` 提示重新生成，
+  `committed` 带 `exchangeId` 时收掉二维码并展示本次交换；只有会话创建者本人能读，别人的 token 一律 404。
 - 网络失败时交换记录落本地队列，恢复后重放。
 
 ```mermaid
@@ -377,6 +379,7 @@ Web 是纯 SPA（`react-router.config.ts` 的 `ssr: false`）加构建期预渲�
 | `GET` / `PUT` | `/api/community/exchange/me/quick` | 读取/保存快速交换列表 |
 | `GET` / `PUT` | `/api/community/exchange/me/cards/layout` | 读取/整份保存清单布局（分组、排序、快速清单、批量可见性与交换模式；同一事务） |
 | `POST` | `/api/community/exchange/scan/sessions` | 出示方创建二维码会话 |
+| `GET` | `/api/community/exchange/scan/sessions/:token` | 出示方轮询二维码状态（`active` / `expired` / `committed`） |
 | `POST` | `/api/community/exchange/scan/sessions/:token/commit` | 扫码方提交 |
 | `GET` | `/api/community/exchange/me/collection` | 名片册 |
 | `GET` | `/api/community/exchange/me/collection/owners` | 所属用户选择器（自己 + 册内卡主） |

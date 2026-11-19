@@ -52,6 +52,8 @@ export type NamecardScanCommitContext = WithParamsBody<
     NamecardScanTokenParams,
     NamecardExchangeCommitRequest
 >;
+/** 出示方轮询二维码状态：路径上只有 token，没有请求体。 */
+export type NamecardScanStatusContext = WithParams<NamecardScanTokenParams>;
 /** 名片册的查询参数由契约校验（分页 / 排序 / 搜索 / 筛选 / 两个开关）。 */
 export type NamecardCollectionQueryContext = WithQuery<NamecardCollectionQuery>;
 /** 所属用户选择器：一条搜索词 + 上限。 */

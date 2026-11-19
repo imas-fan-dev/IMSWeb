@@ -1190,10 +1190,24 @@ export const namecardScanSessionRequestSchema = strictRequestObject({
     .max(NAMECARD_EXCHANGE_CARD_LIMIT),
 })
 
+/** 出示方轮询的那一面：二维码还没被扫、已过期，或被某次交换消费掉。 */
+export const namecardScanSessionStatusSchema = z.enum([
+  "active",
+  "expired",
+  "committed",
+])
+
 /** 二维码里放的就是这个令牌；服务端只存它的 sha256。 */
 export const namecardScanSessionSchema = exactJsonResponse({
   token: z.string().min(1),
   expiresAt: z.string().min(1),
+})
+
+/** 只有会话创建者能读；`exchangeId` 仅在被消费后给值。 */
+export const namecardScanSessionStatusResponseSchema = exactJsonResponse({
+  status: namecardScanSessionStatusSchema,
+  expiresAt: z.string().min(1),
+  exchangeId: z.string().min(1).nullable(),
 })
 
 export type NamecardExchangeSource = z.infer<typeof namecardExchangeSourceSchema>
@@ -1244,6 +1258,9 @@ export type NamecardExchangeDetail = z.infer<
   typeof namecardExchangeDetailSchema
 >
 export type NamecardScanSession = z.infer<typeof namecardScanSessionSchema>
+export type NamecardScanSessionStatusResponse = z.infer<
+  typeof namecardScanSessionStatusResponseSchema
+>
 export type NamecardScanSessionRequest = z.infer<
   typeof namecardScanSessionRequestSchema
 >

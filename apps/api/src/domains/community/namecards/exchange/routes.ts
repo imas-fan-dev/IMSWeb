@@ -33,6 +33,7 @@ import { handleRequestCard } from '@/domains/community/namecards/exchange/handle
 import {
     handleCommitScanSession,
     handleCreateScanSession,
+    handleGetScanSessionStatus,
 } from '@/domains/community/namecards/exchange/handlers/scan-sessions';
 import {
     handleListCollection,
@@ -153,7 +154,8 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
     );
     routes.get('/exchange/me/exchanges', platformAuth, exchangeHistoryQuery, handleListExchanges);
 
-    // 扫码：出示方生成一次性二维码，扫码方在有效期内提交。
+    // 扫码：出示方生成一次性二维码，扫码方在有效期内提交；
+    // 出示方轮询 `/sessions/:token` 才知道对方到底交了没有。
     routes.post(
         '/exchange/scan/sessions',
         ...write,
@@ -161,6 +163,12 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
             invalidMessage: '请选择要出示的名片',
         }),
         handleCreateScanSession,
+    );
+    routes.get(
+        '/exchange/scan/sessions/:token',
+        platformAuth,
+        scanTokenParam,
+        handleGetScanSessionStatus,
     );
     routes.post(
         '/exchange/scan/sessions/:token/commit',

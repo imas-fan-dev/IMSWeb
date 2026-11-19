@@ -161,6 +161,16 @@ function collectionSnapshotRecord(value: unknown): NamecardCollectionSnapshotRec
  * 卡主资料的读取口径：`listCollectionOwners`（选择器）与名片册条目的 `owner`
  * 共用同一套列与账号准入，避免两处 SQL 各写一份慢慢漂移。
  */
+const COLLECTION_OWNER_OPTIONS_SELECT = `SELECT profile.account_id, profile.uid, profile.page_slug,
+           profile.display_name, profile.avatar_object_key,
+           profile.avatar_external_url, profile.home_city,
+           profile.bio, profile.updated_at
+      FROM owners
+      JOIN platform_profiles profile ON profile.account_id = owners.account_id
+      JOIN platform_accounts account ON account.id = profile.account_id
+     WHERE account.status IN ('active', 'restricted')
+       AND account.deleted_at IS NULL`;
+
 const COLLECTION_OWNER_PROFILE_SELECT = `SELECT profile.account_id, profile.uid, profile.page_slug,
            profile.display_name, profile.avatar_object_key,
            profile.avatar_external_url, profile.home_city,
@@ -4521,8 +4531,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     AND card.publication_status <> 'locked'
                     AND card.owner_account_id IS NOT NULL
              )
-             ${COLLECTION_OWNER_PROFILE_SELECT}
-               AND profile.account_id = owners.account_id
+             ${COLLECTION_OWNER_OPTIONS_SELECT}
                AND (? = '' OR position(lower(?) in lower(profile.display_name)) > 0)
               ORDER BY profile.display_name, profile.account_id
               LIMIT ?`,
@@ -4970,9 +4979,24 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<NamecardScanSessionRecord | null> {
         return queryOne<NamecardScanSessionRecord>(
             this.database,
-            `SELECT id, account_id, card_numbers, expires_at, consumed_at
+            `SELECT id, account_id, card_numbers, expires_at, consumed_at,
+                    consumed_by_exchange_id
                FROM public.namecard_scan_sessions WHERE token_hash=?`,
             [tokenHash]
+        );
+    }
+
+    async findOwnedScanSession(
+        tokenHash: string,
+        accountId: string
+    ): Promise<NamecardScanSessionRecord | null> {
+        return queryOne<NamecardScanSessionRecord>(
+            this.database,
+            `SELECT id, account_id, card_numbers, expires_at, consumed_at,
+                    consumed_by_exchange_id
+               FROM public.namecard_scan_sessions
+              WHERE token_hash=? AND account_id=?`,
+            [tokenHash, accountId]
         );
     }
 

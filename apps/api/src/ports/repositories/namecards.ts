@@ -588,6 +588,8 @@ export interface NamecardScanSessionRecord {
     card_numbers: number[];
     expires_at: string | Date;
     consumed_at: string | Date | null;
+    /** 消费掉这张二维码的交换；与 `consumed_at` 同进同出。 */
+    consumed_by_exchange_id: string | null;
 }
 
 export interface NamecardRepository {
@@ -732,6 +734,14 @@ export interface NamecardRepository {
         expiresAt: string;
     }): Promise<void>;
     findScanSession(tokenHash: string): Promise<NamecardScanSessionRecord | null>;
+    /**
+     * 出示方轮询自己的二维码：只有创建者本人能读到，别人的 token 与不存在的
+     * token 一样回 `null`，由路由统一翻成 404。
+     */
+    findOwnedScanSession(
+        tokenHash: string,
+        accountId: string,
+    ): Promise<NamecardScanSessionRecord | null>;
 
     countAdminCards(filter?: NamecardAdminFilter): Promise<number>;
     listApprovedCards(

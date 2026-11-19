@@ -3,43 +3,43 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "759e51eb4c6b581f09429b95088fa4a37519ef369b30555a3c860c394202af8e",
+    "semanticDigest": "2cb178e51f8645e3d0c5eed1f12723dccdce6a965bfefa322e16cc140ad04721",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 292,
-    "carriers": 370,
+    "mountedMethodPaths": 293,
+    "carriers": 371,
     "reject": 85,
-    "acceptAndProject": 184,
+    "acceptAndProject": 185,
     "passthrough": 17,
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 406,
-    "mountedMethodPaths": 307,
+    "mountedRegistrations": 407,
+    "mountedMethodPaths": 308,
     "noInputRoutes": 99,
-    "requestCarriers": 404,
+    "requestCarriers": 405,
     "policies": {
       "reject": 93,
-      "accept-and-project": 210,
+      "accept-and-project": 211,
       "passthrough": 17,
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 860,
-      "json": 794,
+      "total": 862,
+      "json": 796,
       "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 292,
-      "requestCarriers": 370,
+      "mountedMethodPaths": 293,
+      "requestCarriers": 371,
       "policies": {
         "reject": 85,
-        "accept-and-project": 184,
+        "accept-and-project": 185,
         "passthrough": 17,
         "non-object-applicable": 84
       }
@@ -206,7 +206,7 @@
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 64,
+      "/api/community": 65,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -5496,6 +5496,42 @@
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
           "kind": "json",
           "expression": "result . model satisfies NamecardQuickExchangeResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleGetScanSessionStatus",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardScanTokenParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "json",
+          "expression": "{ error : MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "json",
+          "expression": "{ status , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , exchangeId : status === \"committed\" ? session . consumed_by_exchange_id : null , } satisfies NamecardScanSessionStatusResponse"
         }
       ]
     },
@@ -18202,6 +18238,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token",
+      "handlerSymbol": "handleGetScanSessionStatus",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardScanTokenParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/series",
       "handlerSymbol": "handleListFudabaPublicSeries",
       "kind": "query",
@@ -25106,6 +25159,22 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
       "kind": "json",
       "expression": "result . model satisfies NamecardQuickExchangeResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token",
+      "handlerSymbol": "handleGetScanSessionStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "json",
+      "expression": "{ error : MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token",
+      "handlerSymbol": "handleGetScanSessionStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "json",
+      "expression": "{ status , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , exchangeId : status === \"committed\" ? session . consumed_by_exchange_id : null , } satisfies NamecardScanSessionStatusResponse"
     },
     {
       "method": "GET",

@@ -37,6 +37,7 @@ import type {
     NamecardQuickExchange as NamecardQuickExchangeContract,
     NamecardQuickSettings as NamecardQuickSettingsContract,
     NamecardScanSession as NamecardScanSessionContract,
+    NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
 } from '@imsweb/contracts/namecards';
@@ -84,6 +85,9 @@ export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
 /** 通知窗口的交换详情。 */
 export type NamecardExchangeDetailResponse = NamecardExchangeDetailContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
+/** 出示方轮询二维码状态：未扫 / 已过期 / 已被某次交换消费。 */
+export type NamecardScanSessionStatusResponse =
+    NamecardScanSessionStatusContract;
 /** 属主清单布局的读写共用一份返回体。 */
 export type NamecardCardLayoutResponse = NamecardCardLayoutContract;
 /** 属主侧单卡分享链接：只回短链路径段，URL 由前端按当前 origin 拼。 */

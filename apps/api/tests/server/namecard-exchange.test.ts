@@ -384,6 +384,11 @@ async function fixture() {
             headers: { ...authHeaders(accountId), 'content-type': 'application/json' },
             body: JSON.stringify(body),
         });
+    /** 出示方轮询:二维码还没被扫 / 已过期 / 已被消费。 */
+    const scanStatus = (accountId: 'collector' | 'owner', token: string) =>
+        testRequest(app, `/api/community/exchange/scan/sessions/${token}`, {
+            headers: authHeaders(accountId),
+        });
     /** 属主清单布局：读 / 整份保存。 */
     const getLayout = (accountId: 'collector' | 'owner') =>
         testRequest(app, '/api/community/exchange/me/cards/layout', {
@@ -409,6 +414,7 @@ async function fixture() {
         authHeaders,
         openScanSession,
         scanCommit,
+        scanStatus,
         getLayout,
         putLayout,
     };
@@ -640,6 +646,106 @@ describe('namecard exchange repository', () => {
             `有效期 ${lifetime}ms 不是一周`,
         );
         assert.equal(new Date(expiresAt).getTime(), new Date(row.expires_at).getTime());
+    });
+
+    postgresTest('a fresh scan session polls back as active for its owner', async () => {
+        const { openScanSession, publish, scanStatus } = await fixture();
+        const ownerNumber = await publish('owner-scan-active', 'owner', 'auto');
+        const { token, expiresAt } = await openScanSession('owner', [ownerNumber]);
+
+        const response = await scanStatus('owner', token);
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            status: string;
+            expiresAt: string;
+            exchangeId: string | null;
+        };
+        // 二维码还没被扫：出示方轮询只该看到「还在等」。
+        assert.equal(body.status, 'active');
+        assert.equal(body.exchangeId, null);
+        assert.equal(Date.parse(body.expiresAt), Date.parse(expiresAt));
+    });
+
+    postgresTest('an expired scan session polls back as expired', async () => {
+        const { database, openScanSession, publish, scanStatus } = await fixture();
+        const ownerNumber = await publish('owner-scan-status-expired', 'owner', 'auto');
+        const { token } = await openScanSession('owner', [ownerNumber]);
+        // 过期时间就是事实来源：连同 created_at 一起拨回上周（表上有 expires_at > created_at）。
+        await executeSql(
+            database,
+            `UPDATE namecard_scan_sessions
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 days',
+                    expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'`,
+        );
+
+        const response = await scanStatus('owner', token);
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            status: string;
+            exchangeId: string | null;
+        };
+        // 过期但没被消费：没有交换可报告。
+        assert.equal(body.status, 'expired');
+        assert.equal(body.exchangeId, null);
+    });
+
+    postgresTest('a consumed scan session polls back as committed with its exchange', async () => {
+        const { database, openScanSession, publish, scanCommit, scanStatus } = await fixture();
+        const ownerNumber = await publish('owner-scan-status-committed', 'owner', 'auto');
+        const { token } = await openScanSession('owner', [ownerNumber]);
+
+        const commitResponse = await scanCommit('collector', token, {
+            clientExchangeId: 'client-scan-status',
+        });
+        assert.equal(commitResponse.status, 200, await commitResponse.clone().text());
+        const { exchangeId } = (await commitResponse.json()) as { exchangeId: string };
+
+        const response = await scanStatus('owner', token);
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            status: string;
+            exchangeId: string | null;
+        };
+        assert.equal(body.status, 'committed');
+        assert.equal(body.exchangeId, exchangeId);
+
+        // 消费优先于过期：交换已经完成，时间越过后也不该退回 expired。
+        await executeSql(
+            database,
+            `UPDATE namecard_scan_sessions
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 days',
+                    expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'`,
+        );
+        const later = (await (await scanStatus('owner', token)).json()) as { status: string };
+        assert.equal(later.status, 'committed');
+    });
+
+    postgresTest('a scan session is invisible to anyone but its creator', async () => {
+        const { openScanSession, publish, scanStatus } = await fixture();
+        const ownerNumber = await publish('owner-scan-status-owner', 'owner', 'auto');
+        const { token } = await openScanSession('owner', [ownerNumber]);
+
+        // 别人的 token 与根本不存在的 token 必须长一个样，否则能靠状态码试出存在性。
+        const foreign = await scanStatus('collector', token);
+        const missing = await scanStatus('collector', 'a'.repeat(64));
+        assert.equal(foreign.status, 404);
+        assert.equal(missing.status, 404);
+        assert.deepEqual(await foreign.json(), await missing.json());
+    });
+
+    postgresTest('the scan status route validates its token and requires a session', async () => {
+        const { app, authHeaders } = await fixture();
+        const unauthenticated = await app.request(
+            `/api/community/exchange/scan/sessions/${'a'.repeat(64)}`,
+        );
+        assert.equal(unauthenticated.status, 401);
+
+        const malformed = await testRequest(
+            app,
+            '/api/community/exchange/scan/sessions/not-a-token',
+            { headers: authHeaders('owner') },
+        );
+        assert.equal(malformed.status, 400);
     });
 
     postgresTest('a scanned code is consumed by the exchange that completed it', async () => {
