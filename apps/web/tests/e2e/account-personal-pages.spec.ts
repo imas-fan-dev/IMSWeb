@@ -100,6 +100,15 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       route.fulfill({ json: { items: [] } })
     )
   }
+  await api.mock(
+    {
+      method: "GET",
+      path: "/api/community/exchange/me/collection",
+      times: workspaceTimes,
+    },
+    (route) =>
+      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+  )
   await page.goto("/account/me")
   for (const [path, json] of [
     ["/api/platform/me/sessions", { success: true, sessions: [] }],
@@ -400,6 +409,15 @@ test("desktop root and section preserve pending, failed, retry and successful lo
       route.fulfill({ json: { items: [] } })
     )
   }
+  await api.mock(
+    {
+      method: "GET",
+      path: "/api/community/exchange/me/collection",
+      times: 2,
+    },
+    (route) =>
+      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+  )
   const releases: Array<() => void> = []
   const gates = Array.from(
     { length: 4 },

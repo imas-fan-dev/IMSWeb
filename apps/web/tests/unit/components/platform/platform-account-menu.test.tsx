@@ -186,7 +186,7 @@ describe("PlatformAccountMenu", () => {
     expect(sessionMocks.reload).toHaveBeenCalledOnce()
   })
 
-  it("keeps account security out of the signed-in menu", async () => {
+  it("links a signed-in account to account security", async () => {
     sessionMocks.usePlatformSession.mockReturnValue(
       sessionState("authenticated")
     )
@@ -200,7 +200,11 @@ describe("PlatformAccountMenu", () => {
       "href",
       "/account/me"
     )
-    expect(screen.queryByRole("link", { name: "帐号安全" })).toBeNull()
+    // Web 目标不路由 /account/me，头部菜单是 ·/account/security 唯一的入口。
+    expect(screen.getByRole("link", { name: "帐号安全" })).toHaveAttribute(
+      "href",
+      "/account/security"
+    )
   })
 
   it("links a signed-in account to the namecard manager", async () => {

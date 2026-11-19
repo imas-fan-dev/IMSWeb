@@ -274,6 +274,25 @@ export class SniffingImageProcessor implements ImageProcessor {
         throw new Error('undecodable image');
     }
 
+    /**
+     * sized 变体必须是真能解码的 WebP：前端断言 `naturalWidth`，占位字节会在浏览器里变成破图。
+     * 统一生成同色块，宽度上限与样例图一致（120）。
+     */
+    async resizeWebp(_body: Uint8Array, width: number): Promise<Uint8Array> {
+        const sharp = (await import('sharp')).default;
+        const target = Math.min(width, 120);
+        return sharp({
+            create: {
+                width: target,
+                height: Math.round((target * 2) / 3),
+                channels: 3,
+                background: { r: 36, g: 99, b: 168 }
+            }
+        })
+            .webp()
+            .toBuffer();
+    }
+
     async toWebp(body: Uint8Array): Promise<Uint8Array> {
         this.conversions.push(body);
         return new Uint8Array([0x52, 0x49, 0x46, 0x46, body[0] ?? 0]);

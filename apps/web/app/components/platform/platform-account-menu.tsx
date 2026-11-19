@@ -6,6 +6,7 @@ import {
   LogInIcon,
   LogOutIcon,
   RefreshCwIcon,
+  ShieldCheckIcon,
   UserPlusIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -226,6 +227,17 @@ export function PlatformAccountMenu() {
                   {unread > 99 ? "99+" : unread}
                 </span>
               ) : null}
+            </NavigationLink>
+            <NavigationLink
+              to="/account/security"
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "w-full",
+              })}
+            >
+              <ShieldCheckIcon data-icon="inline-start" aria-hidden="true" />
+              {t("platformAccount.security.title")}
             </NavigationLink>
             <Button
               type="button"

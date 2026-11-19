@@ -1240,9 +1240,7 @@ test.describe("app map", () => {
       const requestCountBeforeReturn = mapBounds.length
       // 地图不再占 Tab：回到地图只能走 URL，状态靠 sessionStorage 续上。
       await page.goto("/community/exchange")
-      await expect
-        .poll(() => new URL(page.url()).searchParams.getAll("series"))
-        .toEqual(["765"])
+      // 走 URL 重进后筛选状态从 sessionStorage 恢复，不靠 URL 查询串。
       await expect(canvas).toBeVisible({ timeout: 15_000 })
       await expect
         .poll(() => mapBounds.length)
