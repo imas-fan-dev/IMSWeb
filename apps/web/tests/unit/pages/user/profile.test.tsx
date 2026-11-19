@@ -706,7 +706,10 @@ describe("UserProfilePage", () => {
     )
     renderProfile("acct-2")
 
-    await user.click(await screen.findByRole("button", { name: "发送名片" }))
+    const giftButtons = await screen.findAllByRole("button", {
+      name: "发送名片",
+    })
+    await user.click(giftButtons[0]!)
 
     const picker = screen.getByTestId("exchange-picker")
     expect(picker).toHaveAttribute("data-variant", "gift")

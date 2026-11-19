@@ -361,6 +361,20 @@ export default function UserProfilePage() {
 
   const initial = profile?.displayName?.trim().slice(0, 2) || "?"
 
+  // 单向送片：只在「登录 + 不是本人主页」出现；桌面挂在头像下方，窄屏挂在头像右下侧。
+  const giftEntry =
+    profile !== null && !isSelf && exchangeLoggedIn ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setGiftOpen(true)}
+      >
+        <SendIcon className="size-3.5" aria-hidden="true" />
+        发送名片
+      </Button>
+    ) : null
+
   return (
     <PageShell width="wide" className="space-y-8 py-6 sm:py-8">
       <section className="overflow-hidden rounded-2xl border bg-card">
@@ -369,21 +383,33 @@ export default function UserProfilePage() {
           aria-hidden="true"
         />
         <div className="flex flex-col gap-5 px-5 pb-6 sm:flex-row sm:items-start sm:gap-6 sm:px-7">
-          {loading && !profile ? (
-            <Skeleton className="-mt-10 size-24 rounded-full ring-4 ring-card sm:-mt-12" />
-          ) : (
-            <Avatar className="-mt-10 size-24 ring-4 ring-card sm:-mt-12 sm:size-28">
-              {profile?.avatarUrl ? (
-                <AvatarImage
-                  src={profile.avatarUrl}
-                  alt={`${profile.displayName} 的头像`}
-                />
-              ) : null}
-              <AvatarFallback className="text-2xl font-semibold">
-                {initial}
-              </AvatarFallback>
-            </Avatar>
-          )}
+          <div className="relative shrink-0">
+            {loading && !profile ? (
+              <Skeleton className="-mt-10 size-24 rounded-full ring-4 ring-card sm:-mt-12" />
+            ) : (
+              <div className="relative -mt-10 size-24 sm:-mt-12 sm:size-28">
+                <Avatar className="size-full ring-4 ring-card">
+                  {profile?.avatarUrl ? (
+                    <AvatarImage
+                      src={profile.avatarUrl}
+                      alt={`${profile.displayName} 的头像`}
+                    />
+                  ) : null}
+                  <AvatarFallback className="text-2xl font-semibold">
+                    {initial}
+                  </AvatarFallback>
+                </Avatar>
+                {giftEntry ? (
+                  <div className="absolute top-[72%] left-full -translate-y-1/2 pl-3 sm:hidden">
+                    {giftEntry}
+                  </div>
+                ) : null}
+              </div>
+            )}
+            {giftEntry ? (
+              <div className="hidden sm:mt-3 sm:flex sm:justify-center">{giftEntry}</div>
+            ) : null}
+          </div>
 
           <div className="min-w-0 flex-1 space-y-2 sm:pt-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -394,18 +420,6 @@ export default function UserProfilePage() {
                 <SparklesIcon aria-hidden="true" />
                 公开名片 {owned.length}
               </Badge>
-              {/* 单向送片：只有登录的访客在别人的主页上才有这个入口。 */}
-              {profile !== null && !isSelf && exchangeLoggedIn ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setGiftOpen(true)}
-                >
-                  <SendIcon className="size-3.5" aria-hidden="true" />
-                  发送名片
-                </Button>
-              ) : null}
               {isSelf ? (
                 <NavigationLink
                   to="/account/me"

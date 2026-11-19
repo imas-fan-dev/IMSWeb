@@ -176,10 +176,10 @@ function ExchangeActionButton({
                 </span>
                 <span
                   className={cn(
-                    "relative z-10 rounded-full px-2.5 py-1 text-[0.6875rem] leading-none font-semibold whitespace-nowrap shadow-sm ring-1",
+                    "rounded-full px-2.5 py-1 text-[0.6875rem] leading-none font-semibold whitespace-nowrap ring-1",
                     disabled
                       ? "bg-muted text-muted-foreground ring-foreground/10"
-                      : "bg-primary/12 text-primary ring-primary/20"
+                      : "bg-card text-primary ring-primary/25"
                   )}
                 >
                   {action.label}
