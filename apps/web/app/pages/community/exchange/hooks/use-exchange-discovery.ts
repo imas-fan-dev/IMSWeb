@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import {
-  getFudabaCardPage,
   getFudabaOfficePage,
   getFudabaSeries,
   isApiError,
-  type FudabaCard,
-  type FudabaCardPage,
   type FudabaOffice,
   type FudabaOfficePage,
   type FudabaSeries,
@@ -18,8 +15,6 @@ export type DiscoveryState = {
   series: FudabaSeries[]
   offices: FudabaOffice[]
   officePageInfo: FudabaOfficePage["pageInfo"]
-  cards: FudabaCard[]
-  cardPageInfo: FudabaCardPage["pageInfo"]
   error: string | null
 }
 
@@ -29,8 +24,6 @@ const initialState: DiscoveryState = {
   series: [],
   offices: [],
   officePageInfo: emptyPageInfo,
-  cards: [],
-  cardPageInfo: emptyPageInfo,
   error: null,
 }
 
@@ -60,15 +53,12 @@ export function useExchangeDiscovery({
   const [state, setState] = useState<DiscoveryState>(initialState)
   const [refreshing, setRefreshing] = useState(true)
   const [loadingMoreOffices, setLoadingMoreOffices] = useState(false)
-  const [loadingMoreCards, setLoadingMoreCards] = useState(false)
   const requestGeneration = useRef(0)
   const officeRequestInFlight = useRef<symbol | null>(null)
-  const cardRequestInFlight = useRef<symbol | null>(null)
 
   const loadFirstPage = useCallback(async () => {
     const generation = ++requestGeneration.current
     officeRequestInFlight.current = null
-    cardRequestInFlight.current = null
     setState((current) =>
       current.phase === "ready"
         ? { ...current, error: null }
@@ -76,21 +66,15 @@ export function useExchangeDiscovery({
     )
     setRefreshing(true)
     setLoadingMoreOffices(false)
-    setLoadingMoreCards(false)
 
     try {
-      const [seriesResult, officeResult, cardResult] = await Promise.all([
+      const [seriesResult, officeResult] = await Promise.all([
         getFudabaSeries().send(),
         getFudabaOfficePage({
           city: city || undefined,
           series: seriesCodes.length ? seriesCodes : undefined,
           open: openOnly ? true : undefined,
           limit: 12,
-        }).send(),
-        getFudabaCardPage({
-          series: seriesCodes.length ? seriesCodes : undefined,
-          available: true,
-          limit: 8,
         }).send(),
       ])
       if (requestGeneration.current !== generation) return
@@ -99,8 +83,6 @@ export function useExchangeDiscovery({
         series: seriesResult.items,
         offices: officeResult.items,
         officePageInfo: officeResult.pageInfo,
-        cards: cardResult.items,
-        cardPageInfo: cardResult.pageInfo,
         error: null,
       })
     } catch (error) {
@@ -171,53 +153,11 @@ export function useExchangeDiscovery({
     }
   }, [city, openOnly, seriesCodes, state.officePageInfo])
 
-  const loadMoreCards = useCallback(async () => {
-    if (
-      cardRequestInFlight.current ||
-      !state.cardPageInfo.hasNextPage ||
-      !state.cardPageInfo.nextCursor
-    ) {
-      return
-    }
-    const generation = requestGeneration.current
-    const requestToken = Symbol("fudaba-card-page")
-    cardRequestInFlight.current = requestToken
-    setLoadingMoreCards(true)
-    setState((current) => ({ ...current, error: null }))
-    try {
-      const result = await getFudabaCardPage({
-        series: seriesCodes.length ? seriesCodes : undefined,
-        available: true,
-        cursor: state.cardPageInfo.nextCursor,
-        limit: 8,
-      }).send()
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        cards: deduplicateById(current.cards, result.items),
-        cardPageInfo: result.pageInfo,
-      }))
-    } catch (error) {
-      if (requestGeneration.current !== generation) return
-      setState((current) => ({
-        ...current,
-        error: `更多名片加载失败：${discoveryErrorMessage(error)}`,
-      }))
-    } finally {
-      if (cardRequestInFlight.current === requestToken) {
-        cardRequestInFlight.current = null
-        setLoadingMoreCards(false)
-      }
-    }
-  }, [seriesCodes, state.cardPageInfo])
-
   return {
     state,
     refreshing,
     loadingMoreOffices,
-    loadingMoreCards,
     refresh: loadFirstPage,
     loadMoreOffices,
-    loadMoreCards,
   }
 }

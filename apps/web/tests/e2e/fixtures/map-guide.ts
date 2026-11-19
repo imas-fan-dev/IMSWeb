@@ -1,7 +1,5 @@
 import type { Page } from "@playwright/test"
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaMapQuerySchema,
@@ -66,15 +64,6 @@ export function installMapGuideScene(
       await options.beforeDirectory?.()
       return { status: 200, json: emptyPage }
     },
-  })
-  api.expect({
-    name: "guide cards",
-    method: "GET",
-    path: "/api/community/exchange/cards",
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
-    times: { min: 1, max: 8 },
-    handle: () => ({ status: 200, json: emptyPage }),
   })
   api.expect({
     name: "guide map",

@@ -44,12 +44,6 @@ export async function installUnifiedSearchApis(
     { min: 1, max: 8 }
   )
   await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    (r) => r.fulfill({ json: empty }),
-    "GET",
-    { min: 0, max: 8 }
-  )
-  await api.mockRoute(
     "/api/community/exchange/map/config",
     (r) =>
       r.fulfill({

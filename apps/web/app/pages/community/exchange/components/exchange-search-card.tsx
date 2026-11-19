@@ -57,7 +57,6 @@ export interface ExchangeSearchCardTools {
   filterApplied?: boolean
   onOpenFilter: () => void
   onOpenOffices: () => void
-  onOpenCards: () => void
   onRefresh: () => void
   refreshing?: boolean
   onOpenAttribution?: (trigger?: HTMLElement | null) => void
@@ -267,7 +266,6 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
               filter: "筛选",
               filterApplied: "已应用筛选",
               offices: "事务所",
-              cards: "名片",
               account: "我的交换账号",
               create: mapActions ? "选择位置创建事务所" : "",
               help: mapActions ? "使用帮助" : "",
@@ -354,13 +352,10 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         })
       } else if (event.action === "tool") {
         collapse()
-        if (
-          ["filter", "offices", "cards", "source"].includes(event.value ?? "")
-        )
+        if (["filter", "offices", "source"].includes(event.value ?? ""))
           setReturnFocusMore(true)
         if (event.value === "filter") tools.onOpenFilter()
         else if (event.value === "offices") tools.onOpenOffices()
-        else if (event.value === "cards") tools.onOpenCards()
         else if (event.value === "create") mapActions?.startCreate()
         else if (event.value === "help") mapActions?.showHelp()
         else if (event.value === "refresh") tools.onRefresh()
@@ -886,7 +881,6 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
       pointCount={pointCount}
       onOpenFilter={() => tool(tools.onOpenFilter)}
       onOpenOffices={() => tool(tools.onOpenOffices)}
-      onOpenCards={() => tool(tools.onOpenCards)}
       onOpenAttribution={
         tools.onOpenAttribution
           ? (trigger) => tool(() => tools.onOpenAttribution?.(trigger))

@@ -61,12 +61,6 @@ async function installDialogApis(
     { min: 1, max: 2 }
   )
   await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    (route) => route.fulfill({ json: emptyPage }),
-    "GET",
-    { min: 1, max: 2 }
-  )
-  await api.mockRoute(
     "/api/community/exchange/map/config",
     (route) =>
       route.fulfill({

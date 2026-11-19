@@ -115,19 +115,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     { min: 1, max: 8 }
   )
   await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [card],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
-    },
-    "GET",
-    { min: 1, max: 8 }
-  )
-  await api.mockRoute(
     "/api/community/exchange/map/config",
     (route) =>
       route.fulfill({
@@ -176,7 +163,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
           json: { success: true, cardId: "card-1", reactions: [] },
         }),
       "GET",
-      2
+      1
     )
 })
 
@@ -269,9 +256,9 @@ test.describe("community exchange", () => {
     await expect(
       page.getByRole("link", { name: "上海周末交换事务所" })
     ).toBeVisible()
-    await page.getByRole("tab", { name: "名片" }).click()
-    await expect(page.getByText("春香P", { exact: true })).toBeVisible()
-    await page.getByRole("tab", { name: "事务所" }).click()
+    await expect(
+      page.getByRole("dialog", { name: "公开交换名录" }).getByRole("tablist")
+    ).toHaveCount(0)
 
     const mainOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth

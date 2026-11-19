@@ -34,7 +34,6 @@ function Harness({
       tools={{
         onOpenFilter: noop,
         onOpenOffices: noop,
-        onOpenCards: noop,
         onRefresh: noop,
       }}
       selectionKey={selectionKey}

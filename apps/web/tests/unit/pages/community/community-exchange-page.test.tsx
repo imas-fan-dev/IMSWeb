@@ -14,7 +14,6 @@ const apiMocks = vi.hoisted(() => ({
   getFudabaCardPage: vi.fn(),
   sendSeries: vi.fn(),
   sendOffices: vi.fn(),
-  sendCards: vi.fn(),
 }))
 
 const mapSectionMock = vi.hoisted(() => ({ renders: vi.fn() }))
@@ -75,31 +74,6 @@ const office = {
   seriesCodes: ["765"],
 }
 
-const card = {
-  id: "card-1",
-  producerName: "交换会用名片",
-  seriesCodes: ["765"],
-  favoriteCharacters: [],
-  frontImageUrl: "/brand/series/wall/765pro.webp",
-  backImageUrl: "/brand/series/wall/cinderella-girls.webp",
-  accent: "#f34e6c",
-  bio: "",
-  tradeNote: "现场交换",
-  exchangeMode: "manual",
-  madeOn: null,
-  groupName: null,
-  producerReading: null,
-  isOriginal: false,
-  madeWithAi: false,
-  visible: true,
-  credits: [],
-  createdAt: "2026-08-02T08:00:00.000Z",
-  interactions: {
-    likes: 2,
-    viewerLiked: false,
-  },
-}
-
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((resolvePromise) => {
@@ -118,7 +92,6 @@ describe("CommunityExchangePage", () => {
     vi.clearAllMocks()
     apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
-    apiMocks.getFudabaCardPage.mockReturnValue({ send: apiMocks.sendCards })
     apiMocks.sendSeries.mockResolvedValue({
       items: [
         {
@@ -159,13 +132,9 @@ describe("CommunityExchangePage", () => {
       items: [office],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
-    apiMocks.sendCards.mockResolvedValue({
-      items: [card],
-      pageInfo: { hasNextPage: false, nextCursor: null },
-    })
   })
 
-  it("opens on the map and keeps both public directories reachable", async () => {
+  it("opens the office-only public directory from the map", async () => {
     const user = userEvent.setup()
     renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
 
@@ -200,7 +169,6 @@ describe("CommunityExchangePage", () => {
           modalOpen: false,
           onOpenFilter: expect.any(Function),
           onOpenOffices: expect.any(Function),
-          onOpenCards: expect.any(Function),
           onRefresh: expect.any(Function),
         }),
       })
@@ -229,9 +197,8 @@ describe("CommunityExchangePage", () => {
     await user.click(map)
     expect((await screen.findAllByText("上海周末交换事务所"))[0]).toBeVisible()
     expect(screen.getByLabelText("21 次访问")).toBeVisible()
-    await user.click(screen.getByRole("tab", { name: "名片" }))
-    expect(await screen.findByText("交换会用名片")).toBeVisible()
-    expect(screen.getByLabelText("2 次点赞")).toBeVisible()
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
+    expect(apiMocks.getFudabaCardPage).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "关闭" }))
     await waitFor(() => {
       expect(
@@ -277,11 +244,7 @@ describe("CommunityExchangePage", () => {
         open: undefined,
         limit: 12,
       })
-      expect(apiMocks.getFudabaCardPage).toHaveBeenLastCalledWith({
-        series: ["765", "cg"],
-        available: true,
-        limit: 8,
-      })
+      expect(apiMocks.getFudabaCardPage).not.toHaveBeenCalled()
       expect(mapSectionMock.renders).toHaveBeenLastCalledWith(
         expect.objectContaining({ series: ["765", "cg"] })
       )
