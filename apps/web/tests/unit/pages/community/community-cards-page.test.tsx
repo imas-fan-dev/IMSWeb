@@ -64,39 +64,36 @@ vi.mock("~/lib/api", async (importOriginal) => {
 })
 
 // 选卡窗口有自己的单测；名片墙只负责「传了哪个目标、确定后调了哪个端点」。
-vi.mock(
-  "~/components/community/exchange/exchange-card-picker-dialog",
-  () => ({
-    ExchangeCardPickerDialog: ({
-      open,
-      target,
-      targetCard,
-      onSubmit,
-      onOpenChange,
-    }: {
-      open: boolean
-      target?: string
-      targetCard?: number
-      onSubmit: (cardNumbers: number[]) => void
-      onOpenChange: (open: boolean) => void
-    }) =>
-      open ? (
-        <div role="dialog" aria-label="交换名片">
-          <span data-testid="picker-target">{target}</span>
-          <span data-testid="picker-target-card">{targetCard}</span>
-          <button
-            type="button"
-            onClick={() => {
-              onSubmit([42])
-              onOpenChange(false)
-            }}
-          >
-            确定
-          </button>
-        </div>
-      ) : null,
-  })
-)
+vi.mock("~/components/community/exchange/exchange-card-picker-dialog", () => ({
+  ExchangeCardPickerDialog: ({
+    open,
+    target,
+    targetCard,
+    onSubmit,
+    onOpenChange,
+  }: {
+    open: boolean
+    target?: string
+    targetCard?: number
+    onSubmit: (cardNumbers: number[]) => void
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="交换名片">
+        <span data-testid="picker-target">{target}</span>
+        <span data-testid="picker-target-card">{targetCard}</span>
+        <button
+          type="button"
+          onClick={() => {
+            onSubmit([42])
+            onOpenChange(false)
+          }}
+        >
+          确定
+        </button>
+      </div>
+    ) : null,
+}))
 
 vi.mock("sonner", () => ({
   toast: toastMocks,
@@ -176,6 +173,23 @@ function renderPage(entry = "/community/cards?page=1&size=12") {
       <ListLocation />
     </MemoryRouter>
   )
+}
+
+/**
+ * 名片墙默认的筛选参数：共享筛选栏的初始值映射到公开墙的 `created` 排序。
+ */
+const baseWallFilters = {
+  sort: "created",
+  dir: "desc",
+  q: undefined,
+  series: [] as string[],
+  group: undefined,
+  character: [] as number[],
+  match: "any",
+  excludeOther: false,
+  excludeCross: false,
+  declaration: undefined,
+  invert: false,
 }
 
 function desktopReaction(summary: HTMLElement, emoji: string, count: number) {
@@ -1546,6 +1560,82 @@ describe("CommunityCardsPage", () => {
     }
   )
 
+  it("renders the shared filter bar with the wall's sort label and no owner filter", async () => {
+    renderPage()
+
+    expect(
+      screen.getByRole("combobox", { name: "排序方式" })
+    ).toHaveTextContent("创建时间")
+    expect(screen.queryByLabelText("所属用户")).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("textbox", { name: "制作人名称" })
+    ).toBeInTheDocument()
+  })
+
+  it("passes every wall filter and resets the page on change", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage.mockResolvedValue({
+      ...pageResult(),
+      total: 80,
+      totalPage: 7,
+    })
+    renderPage("/community/cards?page=3&size=12")
+    await screen.findByRole("button", { name: "查看制作人名片 42 背面" })
+
+    await user.click(screen.getByRole("button", { name: /高级筛选/ }))
+    await user.type(screen.getByLabelText("制作人名称"), "春香")
+    await waitFor(
+      () =>
+        expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+          1,
+          12,
+          expect.objectContaining({ q: "春香" })
+        ),
+      { timeout: 3000 }
+    )
+
+    await user.click(screen.getByRole("textbox", { name: "搜索担当角色" }))
+    await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
+    await user.click(screen.getByRole("checkbox", { name: /同时包含/ }))
+    await user.click(screen.getByRole("textbox", { name: "搜索企划" }))
+    await user.click(screen.getByRole("checkbox", { name: /本家/ }))
+    await user.type(screen.getByLabelText("所属团体"), "765PRO")
+    await user.click(screen.getByRole("checkbox", { name: /反向排除/ }))
+    await user.click(screen.getByRole("combobox", { name: "创作声明" }))
+    await user.click(await screen.findByRole("option", { name: "AI" }))
+
+    await waitFor(() =>
+      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+        1,
+        12,
+        expect.objectContaining({
+          q: "春香",
+          character: [1],
+          match: "all",
+          series: ["765"],
+          group: "765PRO",
+          invert: true,
+          declaration: "ai",
+        })
+      )
+    )
+    expect(screen.getByLabelText("列表地址")).toHaveTextContent(
+      "?page=1&size=12"
+    )
+  })
+
+  it("switches the empty copy once a filter is active", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(await screen.findByText("还没有公开名片")).toBeVisible()
+
+    await user.type(screen.getByLabelText("制作人名称"), "春香")
+
+    expect(await screen.findByText("没有符合条件的名片")).toBeVisible()
+    expect(screen.queryByText("还没有公开名片")).not.toBeInTheDocument()
+  })
+
   it("shows loading, request failure, retry loading, and recovered cards", async () => {
     const user = userEvent.setup()
     const first = deferredPage()
@@ -1558,7 +1648,9 @@ describe("CommunityCardsPage", () => {
     const list = screen.getByRole("region", { name: "公开名片" })
     expect(list).toHaveAttribute("aria-busy", "true")
     expect(within(list).getByRole("status")).toHaveTextContent("正在读取名片墙")
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("combobox", { name: "每页显示" })
+    ).not.toBeInTheDocument()
     await act(async () => first.reject(new Error("offline")))
 
     expect(list).toHaveAttribute("aria-busy", "false")
@@ -1567,7 +1659,11 @@ describe("CommunityCardsPage", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
     expect(within(list).getByRole("status")).toHaveTextContent("正在读取名片墙")
     expect(list).toHaveAttribute("aria-busy", "true")
-    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(1, 12)
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      1,
+      12,
+      baseWallFilters
+    )
     await act(async () => retry.resolve(pageResult()))
 
     expect(list).toHaveAttribute("aria-busy", "false")
@@ -1610,7 +1706,11 @@ describe("CommunityCardsPage", () => {
 
     await user.click(next)
 
-    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(2, 12)
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      2,
+      12,
+      baseWallFilters
+    )
     expect(screen.getByLabelText("列表地址")).toHaveTextContent(
       "?page=2&size=12&filter=recent"
     )
@@ -1634,7 +1734,11 @@ describe("CommunityCardsPage", () => {
     expect(screen.getByText("第 2 / 2 页，共 24 张")).toBeVisible()
     await user.click(screen.getByRole("button", { name: "上一页" }))
 
-    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(1, 12)
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      1,
+      12,
+      baseWallFilters
+    )
     expect(await screen.findByRole("spinbutton", { name: "跳至" })).toHaveValue(
       1
     )
@@ -1661,7 +1765,11 @@ describe("CommunityCardsPage", () => {
       )
 
       await waitFor(() =>
-        expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(1, size)
+        expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+          1,
+          size,
+          baseWallFilters
+        )
       )
       expect(
         await screen.findByRole("spinbutton", { name: "跳至" })
@@ -1705,7 +1813,11 @@ describe("CommunityCardsPage", () => {
     await user.clear(input)
     await user.type(input, "3{Enter}")
     await waitFor(() =>
-      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(3, 12)
+      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+        3,
+        12,
+        baseWallFilters
+      )
     )
     expect(await screen.findByRole("spinbutton", { name: "跳至" })).toHaveValue(
       3
@@ -1743,7 +1855,11 @@ describe("CommunityCardsPage", () => {
     )
 
     await waitFor(() => {
-      expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(3, 24)
+      expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(
+        3,
+        24,
+        baseWallFilters
+      )
     })
   })
 
@@ -1806,14 +1922,22 @@ describe("CommunityCardsPage", () => {
     )
 
     await screen.findByRole("combobox", { name: "每页显示" })
-    expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(1, 12)
+    expect(apiMocks.getNamecardPage).toHaveBeenCalledWith(
+      1,
+      12,
+      baseWallFilters
+    )
 
     await user.clear(screen.getByRole("spinbutton", { name: "跳至" }))
     await user.type(screen.getByRole("spinbutton", { name: "跳至" }), "3")
     await user.click(screen.getByRole("button", { name: "跳转" }))
 
     await waitFor(() => {
-      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(3, 12)
+      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+        3,
+        12,
+        baseWallFilters
+      )
     })
     expect(screen.getByText("第 3 / 7 页，共 80 张")).toBeVisible()
 

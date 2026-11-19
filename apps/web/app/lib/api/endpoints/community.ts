@@ -151,15 +151,65 @@ export function getPublicCard(cardNumber: number) {
   )
 }
 
-export function getNamecardPage(page = 1, size = 12) {
+/**
+ * 公开名片墙的筛选：与名片册共用控件，但排序键是墙的 `created` 系。
+ * 墙不认 owner / includeOwn / includeHidden。
+ */
+export interface NamecardWallListFilters {
+  sort?: "created" | "name" | "series" | "date"
+  dir?: NamecardCollectionDirection
+  q?: string
+  series?: readonly string[]
+  group?: string
+  character?: readonly number[]
+  /** `all` = 【同时包含】。 */
+  match?: "any" | "all"
+  excludeOther?: boolean
+  excludeCross?: boolean
+  declaration?: "original" | "ai"
+  /** 【反向排除】：把内容条件整体取反。 */
+  invert?: boolean
+}
+
+function namecardWallSearch(
+  page: number,
+  size: number,
+  filters: NamecardWallListFilters
+) {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  })
+  if (filters.sort) params.set("sort", filters.sort)
+  if (filters.dir) params.set("dir", filters.dir)
+  const q = filters.q?.trim()
+  if (q) params.set("q", q)
+  for (const code of filters.series ?? []) params.append("series", code)
+  const group = filters.group?.trim()
+  if (group) params.set("group", group)
+  for (const id of filters.character ?? []) {
+    params.append("character", String(id))
+  }
+  if (filters.match) params.set("match", filters.match)
+  if (filters.excludeOther) params.set("excludeOther", "true")
+  if (filters.excludeCross) params.set("excludeCross", "true")
+  if (filters.declaration) params.set("declaration", filters.declaration)
+  if (filters.invert) params.set("invert", "true")
+  return params.toString()
+}
+
+export function getNamecardPage(
+  page = 1,
+  size = 12,
+  filters: NamecardWallListFilters = {}
+) {
   return apiClient.Get(
-    apiPath("/cards"),
+    `${apiPath("/cards")}?${namecardWallSearch(page, size, filters)}`,
     parsed(namecardPageSchema, {
       errorSchema: namecardErrorResponseSchema,
       businessErrorSchema: namecardListErrorResponseSchema,
       cacheFor: NO_CLIENT_CACHE,
       hitSource: PUBLIC_CACHE_INVALIDATION_SOURCE.community,
-      params: { page, size },
       select: normalizeNamecardPage,
     })
   )

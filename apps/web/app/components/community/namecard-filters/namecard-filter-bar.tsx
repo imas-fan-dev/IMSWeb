@@ -107,6 +107,7 @@ export function NamecardFilterBar({
   catalog,
   catalogLoading = false,
   disabled = false,
+  showOwner = true,
 }: {
   id?: string
   value: NamecardFilterValue
@@ -117,6 +118,11 @@ export function NamecardFilterBar({
   catalog: NamecardCharacterCatalog | null
   catalogLoading?: boolean
   disabled?: boolean
+  /**
+   * 【所属用户】只在需要它的页面出现：名片册开启，公开名片墙关闭。
+   * 其余筛选两边共用。
+   */
+  showOwner?: boolean
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   // 清空筛选时换 key 重挂角色选择器，把它的搜索框、企划与分类也一起复位。
@@ -178,16 +184,18 @@ export function NamecardFilterBar({
           </div>
         </Field>
 
-        <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">
-          <FieldLabel htmlFor={`${id}-owner`}>所属用户</FieldLabel>
-          <OwnerFilterSelect
-            key={resetToken}
-            id={`${id}-owner`}
-            value={value.owner}
-            disabled={disabled}
-            onChange={(owner) => onChange({ ...value, owner })}
-          />
-        </Field>
+        {showOwner ? (
+          <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">
+            <FieldLabel htmlFor={`${id}-owner`}>所属用户</FieldLabel>
+            <OwnerFilterSelect
+              key={resetToken}
+              id={`${id}-owner`}
+              value={value.owner}
+              disabled={disabled}
+              onChange={(owner) => onChange({ ...value, owner })}
+            />
+          </Field>
+        ) : null}
 
         <div className="flex items-end gap-2">
           <Field className="min-w-0">

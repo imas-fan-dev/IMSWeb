@@ -30,7 +30,6 @@ import {
   unitLabel,
 } from "~/lib/namecard-character-match"
 
-import { ClearInputButton } from "./clear-input-button"
 import { useFilterPopover } from "./use-filter-popover"
 
 /**
@@ -114,6 +113,8 @@ export function CharacterFilterSelect({
       if (selectedIds.includes(characterId) || reachedLimit) return
       const next = [...selectedIds, characterId]
       onChange(next)
+      // 关键词只为找这一项：选中后清空，候选回到完整列表。
+      setQuery("")
       // 收满上限之后没有可选项了，顺手收起面板。
       if (next.length >= NAMECARD_FAVORITE_CHARACTER_LIMIT) setOpen(false)
       return
@@ -133,7 +134,8 @@ export function CharacterFilterSelect({
       next.add(memberId)
     }
     onChange([...next])
-    // 组合是一次加满的批量选择，选完收起。
+    // 组合是一次加满的批量选择，选完清空关键词并收起。
+    setQuery("")
     setOpen(false)
   }
 
@@ -202,23 +204,13 @@ export function CharacterFilterSelect({
               aria-label="搜索担当角色"
               aria-expanded={open}
               aria-controls={open ? `${id}-candidates` : undefined}
-              className="h-7 border-0 bg-transparent pr-7 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+              className="h-7 border-0 bg-transparent focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               onFocus={() => setOpen(true)}
               onChange={(event) => {
                 setQuery(event.currentTarget.value)
                 setOpen(true)
               }}
             />
-            {query ? (
-              <ClearInputButton
-                label="清空角色搜索"
-                className="right-0"
-                onClick={() => {
-                  setQuery("")
-                  setOpen(true)
-                }}
-              />
-            ) : null}
           </div>
 
           {selectedIds.length > 0 || query ? (

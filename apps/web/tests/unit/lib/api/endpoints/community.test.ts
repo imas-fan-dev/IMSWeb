@@ -119,6 +119,75 @@ function collectionPayload() {
   }
 }
 
+describe("getNamecardPage", () => {
+  it("serialises the wall filters, including repeated keys", async () => {
+    let requested: RequestDetails | undefined
+    installFetchMock(async (...args) => {
+      requested = requestDetails(args)
+      return jsonResponse({ list: [], total: 0, totalPage: 0 })
+    })
+
+    await getNamecardPage(2, 24, {
+      sort: "name",
+      dir: "asc",
+      q: " 春香 ",
+      series: ["765", "cg"],
+      group: "765PRO",
+      character: [1, 2],
+      match: "all",
+      excludeOther: true,
+      excludeCross: true,
+      declaration: "ai",
+      invert: true,
+    }).send()
+
+    const url = new URL(requested!.url, "http://ims.test")
+    expect(url.pathname).toBe("/api/cards")
+    expect(url.searchParams.get("page")).toBe("2")
+    expect(url.searchParams.get("size")).toBe("24")
+    expect(url.searchParams.get("sort")).toBe("name")
+    expect(url.searchParams.get("dir")).toBe("asc")
+    expect(url.searchParams.get("q")).toBe("春香")
+    expect(url.searchParams.getAll("series")).toEqual(["765", "cg"])
+    expect(url.searchParams.get("group")).toBe("765PRO")
+    expect(url.searchParams.getAll("character")).toEqual(["1", "2"])
+    expect(url.searchParams.get("match")).toBe("all")
+    expect(url.searchParams.get("excludeOther")).toBe("true")
+    expect(url.searchParams.get("excludeCross")).toBe("true")
+    expect(url.searchParams.get("declaration")).toBe("ai")
+    expect(url.searchParams.get("invert")).toBe("true")
+  })
+
+  it("keeps the default call working and omits off switches", async () => {
+    let requested: RequestDetails | undefined
+    installFetchMock(async (...args) => {
+      requested = requestDetails(args)
+      return jsonResponse({ list: [], total: 0, totalPage: 0 })
+    })
+
+    await getNamecardPage().send()
+
+    const url = new URL(requested!.url, "http://ims.test")
+    expect(url.searchParams.get("page")).toBe("1")
+    expect(url.searchParams.get("size")).toBe("12")
+    for (const key of [
+      "sort",
+      "dir",
+      "q",
+      "series",
+      "group",
+      "character",
+      "match",
+      "excludeOther",
+      "excludeCross",
+      "declaration",
+      "invert",
+    ]) {
+      expect(url.searchParams.has(key)).toBe(false)
+    }
+  })
+})
+
 describe("getNamecardCollectionPage", () => {
   it("serialises every filter, including repeated keys, and normalises the cards", async () => {
     let requested: RequestDetails | undefined

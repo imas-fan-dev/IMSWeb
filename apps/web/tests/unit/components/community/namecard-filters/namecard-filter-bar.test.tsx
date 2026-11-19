@@ -348,6 +348,8 @@ describe("NamecardFilterBar", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ seriesCodes: ["cg"] })
     )
+    // 选中后关键词自动清空。
+    expect(search).toHaveValue("")
     expect(
       screen.getByRole("button", { name: "移除企划 灰姑娘" })
     ).toBeVisible()
@@ -379,13 +381,36 @@ describe("NamecardFilterBar", () => {
     )
 
     const search = screen.getByRole("textbox", { name: "搜索担当角色" })
-    await user.type(search, "allstars")
-    await user.click(screen.getByRole("button", { name: "清空角色搜索" }))
+    await user.type(search, "天海")
+    // 输入框内不再单放文本清空按钮；尾部只剩「清空全部」。
+    expect(
+      screen.queryByRole("button", { name: "清空角色搜索" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole("button", { name: /^清空担当角色/ })
+    ).toHaveLength(1)
+    await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
+    expect(search).toHaveValue("")
+    await user.click(screen.getByRole("button", { name: "清空担当角色" }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ characterIds: [] })
+    )
     expect(search).toHaveValue("")
 
     const seriesSearch = screen.getByRole("textbox", { name: "搜索企划" })
     await user.type(seriesSearch, "本")
-    await user.click(screen.getByRole("button", { name: "清空企划搜索" }))
+    expect(
+      screen.queryByRole("button", { name: "清空企划搜索" })
+    ).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /^清空企划$/ })).toHaveLength(
+      1
+    )
+    await user.click(screen.getByRole("checkbox", { name: /本家/ }))
+    expect(seriesSearch).toHaveValue("")
+    await user.click(screen.getByRole("button", { name: "清空企划" }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ seriesCodes: [] })
+    )
     expect(seriesSearch).toHaveValue("")
   })
 

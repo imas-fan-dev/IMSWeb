@@ -10,7 +10,6 @@ import { Checkbox } from "~/components/ui/checkbox"
 import { Field, FieldLabel } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 
-import { ClearInputButton } from "./clear-input-button"
 import { useFilterPopover } from "./use-filter-popover"
 
 /**
@@ -54,6 +53,8 @@ export function SeriesFilterSelect({
         ? [...selectedCodes, code]
         : selectedCodes.filter((current) => current !== code)
     )
+    // 关键词只为找这一项：选中后清空，候选回到完整列表。
+    if (checked) setQuery("")
   }
 
   return (
@@ -113,23 +114,13 @@ export function SeriesFilterSelect({
               aria-label="搜索企划"
               aria-expanded={open}
               aria-controls={open ? `${id}-candidates` : undefined}
-              className="h-7 border-0 bg-transparent pr-7 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+              className="h-7 border-0 bg-transparent focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               onFocus={() => setOpen(true)}
               onChange={(event) => {
                 setQuery(event.currentTarget.value)
                 setOpen(true)
               }}
             />
-            {query ? (
-              <ClearInputButton
-                label="清空企划搜索"
-                className="right-0"
-                onClick={() => {
-                  setQuery("")
-                  setOpen(true)
-                }}
-              />
-            ) : null}
           </div>
 
           {selectedCodes.length > 0 || query ? (
