@@ -36,6 +36,24 @@ vi.mock("~/lib/api", async (importOriginal) => {
 
 vi.mock("sonner", () => ({ toast: { error: toastMocks.toast } }))
 
+const sessionMock = vi.hoisted(() => ({
+  current: null as null | { accountId: string },
+}))
+
+vi.mock("~/components/platform/platform-session-provider", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("~/components/platform/platform-session-provider")
+    >()
+  return {
+    ...actual,
+    useOptionalPlatformSession: () => ({
+      session: sessionMock.current,
+      status: sessionMock.current ? "authenticated" : "anonymous",
+    }),
+  }
+})
+
 function detail(
   overrides: Partial<NamecardExchangeDetail> = {}
 ): NamecardExchangeDetail {
@@ -76,6 +94,7 @@ function renderDialog(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionMock.current = null
   apiMocks.sendDetail.mockResolvedValue(detail())
   apiMocks.getExchangeDetail.mockReturnValue({ send: apiMocks.sendDetail })
   apiMocks.sendAccept.mockResolvedValue({
@@ -91,6 +110,21 @@ beforeEach(() => {
 })
 
 describe("ExchangeRequestDialog content", () => {
+  it("shows an outgoing request as a read-only detail for the initiator", async () => {
+    sessionMock.current = { accountId: "u1" }
+    renderDialog()
+
+    expect(await screen.findByText("交换详情")).toBeInTheDocument()
+    expect(
+      screen.getByText("你向 如月千早 发起了名片交换")
+    ).toBeInTheDocument()
+    expect(screen.getByText("等待对方处理这笔交换")).toBeInTheDocument()
+    expect(screen.getByText("对方的名片")).toBeInTheDocument()
+    expect(screen.getByText("你给出的名片")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "同意" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "拒绝" })).toBeNull()
+  })
+
   it("shows both card grids with the initiator name and the expiry", async () => {
     renderDialog()
 

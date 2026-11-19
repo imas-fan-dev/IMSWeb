@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { CardImage } from "~/components/shared/card-image"
 import { namecardPages } from "~/components/shared/namecard-pages"
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -100,6 +101,9 @@ function RequestContent({
   onOpenChange: (open: boolean) => void
   onDecided?: ((status: NamecardExchangeDecision["status"]) => void) | undefined
 }) {
+  // 同一份详情窗既给收件方处理请求，也给发起方在自己的交换记录里回看；
+  // 视角不同，标题与文案必须跟着翻，否则发起方会看到「X 希望与你交换」。
+  const { session } = useOptionalPlatformSession()
   const [state, setState] = useState<DetailState>({ kind: "loading" })
   const [attempt, setAttempt] = useState(0)
   const [deciding, setDeciding] = useState<"accept" | "decline" | null>(null)
@@ -143,6 +147,9 @@ function RequestContent({
   )
 
   const detail = state.kind === "ready" ? state.detail : null
+  const viewerIsInitiator = Boolean(
+    detail && session?.account.id === detail.initiator.accountId
+  )
   const pending = detail?.status === "pending"
   const startedAt = detail?.createdAt.slice(0, 16).replace("T", " ") ?? ""
   const expiresAt = detail?.expiresAt?.slice(0, 16).replace("T", " ") ?? null
@@ -150,10 +157,12 @@ function RequestContent({
   return (
     <DialogContent layout="pinned" className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{DIALOG_TITLE}</DialogTitle>
+        <DialogTitle>{viewerIsInitiator ? "交换详情" : DIALOG_TITLE}</DialogTitle>
         <DialogDescription>
           {detail
-            ? `${detail.initiator.displayName} 希望与你交换名片`
+            ? viewerIsInitiator
+              ? `你向 ${detail.target.displayName} 发起了名片交换`
+              : `${detail.initiator.displayName} 希望与你交换名片`
             : "交换申请的卡片与说明"}
         </DialogDescription>
       </DialogHeader>
@@ -187,13 +196,17 @@ function RequestContent({
               {expiresAt ? ` · 有效期至 ${expiresAt}` : ""}
             </p>
             <ExchangeCardSection
-              title={TARGET_SECTION_TITLE}
+              title={
+                viewerIsInitiator ? "对方的名片" : TARGET_SECTION_TITLE
+              }
               cards={state.detail.targetCards}
               emptyLabel="对方没有指定名片"
               onInspect={setInspected}
             />
             <ExchangeCardSection
-              title={INITIATOR_SECTION_TITLE}
+              title={
+                viewerIsInitiator ? "你给出的名片" : INITIATOR_SECTION_TITLE
+              }
               cards={state.detail.initiatorCards}
               emptyLabel={EMPTY_INITIATOR_COPY}
               onInspect={setInspected}
@@ -205,26 +218,31 @@ function RequestContent({
       <DialogFooter>
         {pending ? (
           <>
-            {readOnly ? (
+            {readOnly || viewerIsInitiator ? (
               <p className="text-xs text-muted-foreground sm:mr-auto">
-                {READ_ONLY_COPY}
+                {viewerIsInitiator
+                  ? "等待对方处理这笔交换"
+                  : READ_ONLY_COPY}
               </p>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deciding !== null || readOnly}
-              onClick={() => void decide("decline")}
-            >
-              {deciding === "decline" ? "处理中" : "拒绝"}
-            </Button>
-            <Button
-              type="button"
-              disabled={deciding !== null || readOnly}
-              onClick={() => void decide("accept")}
-            >
-              {deciding === "accept" ? "处理中" : "同意"}
-            </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={deciding !== null}
+                  onClick={() => void decide("decline")}
+                >
+                  {deciding === "decline" ? "处理中" : "拒绝"}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={deciding !== null}
+                  onClick={() => void decide("accept")}
+                >
+                  {deciding === "accept" ? "处理中" : "同意"}
+                </Button>
+              </>
+            )}
           </>
         ) : (
           <>

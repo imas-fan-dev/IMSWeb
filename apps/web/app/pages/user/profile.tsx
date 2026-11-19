@@ -70,7 +70,9 @@ async function loadAllCards(accountId: string) {
   return { ...first, list } satisfies NamecardPage
 }
 
-const CARD_GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] items-start gap-4"
+// 窄屏固定两列（日期与【交换】放不下时换行），`sm` 起恢复按 15rem 自动铺列。
+const CARD_GRID_CLASS =
+  "grid grid-cols-2 items-start gap-3 sm:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] sm:gap-4"
 
 interface ProfileCardSection {
   /** 默认分组没有标题（属主配置的组都带标题），渲染时不画组头。 */
@@ -195,7 +197,7 @@ function ProfileCardTile({
           ) : null}
         </span>
       </button>
-      <div className="flex items-center gap-2 border-t px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t px-2.5 py-2 sm:px-3">
         {date ? (
           <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
             <CalendarIcon className="size-3 shrink-0" aria-hidden="true" />
@@ -466,7 +468,7 @@ export default function UserProfilePage() {
         </header>
 
         {loading ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4">
+          <div className={CARD_GRID_CLASS}>
             <Skeleton className="h-56 rounded-xl" />
             <Skeleton className="h-56 rounded-xl" />
             <Skeleton className="h-56 rounded-xl" />

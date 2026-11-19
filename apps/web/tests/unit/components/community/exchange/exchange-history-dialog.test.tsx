@@ -189,6 +189,44 @@ describe("ExchangeHistoryDialog", () => {
     expect(await screen.findByText("名片交换请求")).toBeVisible()
   })
 
+  it("opens a read-only detail for a finished server exchange", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendDetail.mockResolvedValue({
+      id: "exchange-done",
+      status: "completed",
+      source: "scan",
+      createdAt: "2026-08-03T00:00:00.000Z",
+      expiresAt: "2026-08-10T00:00:00.000Z",
+      initiator: { accountId: "acc-1", displayName: "我" },
+      target: { accountId: "acc-2", displayName: "春日未来" },
+      targetCards: [],
+      initiatorCards: [],
+      skipped: [],
+    })
+    apiMocks.sendHistory.mockResolvedValue({
+      list: [
+        serverEntry({
+          id: "exchange-done",
+          status: "completed",
+        }),
+      ],
+      total: 1,
+      totalPage: 1,
+    })
+    renderDialog()
+
+    await user.click(
+      await screen.findByRole("button", { name: /查看这笔交换的详情/ })
+    )
+
+    await waitFor(() =>
+      expect(apiMocks.getExchangeDetail).toHaveBeenCalledWith("exchange-done")
+    )
+    expect(await screen.findByText("这笔交换已完成")).toBeVisible()
+    expect(screen.queryByRole("button", { name: "同意" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "拒绝" })).toBeNull()
+  })
+
   it("shows the empty state when neither source has a record", async () => {
     renderDialog()
 

@@ -93,13 +93,13 @@ const LOCAL_STATUS: Record<
   },
 }
 
-/** 一笔服务端记录：状态、对方名称、时间与名片数量；pending 可点开处理。 */
+/** 一笔服务端记录：状态、对方名称、时间与名片数量；每一行都能点开（pending 可处理，其余只读）。 */
 function ServerRow({
   entry,
   onOpen,
 }: {
   entry: NamecardExchangeHistoryEntry
-  onOpen: (exchangeId: string) => void
+  onOpen: (entry: { id: string; status: NamecardExchangeStatus }) => void
 }) {
   const status = SERVER_STATUS[entry.status]
   const cardCount =
@@ -121,18 +121,18 @@ function ServerRow({
     </>
   )
 
-  if (entry.status !== "pending") {
-    return <div className="rounded-lg border p-3">{content}</div>
-  }
-
   return (
     <button
       type="button"
-      className="rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      onClick={() => onOpen(entry.id)}
+      className="w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      onClick={() => onOpen({ id: entry.id, status: entry.status })}
     >
       {content}
-      <span className="sr-only">查看并处理这笔交换</span>
+      <span className="sr-only">
+        {entry.status === "pending"
+          ? "查看并处理这笔交换"
+          : "查看这笔交换的详情"}
+      </span>
     </button>
   )
 }
@@ -219,7 +219,10 @@ function HistorySkeleton() {
 function ExchangeHistoryBody() {
   const history = useExchangeHistory()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [openExchangeId, setOpenExchangeId] = useState<string | null>(null)
+  const [openExchange, setOpenExchange] = useState<{
+    id: string
+    status: NamecardExchangeStatus
+  } | null>(null)
 
   const runLocal = async (
     id: string,
@@ -281,7 +284,7 @@ function ExchangeHistoryBody() {
         <ul aria-label="交换记录" className="flex flex-col gap-2">
           {history.server.map((entry) => (
             <li key={entry.id}>
-              <ServerRow entry={entry} onOpen={setOpenExchangeId} />
+              <ServerRow entry={entry} onOpen={setOpenExchange} />
             </li>
           ))}
         </ul>
@@ -332,13 +335,14 @@ function ExchangeHistoryBody() {
         </nav>
       ) : null}
 
-      {/* pending 的服务端条目复用通知里的详情窗：同意 / 拒绝都在那一层完成。 */}
+      {/* 每一笔服务端记录都复用通知里的详情窗：pending 可同意 / 拒绝，其余只读。 */}
       <ExchangeRequestDialog
-        open={openExchangeId !== null}
+        open={openExchange !== null}
         onOpenChange={(open) => {
-          if (!open) setOpenExchangeId(null)
+          if (!open) setOpenExchange(null)
         }}
-        exchangeId={openExchangeId}
+        exchangeId={openExchange?.id ?? null}
+        readOnly={openExchange?.status !== "pending"}
         onDecided={history.reload}
       />
     </div>

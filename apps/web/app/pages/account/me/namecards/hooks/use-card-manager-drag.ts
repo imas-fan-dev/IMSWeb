@@ -78,6 +78,10 @@ const DROP_TARGET_HYSTERESIS_PX = 12
  * 它们都要求 droppable 增删之后 rects 重新量一遍（多选拖动一开始整批移出列表就是一次增删），
  * 否则缓存 rects 与真实 DOM 差一格、`over` 指到错位的容器上（2026-11-17 实测）。
  */
+/** 拖拽时指针进入视口顶/底多少像素内开始滚动，以及每帧最大位移。 */
+const EDGE_SCROLL_ZONE_PX = 72
+const EDGE_SCROLL_MAX_PX = 14
+
 const MEASURING: MeasuringConfiguration = {
   droppable: { strategy: MeasuringStrategy.Always },
 }
@@ -295,6 +299,62 @@ export function useCardManagerDrag({
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   /** 合并一个滚动批次：这一帧已经排过重解析就不再排（`scroll` 会成串到来）。 */
   const scrollReparseRafRef = useRef<number | null>(null)
+  /** 控制式边缘自动滚动：当前速度（负=向上）与循环句柄。 */
+  const autoScrollSpeedRef = useRef(0)
+  const autoScrollFrameRef = useRef<number | null>(null)
+
+  const stopAutoScroll = useCallback(() => {
+    autoScrollSpeedRef.current = 0
+    if (autoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current)
+      autoScrollFrameRef.current = null
+    }
+  }, [])
+
+  // 自引用不能直接写进 useCallback 的函数体（lint 会判「先用后声明」），用 ref 转一手。
+  const stepAutoScrollRef = useRef<() => void>(() => {})
+  const stepAutoScroll = useCallback(() => {
+    autoScrollFrameRef.current = null
+    const speed = autoScrollSpeedRef.current
+    if (!speed) return
+    window.scrollBy(0, speed)
+    autoScrollFrameRef.current = window.requestAnimationFrame(() =>
+      stepAutoScrollRef.current()
+    )
+  }, [])
+
+  useEffect(() => {
+    stepAutoScrollRef.current = stepAutoScroll
+  }, [stepAutoScroll])
+
+  const updateAutoScroll = useCallback(
+    (clientY: number) => {
+      const height = window.innerHeight
+      let speed = 0
+      if (clientY < EDGE_SCROLL_ZONE_PX) {
+        speed = -Math.ceil(
+          ((EDGE_SCROLL_ZONE_PX - clientY) / EDGE_SCROLL_ZONE_PX) *
+            EDGE_SCROLL_MAX_PX
+        )
+      } else if (clientY > height - EDGE_SCROLL_ZONE_PX) {
+        speed = Math.ceil(
+          ((clientY - (height - EDGE_SCROLL_ZONE_PX)) /
+            EDGE_SCROLL_ZONE_PX) *
+            EDGE_SCROLL_MAX_PX
+        )
+      }
+      autoScrollSpeedRef.current = speed
+      if (!speed) {
+        stopAutoScroll()
+        return
+      }
+      if (autoScrollFrameRef.current === null) {
+        autoScrollFrameRef.current =
+          window.requestAnimationFrame(stepAutoScroll)
+      }
+    },
+    [stepAutoScroll, stopAutoScroll]
+  )
   /** 这一趟是不是键盘拖拽：键盘没有「指针停顿」，ghost 直接按展开态渲染。 */
   const keyboardDragRef = useRef(false)
   /** 播报文案在事件处理器里写好，`aria-live` 的回调再取出来（回调执行晚于一帧）。 */
@@ -556,6 +616,7 @@ export function useCardManagerDrag({
     const onPointerMove = (event: MouseEvent) => {
       lastPointerRef.current = { x: event.clientX, y: event.clientY }
       applyPointerTarget({ x: event.clientX, y: event.clientY })
+      if (sessionRef.current) updateAutoScroll(event.clientY)
     }
     // 一个滚动批次里 `scroll` 会成串到来：一帧只重解析一次（rAF 合并），指针那条路仍然逐事件。
     const onScroll = () => {
@@ -581,7 +642,7 @@ export function useCardManagerDrag({
         scrollReparseRafRef.current = null
       }
     }
-  }, [applyPointerTarget, enabled])
+  }, [applyPointerTarget, enabled, updateAutoScroll])
 
   /** 丢掉这一趟拖拽留下的 ghost 状态（计时器、参照点、落点、展开态）。 */
   const resetDropPreview = useCallback(() => {
@@ -598,7 +659,8 @@ export function useCardManagerDrag({
     sessionRef.current = null
     setSession(null)
     resetDropPreview()
-  }, [resetDropPreview])
+    stopAutoScroll()
+  }, [resetDropPreview, stopAutoScroll])
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -774,6 +836,9 @@ export function useCardManagerDrag({
     () => ({
       sensors,
       collisionDetection,
+      // 自带 autoScroll 在本机实测会滚错容器/反向（Android 16）并在落组后留下卡住的滚动；
+      // 边缘滚动改由下面 `updateAutoScroll` 控制，方向和速度都可预期。
+      autoScroll: false,
       // 还在用 `over` 的两条路（键盘拖拽、分组排序）要在 droppable 增删后重量 rects，见 `MEASURING`。
       measuring: MEASURING,
       accessibility: {
