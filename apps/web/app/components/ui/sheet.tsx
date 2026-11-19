@@ -135,7 +135,7 @@ function SheetContent({
             className="h-(--safe-area-bottom) shrink-0"
           />
         ) : null}
-        {showCloseButton && (
+        {showCloseButton && side !== "bottom" && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
             render={

@@ -13,7 +13,6 @@ import {
 } from "~/components/ui/dialog"
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -179,19 +178,6 @@ export function ExchangeCardPickerDialog({
           <SheetTitle>{copy.title}</SheetTitle>
           <SheetDescription>{copy.description}</SheetDescription>
         </SheetHeader>
-        <SheetClose
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="absolute top-3 right-3"
-              title={exitLabel}
-            />
-          }
-        >
-          <XIcon />
-          <span className="sr-only">{exitLabel}</span>
-        </SheetClose>
         {panel}
       </SheetContent>
     </Sheet>

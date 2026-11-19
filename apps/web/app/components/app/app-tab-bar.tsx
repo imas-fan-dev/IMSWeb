@@ -100,9 +100,9 @@ const tabs = APP_TABS.map((tab) => ({
  * 中间那颗最高，形成一条拱形而不是一条直线。
  */
 const EXCHANGE_SUB_ACTIONS = [
-  { id: "qr", label: "二维码", icon: QrCodeIcon, x: -66, y: -42 },
-  { id: "nfc", label: "碰一碰", icon: NfcIcon, x: 0, y: -90 },
-  { id: "group", label: "多人交换", icon: UsersRoundIcon, x: 66, y: -42 },
+  { id: "qr", label: "二维码", icon: QrCodeIcon, x: -76, y: -24 },
+  { id: "nfc", label: "碰一碰", icon: NfcIcon, x: 0, y: -60 },
+  { id: "group", label: "多人交换", icon: UsersRoundIcon, x: 76, y: -24 },
 ] as const satisfies readonly {
   id: "qr" | "nfc" | "group"
   label: string
@@ -132,7 +132,7 @@ function ExchangeActionButton({
         id="exchange-action-menu"
         aria-hidden={open ? undefined : true}
         inert={!open}
-        className="pointer-events-none absolute bottom-18 left-1/2 size-0"
+        className="pointer-events-none absolute bottom-[calc(50%+2rem)] left-1/2 size-0"
       >
         {EXCHANGE_SUB_ACTIONS.map((action, index) => {
           const disabled = EXCHANGE_SUB_ACTION_DISABLED[action.id]
@@ -166,20 +166,20 @@ function ExchangeActionButton({
               >
                 <span
                   className={cn(
-                    "grid size-12 place-items-center rounded-full shadow-[0_10px_24px_-14px_rgb(0_0_0/0.55)] ring-1 transition-colors",
+                    "grid size-14 place-items-center rounded-full shadow-[0_12px_26px_-14px_rgb(0_0_0/0.55)] ring-1 transition-colors",
                     disabled
                       ? "bg-muted text-muted-foreground ring-foreground/10"
-                      : "bg-card text-primary ring-primary/15"
+                      : "bg-card text-primary ring-primary/20"
                   )}
                 >
-                  <Icon aria-hidden="true" className="size-5" />
+                  <Icon aria-hidden="true" className="size-6" />
                 </span>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[0.625rem] leading-none font-medium whitespace-nowrap shadow-sm ring-1 ring-foreground/5",
+                    "relative z-10 rounded-full px-2.5 py-1 text-[0.6875rem] leading-none font-semibold whitespace-nowrap shadow-sm ring-1",
                     disabled
-                      ? "bg-muted/80 text-muted-foreground"
-                      : "bg-card/90 text-foreground"
+                      ? "bg-muted text-muted-foreground ring-foreground/10"
+                      : "bg-primary/12 text-primary ring-primary/20"
                   )}
                 >
                   {action.label}
@@ -195,19 +195,23 @@ function ExchangeActionButton({
         aria-controls="exchange-action-menu"
         aria-label={open ? "收起名片交换菜单" : "打开名片交换菜单"}
         onClick={onToggle}
-        className="absolute bottom-0 left-1/2 z-10 grid size-16 -translate-x-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
+        className="absolute top-1/2 left-1/2 z-10 grid size-16 -translate-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
       >
-        <HandshakeIcon
-          aria-hidden="true"
+        <span
           className={cn(
-            "absolute size-6 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            "flex flex-col items-center gap-0.5 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
             open ? "scale-75 -rotate-45 opacity-0" : "scale-100 opacity-100"
           )}
-        />
+        >
+          <HandshakeIcon aria-hidden="true" className="size-5.5" />
+          <span className="text-[0.625rem] leading-none font-semibold">
+            交换
+          </span>
+        </span>
         <XIcon
           aria-hidden="true"
           className={cn(
-            "absolute size-6 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            "absolute size-5 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
             open ? "scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0"
           )}
         />

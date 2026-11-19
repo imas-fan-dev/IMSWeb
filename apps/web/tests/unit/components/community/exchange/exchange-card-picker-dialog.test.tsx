@@ -110,7 +110,9 @@ describe("ExchangeCardPickerDialog shells", () => {
     const panel = await screen.findByRole("dialog", { name: "交换名片" })
     expect(panel).toHaveAttribute("data-slot", "sheet-content")
     expect(panel).toHaveAttribute("data-side", "bottom")
-    expect(screen.getByRole("button", { name: "退出交换" })).toBeInTheDocument()
+    // 底部抽屉靠把手关闭，不再重复放一个 X。
+    expect(screen.queryByRole("button", { name: "退出交换" })).toBeNull()
+    expect(screen.getByRole("button", { name: "取消" })).toBeInTheDocument()
   })
 })
 
