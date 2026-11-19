@@ -19,7 +19,7 @@ export const EXCHANGE_DECLINED_MESSAGE = "对方拒绝了这次交换"
 export const EXCHANGE_EXPIRED_MESSAGE = "这次交换已过期"
 
 /** 没有后端文案可直出时的兜底（网络断在写请求上）。 */
-const EXCHANGE_FAILED_MESSAGE = "交换失败，请重试"
+export const EXCHANGE_FAILED_MESSAGE = "交换失败，请重试"
 
 /** 逐条跳过的说明：同一句只提一次，按 `side` / `reason` 区分。 */
 function skippedMessages(skipped: NamecardExchangeResult["skipped"]) {

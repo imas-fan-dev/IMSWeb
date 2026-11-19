@@ -45,6 +45,7 @@ import {
 } from "~/lib/api"
 import type { NamecardCollectionPage, NamecardReactions } from "~/lib/api"
 import { NAMECARD_COLLECTION_PAGE_SIZE } from "~/lib/namecards/collection-query"
+import { NAMECARD_DATA_CHANGED_EVENT } from "~/lib/namecards/data-refresh"
 import { readShowOwn, writeShowOwn } from "~/lib/namecards/show-own-preference"
 import { cn } from "~/lib/utils"
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
@@ -307,6 +308,15 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
     return () => {
       cancelled = true
     }
+  }, [active])
+
+  // 扫码交换由对方提交，这张列表不会自己知道；收到广播后重取当前页。
+  useEffect(() => {
+    if (!active) return
+    const handleDataChanged = () => setReload((current) => current + 1)
+    window.addEventListener(NAMECARD_DATA_CHANGED_EVENT, handleDataChanged)
+    return () =>
+      window.removeEventListener(NAMECARD_DATA_CHANGED_EVENT, handleDataChanged)
   }, [active])
 
   const requestGeneration = useRef(0)

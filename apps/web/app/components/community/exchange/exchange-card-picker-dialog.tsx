@@ -37,9 +37,21 @@ import {
   type ExchangeCardPickerStatus,
 } from "./use-exchange-card-picker"
 
-/** 标题与说明文案：窗口只做「选卡」这一件事，措辞不随入口变。 */
-const PICKER_TITLE = "交换名片"
-const PICKER_DESCRIPTION = "请选择用于本次交换的名片。"
+/** 标题与说明文案：默认模式是「选卡」，扫码模式强调接下来要出示二维码。 */
+const PICKER_COPY: Record<
+  ExchangeCardPickerVariant,
+  { title: string; description: string }
+> = {
+  confirm: {
+    title: "交换名片",
+    description: "请选择用于本次交换的名片。",
+  },
+  "scan-share": {
+    title: "扫码交换",
+    description: "选择要交给对方的名片，然后分享二维码。",
+  },
+}
+
 /** 退出即丢弃本次选择；PC 的右上角 X 与移动端 Sheet 的关闭共用这一句话。 */
 const PICKER_EXIT_LABEL = "退出交换"
 const EMPTY_GIVE_CONFIRM_TITLE = "确认一张都不给？"
@@ -82,6 +94,7 @@ export function ExchangeCardPickerDialog({
   onScan,
 }: ExchangeCardPickerDialogProps) {
   const desktop = useDesktopAccountWorkspace()
+  const copy = PICKER_COPY[variant]
 
   const submit = useCallback(
     (cardNumbers: readonly number[]) => {
@@ -121,8 +134,8 @@ export function ExchangeCardPickerDialog({
         className="max-w-sm sm:max-w-md"
       >
         <DialogHeader className="pr-8">
-          <DialogTitle>{PICKER_TITLE}</DialogTitle>
-          <DialogDescription>{PICKER_DESCRIPTION}</DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <DialogClose
           render={
@@ -148,8 +161,8 @@ export function ExchangeCardPickerDialog({
         className="mx-auto max-w-sm gap-3 p-4 sm:max-w-md"
       >
         <SheetHeader className="p-0 pr-8">
-          <SheetTitle>{PICKER_TITLE}</SheetTitle>
-          <SheetDescription>{PICKER_DESCRIPTION}</SheetDescription>
+          <SheetTitle>{copy.title}</SheetTitle>
+          <SheetDescription>{copy.description}</SheetDescription>
         </SheetHeader>
         <SheetClose
           render={

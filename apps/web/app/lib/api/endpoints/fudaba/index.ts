@@ -6,6 +6,7 @@ import {
   exchangeMyQuickPath,
   exchangePath,
   exchangeQuickCommitPath,
+  exchangeScanSessionPath,
   mapsPath,
 } from "@imsweb/contracts/paths"
 export { createMapboxNearbySearch } from "./mapbox-place-search"
@@ -18,6 +19,9 @@ import {
   namecardExchangeResultSchema,
   namecardFeedbackMutationSchema,
   namecardQuickSettingsSchema,
+  namecardScanSessionRequestSchema,
+  namecardScanSessionSchema,
+  namecardScanSessionStatusResponseSchema,
   type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
@@ -767,6 +771,42 @@ export function commitQuickExchange(
   input: ExchangeCommitInput
 ) {
   return postExchangeCommit(exchangeQuickCommitPath(handle), input)
+}
+
+/**
+ * 出示方开一个扫码会话：拿到的 `token` 就是二维码内容，对方扫码后由对方提交。
+ *
+ * 只登记「本轮交出哪几张」，不写交换记录；真正的交换发生在扫码端 commit 时。
+ */
+export function createScanSession(cardNumbers: readonly number[]) {
+  const submission = namecardScanSessionRequestSchema.parse({
+    cardNumbers: [...cardNumbers],
+  })
+  return platformApiClient.Post(
+    exchangeScanSessionPath(),
+    submission,
+    parsed(namecardScanSessionSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/**
+ * 出示方轮询会话状态（`active` / `expired` / `committed`）。
+ *
+ * 只有创建者能读；`exchangeId` 仅在 `committed` 后给值，前端只需要状态与到期时间。
+ */
+export function getScanSession(token: string) {
+  return platformApiClient.Get(
+    `${exchangeScanSessionPath()}/${encodeURIComponent(token)}`,
+    parsed(namecardScanSessionStatusResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+    })
+  )
 }
 
 /**
