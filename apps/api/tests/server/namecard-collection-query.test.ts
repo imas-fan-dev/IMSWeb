@@ -25,12 +25,14 @@ const OWNER = 'owner';
 const OTHER_OWNER = 'owner-two';
 const COLLECTOR = 'collector';
 
-/** 【按企划】需要不同的 (category, display_order)：目录里补两个测试角色。 */
+/** 【按企划】需要不同的 (category, display_order)：目录里补三个测试角色。 */
 const CHARACTER_IDS = {
     /** 本家偶像，目录排序 5。 */
     idolLate: 910_001,
-    /** 事务员，目录排序 0：分类更大的排在后面。 */
-    staff: 910_002
+    /** 事务员，目录排序 0：分类更靠后，但同分类里目录值最小。 */
+    staff: 910_002,
+    /** 角色，目录排序 0：业务分类排在事务员之后，字符串字典序却最小。 */
+    chara: 910_003
 } as const;
 
 async function collectionFixture() {
@@ -47,8 +49,9 @@ async function collectionFixture() {
         `INSERT INTO namecard_characters
              (id, agency_id, category, is_fallback, name_cn, display_order)
          VALUES (?, 1, 'idol', FALSE, '测试副担当', 5),
-                (?, 1, 'staff', FALSE, '测试事务员', 0)`,
-        [CHARACTER_IDS.idolLate, CHARACTER_IDS.staff]
+                (?, 1, 'staff', FALSE, '测试事务员', 0),
+                (?, 1, 'chara', FALSE, '测试角色', 0)`,
+        [CHARACTER_IDS.idolLate, CHARACTER_IDS.staff, CHARACTER_IDS.chara]
     );
 
     async function publish(
@@ -168,46 +171,131 @@ describe('namecard collection queries', () => {
         ]);
     });
 
-    postgresTest('sorts by series count and the first character', async () => {
+    postgresTest('orders single-series cards by the agency catalog', async () => {
         const { publish, collect, numbers } = await collectionFixture();
-        const lateIdol = await publish('card-series-late-idol', {
-            seriesCodes: ['765'],
-            favoriteCharacterIds: [CHARACTER_IDS.idolLate]
-        });
-        const staffOnly = await publish('card-series-staff', {
-            seriesCodes: ['cg'],
+        // 企划目录顺序：765(0) → 876(1) → cg(2) → ml(3)。
+        // 交换时间与担当角色都故意和企划顺序相反。
+        const ml = await publish('card-series-ml', {
+            seriesCodes: ['ml'],
             favoriteCharacterIds: [CHARACTER_IDS.staff]
         });
-        const cross = await publish('card-series-cross', {
-            seriesCodes: ['765', 'cg'],
-            favoriteCharacterIds: [900_001]
+        const first = await publish('card-series-765', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [CHARACTER_IDS.chara]
         });
-        const firstIdol = await publish('card-series-first-idol', {
-            seriesCodes: ['ml'],
+        const cg = await publish('card-series-cg', {
+            seriesCodes: ['cg'],
             favoriteCharacterIds: [900_001]
         });
         for (const [cardNumber, at] of [
-            [lateIdol, '2026-01-01T00:00:00.000Z'],
-            [staffOnly, '2026-01-02T00:00:00.000Z'],
-            [cross, '2026-01-03T00:00:00.000Z'],
-            [firstIdol, '2026-01-04T00:00:00.000Z']
+            [ml, '2026-01-01T00:00:00.000Z'],
+            [first, '2026-01-02T00:00:00.000Z'],
+            [cg, '2026-01-03T00:00:00.000Z']
         ] as const) {
             await collect(cardNumber, at);
         }
 
-        // 单一企划在前 → 同数量按第一个担当角色（分类 → 目录排序）→ 交换时间。
+        // 单企划组内按企划目录顺序，`dir` 只翻转这一层。
+        assert.deepEqual(await numbers({ sort: 'series' }), [first, cg, ml]);
+        assert.deepEqual(await numbers({ sort: 'series', dir: 'desc' }), [
+            ml,
+            cg,
+            first
+        ]);
+    });
+
+    postgresTest('keeps multi-series cards after every single-series card', async () => {
+        const { publish, collect, numbers } = await collectionFixture();
+        const single = await publish('card-series-single', {
+            seriesCodes: ['ml'],
+            favoriteCharacterIds: [CHARACTER_IDS.staff]
+        });
+        // 多企划彼此也不比较企划：765 的目录位次比 ml 靠前，但同担当角色时
+        // 只有交换时间兜底，所以两个方向的结果一致。
+        const multiFirst = await publish('card-series-multi-a', {
+            seriesCodes: ['765', 'cg'],
+            favoriteCharacterIds: [900_002]
+        });
+        const multiSecond = await publish('card-series-multi-b', {
+            seriesCodes: ['ml', 'cg'],
+            favoriteCharacterIds: [900_002]
+        });
+        await collect(multiFirst, '2026-01-01T00:00:00.000Z');
+        await collect(multiSecond, '2026-01-02T00:00:00.000Z');
+        // 单企划卡最后交换：层级固定，倒序也翻不动它。
+        await collect(single, '2026-01-03T00:00:00.000Z');
+
+        const expected = [single, multiFirst, multiSecond];
+        assert.deepEqual(await numbers({ sort: 'series' }), expected);
+        assert.deepEqual(await numbers({ sort: 'series', dir: 'desc' }), expected);
+    });
+
+    postgresTest('orders series peers by the first character business category', async () => {
+        const { publish, collect, numbers } = await collectionFixture();
+        const idolFirst = await publish('card-series-character-idol', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001]
+        });
+        const idolLate = await publish('card-series-character-idol-late', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [CHARACTER_IDS.idolLate]
+        });
+        const chara = await publish('card-series-character-chara', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [CHARACTER_IDS.chara]
+        });
+        const staff = await publish('card-series-character-staff', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [CHARACTER_IDS.staff]
+        });
+        for (const [cardNumber, at] of [
+            [staff, '2026-01-01T00:00:00.000Z'],
+            [chara, '2026-01-02T00:00:00.000Z'],
+            [idolLate, '2026-01-03T00:00:00.000Z'],
+            [idolFirst, '2026-01-04T00:00:00.000Z']
+        ] as const) {
+            await collect(cardNumber, at);
+        }
+
+        // idol(0) → staff(1) → chara(4)：业务分类先于目录排序值；字典序会把
+        // chara 排在 idol 前面，同分类里再按 display_order。
         assert.deepEqual(await numbers({ sort: 'series' }), [
-            firstIdol,
-            lateIdol,
-            staffOnly,
-            cross
+            idolFirst,
+            idolLate,
+            staff,
+            chara
         ]);
         assert.deepEqual(await numbers({ sort: 'series', dir: 'desc' }), [
-            cross,
-            staffOnly,
-            lateIdol,
-            firstIdol
+            chara,
+            staff,
+            idolLate,
+            idolFirst
         ]);
+    });
+
+    postgresTest('keeps the series tail ascending in both directions', async () => {
+        const { publish, collect, numbers } = await collectionFixture();
+        const first = await publish('card-series-tail-first', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001]
+        });
+        const tie = await publish('card-series-tail-tie', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001]
+        });
+        const late = await publish('card-series-tail-late', {
+            seriesCodes: ['765'],
+            favoriteCharacterIds: [900_001]
+        });
+        await collect(first, '2026-01-01T00:00:00.000Z');
+        await collect(tie, '2026-01-01T00:00:00.000Z');
+        await collect(late, '2026-01-02T00:00:00.000Z');
+
+        // 同一企划、同一担当角色：更早交换的永远在前，同一刻再按名片编号；
+        // 这层兜底不跟着 `dir` 翻转。
+        const expected = [first, tie, late];
+        assert.deepEqual(await numbers({ sort: 'series' }), expected);
+        assert.deepEqual(await numbers({ sort: 'series', dir: 'desc' }), expected);
     });
 
     postgresTest('sorts by made-on precision and falls back to the created time', async () => {

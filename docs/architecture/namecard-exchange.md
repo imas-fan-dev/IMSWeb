@@ -290,7 +290,11 @@ WHERE card.owner_account_id = ? AND card.deleted_at IS NULL
   - `exchange`：`obtained_at`；
   - `name`：`sort_name_bucket`（0 英文 / 1 假名罗马音 / 2 拼音 / 3 特殊符号）→ `sort_name_key` → `obtained_at`；
     特殊符号永远垫底，倒序只翻转比较键；
-  - `series`：企划数 → 第一个担当角色的 `(category, display_order)` → `obtained_at`；
+  - `series`：单一企划整组在前、多企划整组在后（层级固定）→ 单企划组内按企划目录顺序
+    （`agencies.display_order`，同序按 `code`）→ 首担当角色的分类业务顺序
+    （idol → staff → rival → mascot → chara → other）→ `display_order` → `obtained_at`。
+    多企划组内不比较企划；`dir` 只翻转企划目录顺序与角色比较，层级与
+    `obtained_at`（更早交换在前，再按名片编号）兜底保持升序；
   - `date`：`madeOn` 精度（有月日 → 只有年份 → 没有，固定顺序）→ 日期值（没有 `madeOn` 时用创建时间）→ `obtained_at`。
 - 筛选：`q` 对制作人名称做不区分大小写的包含匹配（名称为空时改用团体名称）；`series` 命中任意一个即保留；
   `group` 按 `groupName` 精确匹配（忽略大小写）；`character` + `match=all` 是【同时包含】；

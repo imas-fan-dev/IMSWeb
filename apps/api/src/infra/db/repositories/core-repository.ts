@@ -200,8 +200,14 @@ interface NamecardCollectionViewRow {
     obtainedAtMs: number;
     snapshot: NamecardCollectionSnapshotRecord;
     seriesCodes: string[];
+    /** 「按企划」的层级：两个及以上企划的卡片整组排在单一企划之后。 */
+    multiSeries: boolean;
+    /** 单一企划的目录位次（`agencies.display_order, code`）；多企划不参与。 */
+    seriesRank: number;
+    /** 单一企划的 code：目录位次相同时按 code 收尾。 */
+    seriesCode: string;
     characterIds: number[];
-    /** 每个担当角色的目录排序值；「按企划」取 (category, order) 最小的一项。 */
+    /** 每个担当角色的目录排序值；「按企划」取业务分类最小、同分类目录值最小的一项。 */
     characterKeys: { category: string; order: number }[];
     producerName: string | null;
     groupName: string | null;
@@ -227,7 +233,24 @@ function compareNumber(a: number, b: number): number {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** 「按企划」的第一个担当角色：分类最小、同分类里目录排序值最小。 */
+/**
+ * 担当分类的**业务顺序**（PRD §3.2）：idol → staff → rival → mascot → chara →
+ * other，目录里没有的分类垫底。字符串字典序会把 chara 排到 idol 前面，不能直接用。
+ */
+const COLLECTION_CHARACTER_CATEGORY_RANK: Readonly<Record<string, number>> = {
+    idol: 0,
+    staff: 1,
+    rival: 2,
+    mascot: 3,
+    chara: 4,
+    other: 5
+};
+
+function characterCategoryRank(category: string): number {
+    return COLLECTION_CHARACTER_CATEGORY_RANK[category] ?? 6;
+}
+
+/** 「按企划」的第一个担当角色：业务分类最小、同分类里目录排序值最小。 */
 function firstCharacterKey(
     view: NamecardCollectionViewRow
 ): { category: string; order: number } | null {
@@ -235,8 +258,11 @@ function firstCharacterKey(
     for (const candidate of view.characterKeys) {
         if (
             !best ||
-            candidate.category < best.category ||
-            (candidate.category === best.category && candidate.order < best.order)
+            characterCategoryRank(candidate.category) <
+                characterCategoryRank(best.category) ||
+            (characterCategoryRank(candidate.category) ===
+                characterCategoryRank(best.category) &&
+                candidate.order < best.order)
         ) {
             best = candidate;
         }
@@ -244,12 +270,35 @@ function firstCharacterKey(
     return best;
 }
 
+/** 首担当角色的比较；没有担当角色的卡片垫底（与 `dir` 一起翻转到最前）。 */
+function compareFirstCharacters(
+    a: NamecardCollectionViewRow,
+    b: NamecardCollectionViewRow
+): number {
+    const left = firstCharacterKey(a);
+    const right = firstCharacterKey(b);
+    if (!left || !right) {
+        if (left) return -1;
+        if (right) return 1;
+        return 0;
+    }
+    return (
+        compareNumber(
+            characterCategoryRank(left.category),
+            characterCategoryRank(right.category)
+        ) || compareNumber(left.order, right.order)
+    );
+}
+
 /**
  * 名片册排序（PRD §3）：
  * - `name` 只用「是否特殊符号」分层（符号永远垫底），其余按同一个拉丁键比较——
  *   英文名、假名罗马音与中文拼音直接混排；分桶值只用来标记符号。
  * - `date` 的「没有日期」层级固定垫底；只有比较键跟着 `dir` 翻转。
- * 所有排序最后都以交换时间、名片编号兜底，保证分页稳定。
+ * - `series` 的三层语义：单一企划卡片整组在前、多企划整组在后（层级固定）；
+ *   单企划组内按企划目录顺序（`dir` 翻转），多企划组内不比较企划；两组都用
+ *   首担当角色的业务分类 → 目录排序值（`dir` 翻转）比较，最后按交换时间兜底。
+ * 除 `series` 外所有排序都以交换时间、名片编号兜底，保证分页稳定。
  */
 function compareCollectionRows(
     a: NamecardCollectionViewRow,
@@ -271,20 +320,25 @@ function compareCollectionRows(
         );
     }
     if (sort === 'series') {
-        const count =
-            compareNumber(a.seriesCodes.length, b.seriesCodes.length) * factor;
-        if (count !== 0) return count;
-        const left = firstCharacterKey(a);
-        const right = firstCharacterKey(b);
-        if (left || right) {
-            if (!left) return factor;
-            if (!right) return -factor;
-            const characters =
-                compareText(left.category, right.category) * factor ||
-                compareNumber(left.order, right.order) * factor;
-            if (characters !== 0) return characters;
+        // 层级不跟着 `dir` 翻转：多企划卡片永远在所有单企划之后。
+        const layer = compareNumber(
+            a.multiSeries ? 1 : 0,
+            b.multiSeries ? 1 : 0
+        );
+        if (layer !== 0) return layer;
+        if (!a.multiSeries) {
+            const catalogue =
+                compareNumber(a.seriesRank, b.seriesRank) * factor ||
+                compareText(a.seriesCode, b.seriesCode) * factor;
+            if (catalogue !== 0) return catalogue;
         }
-        return tail;
+        const characters = compareFirstCharacters(a, b) * factor;
+        if (characters !== 0) return characters;
+        // 兜底同样固定：同一组里永远是更早交换的在前，再按名片编号。
+        return (
+            compareNumber(a.obtainedAtMs, b.obtainedAtMs) ||
+            compareNumber(a.cardNumber, b.cardNumber)
+        );
     }
     if (sort === 'date') {
         const precision = compareNumber(a.madeOnRank, b.madeOnRank);
@@ -3277,6 +3331,20 @@ export class SqlCoreRepository implements NamecardRepository {
         return grouped;
     }
 
+    /**
+     * 企划目录顺序：`code → 位次`，与筛选下拉同源（`agencies.display_order`，
+     * 同序按 code）。整页只查一次，比较器不再逐行回库。
+     */
+    private async listCollectionSeriesRanks(
+        database: SqlDatabase
+    ): Promise<Map<string, number>> {
+        const rows = await queryAll<{ code: string }>(
+            database,
+            'SELECT code FROM agencies ORDER BY display_order, code'
+        );
+        return new Map(rows.map((row, index) => [row.code, index]));
+    }
+
     /** 快照里的担当角色只剩 id：目录值现查一次，供删除卡参与企划排序。 */
     private async listCharacterOrders(
         database: SqlDatabase,
@@ -4003,10 +4071,17 @@ export class SqlCoreRepository implements NamecardRepository {
                 : collectedValues
         );
 
+        const sort = input.sort ?? 'exchange';
+        const direction =
+            input.dir ?? (sort === 'exchange' || sort === 'date' ? 'desc' : 'asc');
         const liveIds = rows.flatMap((row) => (row.live_id ? [row.live_id] : []));
-        const [seriesByCard, favoriteOrders] = await Promise.all([
+        const [seriesByCard, favoriteOrders, seriesRanks] = await Promise.all([
             this.listNamecardSeries(this.database, liveIds),
-            this.listCollectionFavoriteOrders(this.database, liveIds)
+            this.listCollectionFavoriteOrders(this.database, liveIds),
+            // 企划目录顺序只差一次查询；其它排序用不上，别为它多跑一趟。
+            sort === 'series'
+                ? this.listCollectionSeriesRanks(this.database)
+                : Promise.resolve(new Map<string, number>())
         ]);
         const prepared = rows.map((row) => ({
             row,
@@ -4019,9 +4094,6 @@ export class SqlCoreRepository implements NamecardRepository {
             )
         );
 
-        const sort = input.sort ?? 'exchange';
-        const direction =
-            input.dir ?? (sort === 'exchange' || sort === 'date' ? 'desc' : 'asc');
         const needle = input.q?.trim().toLowerCase() ?? '';
         const groupNeedle = input.groupName?.trim().toLowerCase() ?? '';
         const seriesFilter = new Set(input.seriesCodes ?? []);
@@ -4056,15 +4128,23 @@ export class SqlCoreRepository implements NamecardRepository {
                         ? new Date(row.live_created_at).getTime()
                         : null;
                 const madeOnRank = madeOn === null ? 2 : madeOn.length >= 7 ? 0 : 1;
+                const seriesCodes = live
+                    ? (seriesByCard.get(row.live_id!) ?? [])
+                    : snapshot.seriesCodes;
+                // 多企划不参与目录比较；单一企划（含零企划）按位次排序，
+                // 目录里查不到（或没有企划）的位次垫底，再按 code 收尾。
+                const seriesCode = seriesCodes[0] ?? '';
                 return {
                     row,
                     own: row.own === true,
                     cardNumber: Number(row.card_number),
                     obtainedAtMs,
                     snapshot,
-                    seriesCodes: live
-                        ? (seriesByCard.get(row.live_id!) ?? [])
-                        : snapshot.seriesCodes,
+                    seriesCodes,
+                    multiSeries: seriesCodes.length > 1,
+                    seriesRank:
+                        seriesRanks.get(seriesCode) ?? Number.MAX_SAFE_INTEGER,
+                    seriesCode,
                     characterIds: characterKeys.map((key) => key.id),
                     characterKeys,
                     producerName: live

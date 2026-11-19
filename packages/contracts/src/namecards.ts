@@ -972,7 +972,8 @@ export type NamecardCollectionVisibilityResponse = z.infer<
 
 /**
  * 名片册排序键（PRD §3）。`exchange` 用交换时间；`name` 用名片上的排序元数据；
- * `series` 用企划数与第一个担当角色；`date` 用 `madeOn` 的精度与日期。
+ * `series` 按单一 / 多企划分层（单企划按企划目录顺序，多企划不比较企划），
+ * 再按第一个担当角色的业务分类与目录排序值；`date` 用 `madeOn` 的精度与日期。
  */
 export const namecardCollectionSortSchema = z.enum([
   "exchange",
