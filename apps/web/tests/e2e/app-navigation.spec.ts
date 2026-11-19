@@ -256,7 +256,8 @@ test.describe("app navigation", () => {
     })
     installSeededPublicApis(api, [
       { path: "/api/community/content", times: 1 },
-      { path: "/api/community/exchange/series", times: 1 },
+      // 名片墙首屏与一次组件重挂都会各取一次系列清单，两次都属正常。
+      { path: "/api/community/exchange/series", times: { min: 1, max: 2 } },
     ])
     await page.goto(cardsUrl)
     await readCards(page)

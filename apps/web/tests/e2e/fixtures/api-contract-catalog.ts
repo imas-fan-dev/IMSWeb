@@ -154,6 +154,8 @@ import {
   myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
+  namecardCollectionPageSchema,
+  namecardCollectionQuerySchema,
 } from "@imsweb/contracts/namecards"
 import {
   newsErrorResponseSchema,
@@ -600,6 +602,11 @@ export function resolveApiContract(
     return {
       body: fudabaOfficeFieldsRequestSchema,
       responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/collection`)
+    return {
+      query: namecardCollectionQuerySchema,
+      responses: { 200: namecardCollectionPageSchema, ...fudabaErrors },
     }
   if (method === "GET" && path === `${exchange}/me/offices`)
     return {
