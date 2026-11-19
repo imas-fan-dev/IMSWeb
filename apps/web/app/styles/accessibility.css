@@ -134,6 +134,12 @@
 
 @layer base {
   @media (prefers-reduced-motion: no-preference) {
+    /* The circular reveal clips the root snapshot. Keep named descendants
+       inside it so overlays and sticky controls retain their paint order. */
+    html[data-theme-transition="circle"] * {
+      view-transition-name: none !important;
+    }
+
     html[data-theme-transition="circle"]::view-transition-old(root),
     html[data-theme-transition="circle"]::view-transition-new(root) {
       animation: none;

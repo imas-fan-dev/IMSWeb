@@ -366,12 +366,10 @@ export function CardManager({
     pruneCollapsedKeys(layout.groups.map((group) => group.id))
     // 经典模式没有分组界面（建组、拖拽都在分组视图里），所以点「编辑模式」先自动切回分组：
     // 一次交互完成。切换只是视图状态，不碰草稿，也就不会把会话标脏。
-    // 同一次提交里完成 DOM 更新与滚动补偿（`flushSync`）：分两次提交时中间那帧更容易被画出来。
+    // 进入编辑直接提交 DOM 和滚动补偿，避免 View Transition 先显示读模式的列表快照。
     flushSync(() => {
-      applyLayout(() => {
-        setMode((current) => (current === "classic" ? "grouped" : current))
-        beginEditing()
-      })
+      setMode((current) => (current === "classic" ? "grouped" : current))
+      beginEditing()
     })
     return true
   }, [beginEditing, layout, pruneCollapsedKeys, readOnly, scrollContainerRef])

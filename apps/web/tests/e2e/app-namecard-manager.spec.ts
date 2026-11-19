@@ -1,3 +1,5 @@
+import { NAMECARD_EXCHANGE_CARD_LIMIT } from "@imsweb/contracts/namecards/runtime"
+import { exchangeMyCardsLayoutPath } from "@imsweb/contracts/paths"
 import type { CDPSession, Locator, Page } from "@playwright/test"
 
 import { expect, test, type ApiDispatcher } from "./fixtures/test"
@@ -147,7 +149,11 @@ async function installManagerMocks(
   )
 }
 
-async function openManager(page: Page, dispatcher: ApiDispatcher, baseURL?: string) {
+async function openManager(
+  page: Page,
+  dispatcher: ApiDispatcher,
+  baseURL?: string
+) {
   if (!baseURL) throw new Error("App namecard manager E2E requires baseURL")
   const documentOrigin = new URL(baseURL).origin
   await installManagerMocks(dispatcher, appCorsHeaders(documentOrigin))
@@ -206,6 +212,46 @@ test.beforeEach(async ({ page }) => {
     window.localStorage.setItem("ims.platform.access-token", accessToken)
     document.cookie = "ims_platform_csrf=e2e; path=/"
   }, APP_ACCESS_TOKEN)
+})
+
+test("enters editing without a frame of the read-only card list", async ({
+  page,
+  api: dispatcher,
+  baseURL,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" })
+  if (!baseURL) throw new Error("App namecard manager E2E requires baseURL")
+  await dispatcher.mock(
+    { method: "GET", path: exchangeMyCardsLayoutPath(), times: 1 },
+    (route) =>
+      route.fulfill({
+        json: {
+          groups: [],
+          defaultCardNumbers: [card.cardNumber],
+          quickCardNumbers: [card.cardNumber],
+          limit: NAMECARD_EXCHANGE_CARD_LIMIT,
+        },
+        headers: appCorsHeaders(new URL(baseURL).origin),
+      })
+  )
+  const { tile } = await openManager(page, dispatcher, baseURL)
+  await expect(tile.getByTitle("在快速交换清单里")).toBeVisible()
+
+  const editButton = page.getByRole("button", { name: "编辑模式" })
+  await expect(editButton).toBeEnabled()
+  const checkedAtClick = await editButton.evaluate(
+    (button: HTMLButtonElement) => {
+      // Inspect the committed DOM in the click's task, before the next paint.
+      button.click()
+      const list = document.querySelector('nav[aria-label="我的名片清单"]')
+      return list
+        ?.querySelector('[role="checkbox"]')
+        ?.getAttribute("aria-checked")
+    }
+  )
+
+  expect(checkedAtClick).toBe("false")
+  await expect(page.getByRole("button", { name: "退出编辑" })).toBeVisible()
 })
 
 test("enters editing mode from a touch long press on a tile", async ({
