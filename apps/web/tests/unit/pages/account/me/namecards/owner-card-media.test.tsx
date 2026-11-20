@@ -59,6 +59,25 @@ describe("owner media credential boundary", () => {
       )
     ).toContain("/media/back")
   })
+  it("accepts the page slots the editor and gallery render", () => {
+    const page =
+      "/api/community/exchange/me/cards/card-1/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?w=800&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c"
+    expect(ownerCardMediaPath(page, "https://api.ims.test")).toBe(page)
+    expect(
+      ownerCardMediaPath(
+        "https://api.ims.test/api/community/exchange/me/cards/card-1/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?draft=1&w=400&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c",
+        "https://api.ims.test"
+      )
+    ).toBe(
+      "/api/community/exchange/me/cards/card-1/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?draft=1&w=400&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c"
+    )
+    expect(
+      ownerCardMediaPath(
+        "/api/community/exchange/me/cards/card-1/media/middle-02?w=800&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c",
+        "https://api.ims.test"
+      )
+    ).toContain("/media/middle-02")
+  })
   it.each([
     "https://evil.test/api/community/exchange/me/cards/card-1/media/front",
     "//evil.test/api/community/exchange/me/cards/card-1/media/front",
@@ -77,6 +96,12 @@ describe("owner media credential boundary", () => {
     "/api/community/exchange/me/cards/a/media/front?v=",
     "/api/community/exchange/me/cards/a/media/front?v=%31",
     "/api/community/exchange/me/cards/a/media/front#fragment",
+    "/api/community/exchange/me/cards/a/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?w=999&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c",
+    "/api/community/exchange/me/cards/a/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?w=800&w=400&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c",
+    "/api/community/exchange/me/cards/a/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?w=800&draft=2&v=8fe3a70b-d034-4878-950b-dc1aa822dd6c",
+    "/api/community/exchange/me/cards/a/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?w=800&thumb=1",
+    "/api/community/exchange/me/cards/a/media/page-dcd45349-1d86-4fd4-8c5c-ef4f3d32eeb4?v=1.5",
+    "/api/community/exchange/me/cards/a/media/page-short?v=1",
     "blob:local",
   ])("rejects %s", (source) => {
     expect(ownerCardMediaPath(source, "https://api.ims.test")).toBeNull()
