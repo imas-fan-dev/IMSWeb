@@ -950,7 +950,7 @@ test.describe("wiki mobile", () => {
     test.skip(isMobile, "desktop-only classic Wiki alignment")
     installSeededWikiApis(api, [
       { path: "/api/wiki/random_bg", times: 1 },
-      { path: "/api/wiki/catalog", times: 2 },
+      { path: "/api/wiki/catalog", times: 1 },
     ])
 
     await page.setViewportSize({ width: 1600, height: 900 })
@@ -1004,7 +1004,7 @@ test.describe("wiki mobile", () => {
     test.skip(isMobile, "desktop-only classic Wiki return regression")
     installSeededWikiApis(api, [
       { path: "/api/wiki/random_bg", times: 2 },
-      { path: "/api/wiki/catalog", times: 2 },
+      { path: "/api/wiki/catalog", times: 1 },
       { path: "/api/wiki/stories", times: 1 },
     ])
 

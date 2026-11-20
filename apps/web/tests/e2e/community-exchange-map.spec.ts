@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { api, expect, test } from "./fixtures/test"
 
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import {
   installPlatformOAuthProvidersMock,
   installPlatformSessionMock,
@@ -1177,6 +1178,7 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     "GET",
     { min: 1, max: 5 }
   )
+  installEmptyWikiCatalogMock(api)
   // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
   // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
   await installPlatformSessionMock(
@@ -1206,9 +1208,16 @@ test("offers office creation at a right-clicked position and keyboard-selected m
   await expect(
     page.getByRole("button", { name: "在此创建事务所" })
   ).toHaveCount(0)
-  await page.getByRole("button", { name: "更多地图工具" }).click()
+  const tools = page.getByRole("button", { name: "更多地图工具" })
+  await tools.click()
   await page.getByRole("menuitem", { name: "选择位置创建事务所" }).click()
+  await expect(
+    page.getByText("点击地图选择事务所位置", { exact: true })
+  ).toBeVisible()
+  // 菜单关闭后会把焦点交还给触发按钮，等它完成再聚焦地图。
+  await expect(tools).toBeFocused()
   await canvas.focus()
+  await expect(canvas).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(
     page.getByRole("button", { name: "在此创建事务所" })
