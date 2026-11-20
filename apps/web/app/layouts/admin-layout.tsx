@@ -152,7 +152,7 @@ const navigation: Array<{
     children: [
       { to: "/admin/cards", label: "名片审核", end: true },
       { to: "/admin/cards/manage", label: "反馈处理" },
-      { label: "标签管理" },
+      { to: "/admin/tags", label: "标签管理", opOnly: true },
     ],
   },
   {

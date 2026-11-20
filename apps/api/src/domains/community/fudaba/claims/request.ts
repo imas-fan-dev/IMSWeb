@@ -3,6 +3,10 @@ import {
     NAMECARD_MIDDLE_IMAGE_LIMIT,
     NAMECARD_SERIES_LIMIT
 } from '@imsweb/contracts/fudaba/runtime';
+import {
+    NAMECARD_TAG_LIMIT,
+    NAMECARD_TAG_MAX_LENGTH
+} from '@imsweb/contracts/namecards/runtime';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 
 export interface CardClaimPayloadInput {
@@ -24,10 +28,18 @@ export type CardSupplementPayloadInput = Omit<
     'madeOn' | 'producerReading'
 >;
 
+/** 表单里的标签与审核载荷分开：标签即时生效，不进 pending payload。 */
+export interface ParsedClaimPayload<Payload> {
+    payload: Payload;
+    tags?: string[];
+}
+
 export interface LegacyCardClaimInput {
     message: string;
     payload: CardClaimPayloadInput;
     targetCardId: string | null;
+    /** 表单标签；即时生效，不写进认领 payload。 */
+    tags?: string[];
 }
 
 function badRequest(message: string): Error {
@@ -99,6 +111,21 @@ function optionalNullableText(
 const PRODUCER_READING_PATTERN = /^[ぁ-ゖァ-ヺーA-Za-z '-]+$/;
 const PRODUCTION_DATE_PATTERN = /^\d{4}(-\d{2}(-\d{2})?)?$/;
 
+/** 表单标签是纯字符串数组；归一化与去重留给标签仓储。 */
+function tagNames(value: unknown): string[] {
+    if (!Array.isArray(value) || value.length > NAMECARD_TAG_LIMIT) {
+        throw badRequest('tags 无效');
+    }
+    return value.map((entry) => {
+        if (typeof entry !== 'string') throw badRequest('tags 无效');
+        const name = entry.trim();
+        if (name === '' || name.length > NAMECARD_TAG_MAX_LENGTH) {
+            throw badRequest('tags 无效');
+        }
+        return name;
+    });
+}
+
 /**
  * The wall sends only what the visitor changed. An empty payload would be a
  * revision with nothing in it, which the reviewer could not act on.
@@ -108,12 +135,17 @@ function claimPayload(
     allowed: readonly string[],
     /** Binding to an existing card sends nothing: that card's data wins. */
     optional = false
-): CardClaimPayloadInput {
-    if (value === undefined && optional) return {};
+): ParsedClaimPayload<CardClaimPayloadInput> {
+    const empty = { payload: {} as CardClaimPayloadInput };
+    if (value === undefined && optional) return empty;
     const payload = object(value);
     allowedKeys(payload, allowed);
-    if (Object.keys(payload).length === 0) {
-        if (optional) return {};
+    const contentKeys = Object.keys(payload).filter((key) => key !== 'tags');
+    if (contentKeys.length === 0) {
+        if (optional) {
+            return { payload: {} };
+        }
+        // 只改标签时由独立标签端点处理；补充/认领必须带上一处资料改动。
         throw badRequest('至少要改动一处资料');
     }
     const parsed: CardClaimPayloadInput = {};
@@ -184,7 +216,10 @@ function claimPayload(
     if ('favoriteCharacterIds' in payload) {
         parsed.favoriteCharacterIds = characterIds(payload.favoriteCharacterIds);
     }
-    return parsed;
+    return {
+        payload: parsed,
+        ...('tags' in payload ? { tags: tagNames(payload.tags) } : {})
+    };
 }
 
 const CLAIM_PAYLOAD_KEYS = [
@@ -196,6 +231,7 @@ const CLAIM_PAYLOAD_KEYS = [
     'madeOn',
     'seriesCodes',
     'favoriteCharacterIds',
+    'tags',
 ] as const;
 const SUPPLEMENT_PAYLOAD_KEYS = [
     'isGroupCard',
@@ -204,9 +240,12 @@ const SUPPLEMENT_PAYLOAD_KEYS = [
     'groupName',
     'seriesCodes',
     'favoriteCharacterIds',
+    'tags',
 ] as const;
 
-export function parseCardSupplementPayload(value: unknown): CardSupplementPayloadInput {
+export function parseCardSupplementPayload(
+    value: unknown
+): ParsedClaimPayload<CardSupplementPayloadInput> {
     return claimPayload(value, SUPPLEMENT_PAYLOAD_KEYS);
 }
 
@@ -220,10 +259,12 @@ export function parseLegacyCardClaim(value: unknown): LegacyCardClaimInput {
     ) {
         throw badRequest('targetCardId 无效');
     }
+    const parsed = claimPayload(body.payload, CLAIM_PAYLOAD_KEYS, true);
     return {
         targetCardId,
         // 认领不要求相对 live 有改动（可能已被他人补充完整），必填缺失由仓储拦。
-        payload: claimPayload(body.payload, CLAIM_PAYLOAD_KEYS, true),
+        payload: parsed.payload,
+        ...(parsed.tags === undefined ? {} : { tags: parsed.tags }),
         message: text(body.message, 'message', 1000)
     };
 }

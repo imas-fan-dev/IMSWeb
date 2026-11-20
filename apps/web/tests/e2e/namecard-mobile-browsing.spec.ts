@@ -37,6 +37,10 @@ test.describe("namecard mobile browsing", () => {
       await expect(back).toBeVisible()
       await expectNamecardGalleryGeometry(page)
       await attachNamecardScreenshot(page, testInfo, "gallery-dual-face")
+      const card = page.locator('[data-slot="card"]').filter({ has: front })
+      // 轮播默认只露正面；用圆点切到背面，确认背面同样完整落在卡内。
+      await card.getByRole("button", { name: "查看背面", exact: true }).click()
+      await expect(back).toBeInViewport()
       await back.click()
       const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
       await expect(detail).toBeVisible()
@@ -76,11 +80,12 @@ test.describe("namecard mobile browsing", () => {
       const pillBox = await detail
         .getByRole("button", { name: "👍，2 次反应", exact: true })
         .boundingBox()
-      expect(addBox?.width).toBeGreaterThanOrEqual(43.5)
-      expect(addBox?.height).toBeGreaterThanOrEqual(43.5)
-      expect(pillBox?.height).toBeCloseTo(32, 0)
-      expect(circleBox?.width).toBeCloseTo(pillBox!.height, 0)
-      expect(circleBox?.height).toBeCloseTo(pillBox!.height, 0)
+      // 名片墙与详情窗都使用紧凑反应档：32px 添加按钮、28px 胶囊、24px 圆形按钮。
+      expect(addBox?.width).toBeGreaterThanOrEqual(31.5)
+      expect(addBox?.height).toBeGreaterThanOrEqual(31.5)
+      expect(pillBox?.height).toBeCloseTo(28, 0)
+      expect(circleBox?.width).toBeCloseTo(24, 0)
+      expect(circleBox?.height).toBeCloseTo(24, 0)
       expect(circleBox!.y + circleBox!.height / 2).toBeCloseTo(
         pillBox!.y + pillBox!.height / 2,
         0
@@ -129,7 +134,6 @@ test.describe("namecard mobile browsing", () => {
         expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1)
       }
       await pickerButtons.last().click()
-      const card = page.locator('[data-slot="card"]').filter({ has: front })
       await expect(
         detail.getByRole("button", { name: "🔘，1 次反应", exact: true })
       ).toContainText("1")
@@ -155,9 +159,10 @@ test.describe("namecard mobile browsing", () => {
       26,
       {
         1: {
-          "👍": 999999,
-          "🎮": 888888,
-          "🌹": 777777,
+          // 紧凑档的胶囊更窄：要 9 位数才会在 390px 的卡片里折成第二行。
+          "👍": 999999999,
+          "🎮": 888888888,
+          "🌹": 777777777,
           "🍔": 5,
           "🍭": 6,
           "🔨": 7,
@@ -170,25 +175,30 @@ test.describe("namecard mobile browsing", () => {
       await page.goto("/community/cards?page=1&size=12")
       await expectNamecardGalleryGeometry(page)
       const cards = page.locator("[data-namecard-item]")
+      // 辅助校验会把第三张滚动到视口中央，比较位置时必须用文档坐标。
       const before = await cards.evaluateAll((elements) =>
-        elements.slice(0, 4).map((element) => element.getBoundingClientRect().y)
+        elements
+          .slice(0, 4)
+          .map((element) => element.getBoundingClientRect().y + window.scrollY)
       )
       expect(before[2]).toBeCloseTo(before[3]!, 0)
       release()
       await expect(
         cards
           .first()
-          .getByRole("button", { name: "👍，999999 次反应", exact: true })
+          .getByRole("button", { name: "👍，999999999 次反应", exact: true })
       ).toBeVisible()
       await expectNamecardGalleryGeometry(page)
       const after = await cards.evaluateAll((elements) =>
-        elements.slice(0, 4).map((element) => element.getBoundingClientRect().y)
+        elements
+          .slice(0, 4)
+          .map((element) => element.getBoundingClientRect().y + window.scrollY)
       )
       expect(after[0]).toBeCloseTo(after[1]!, 0)
-      // Three long mobile summary counts wrap onto an additional row. The
-      // next card in that masonry column follows it without moving the other
-      // column.
-      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(31.5)
+      // Three long mobile summary counts wrap onto an additional compact row
+      // (28px pill + 2px row gap). The next card in that masonry column
+      // follows it without moving the other column.
+      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(29.5)
       expect(after[3]).toBeCloseTo(before[3]!, 0)
       await expect(
         page.getByRole("button", { name: /查看制作人名片 \d+ 正面/ })
@@ -250,13 +260,21 @@ test.describe("namecard mobile browsing", () => {
     ).toBeVisible()
     const mobileOrder: string[] = []
     await first.getByRole("button", { name: "查看制作人名片 1 正面" }).focus()
-    await page.keyboard.press("Tab")
-    await page.keyboard.press("Tab")
     for (let index = 0; index < 3; index += 1) {
+      // 轮播把背面滑轨和两枚切换圆点也放进 Tab 序列；继续按 Tab 直到进入反应摘要。
+      let insideSummary = false
+      for (let attempt = 0; attempt < 12 && !insideSummary; attempt += 1) {
+        await page.keyboard.press("Tab")
+        insideSummary = await page.evaluate(
+          () =>
+            document.activeElement?.closest('[aria-label="名片反应摘要"]') !==
+            null
+        )
+      }
+      expect(insideSummary).toBe(true)
       mobileOrder.push(
         (await page.evaluate(() => document.activeElement?.textContent)) ?? ""
       )
-      if (index < 2) await page.keyboard.press("Tab")
     }
     expect(mobileOrder).toEqual(["21", "13", "13"])
     await expectNamecardReactionDensity(page)

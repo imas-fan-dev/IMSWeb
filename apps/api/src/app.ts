@@ -36,6 +36,7 @@ import { registerAdminPlatformUserRoutes } from "@/domains/admin/platform-users/
 import { registerAdminStationMessageRoutes } from "@/domains/admin/station-messages/routes";
 import { registerAdminNamecardCharacterRoutes } from "@/domains/admin/namecard-characters/routes";
 import { registerAdminNamecardUnitRoutes } from "@/domains/admin/namecard-units/routes";
+import { registerAdminNamecardTagRoutes } from "@/domains/admin/namecard-tags/routes";
 import { registerAdminCatalogRoutes } from "@/domains/admin/catalog/routes";
 import { registerAboutRoutes } from "@/domains/content/about/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
@@ -279,6 +280,7 @@ export function createHonoApp<
     registerAdminStationMessageRoutes(app);
     registerAdminNamecardCharacterRoutes(app);
     registerAdminNamecardUnitRoutes(app);
+    registerAdminNamecardTagRoutes(app);
     registerAdminCatalogRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);

@@ -107,10 +107,14 @@ test.describe("namecard pagination", () => {
         const currentPage = Number(url.searchParams.get("page"))
         const pageSize = Number(url.searchParams.get("size"))
 
-        const response = makeNamecardPage([makeNamecard({ id: currentPage })], {
-          total: 80,
-          totalPage: Math.ceil(80 / pageSize),
-        })
+        const response = makeNamecardPage(
+          // 墙上的可访问名跟随公开卡号：第 N 页只有第 N 张。
+          [makeNamecard({ id: currentPage, cardNumber: currentPage })],
+          {
+            total: 80,
+            totalPage: Math.ceil(80 / pageSize),
+          }
+        )
         await route.fulfill({ status: 200, json: response })
       },
       "GET",

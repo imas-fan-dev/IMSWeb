@@ -50,6 +50,7 @@ import {
   normalizeNamecardCollectionOwners,
   normalizeNamecardCollectionPage,
   normalizeNamecardPage,
+  normalizePublicProfile,
 } from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
@@ -121,6 +122,7 @@ export function getPublicProfile(accountId: string) {
     apiPath(`/users/${encodeURIComponent(accountId)}`),
     parsed(publicProfileSchema, {
       errorSchema: namecardErrorResponseSchema,
+      select: normalizePublicProfile,
       cacheFor: NO_CLIENT_CACHE,
     })
   )
@@ -165,6 +167,8 @@ export interface NamecardWallListFilters {
   series?: readonly string[]
   group?: string
   character?: readonly number[]
+  /** 标签筛选：重复参数，词之间 OR（服务端最多 5 个）。 */
+  tags?: readonly string[]
   /** `all` = 【同时包含】。 */
   match?: "any" | "all"
   excludeOther?: boolean
@@ -193,6 +197,8 @@ function namecardWallSearch(
   for (const id of filters.character ?? []) {
     params.append("character", String(id))
   }
+  // 重复键：服务端按 OR 组合，每个词一个 EXISTS。
+  for (const tag of filters.tags ?? []) params.append("tags", tag)
   if (filters.match) params.set("match", filters.match)
   if (filters.excludeOther) params.set("excludeOther", "true")
   if (filters.excludeCross) params.set("excludeCross", "true")

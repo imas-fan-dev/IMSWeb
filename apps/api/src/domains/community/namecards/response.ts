@@ -40,6 +40,10 @@ import type {
     NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
+    NamecardTagError,
+    NamecardTagSetResponse as NamecardTagSetContract,
+    NamecardTagSuggestResponse as NamecardTagSuggestContract,
+    NamecardTagValidateResponse as NamecardTagValidateContract,
 } from '@imsweb/contracts/namecards';
 
 export type NamecardResponseId = number;
@@ -95,6 +99,12 @@ export type NamecardCardShareLinkResponse = NamecardCardShareLinkContract;
 /** 名片册的可见性切换只回一个确认标记。 */
 export type NamecardCollectionVisibilityResponse =
     NamecardCollectionVisibilityContract;
+/** 内联标签保存与候选的响应体。 */
+export type NamecardTagSetResponse = NamecardTagSetContract;
+export type NamecardTagSuggestResponse = NamecardTagSuggestContract;
+export type NamecardTagValidateResponse = NamecardTagValidateContract;
+/** 标签写入失败的业务错误（400/404/409/500 共用）。 */
+export type NamecardTagErrorResponse = NamecardTagError;
 
 
 interface NamecardRow {
@@ -130,6 +140,7 @@ interface NamecardRow {
     series_codes?: unknown;
     credits?: unknown;
     owner_account_id?: unknown;
+    tags?: unknown;
 }
 
 function responseId(value: unknown): NamecardResponseId {
@@ -195,6 +206,25 @@ function responseCredits(value: unknown): PublicNamecardResponse['credits'] {
         }));
 }
 
+function responseTags(
+    value: unknown
+): Array<{ name: string; presetId: number | null }> {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return [];
+        const name = 'name' in entry ? entry.name : undefined;
+        if (typeof name !== 'string' || name.trim() === '') return [];
+        const presetId = 'presetId' in entry ? entry.presetId : null;
+        return [{
+            name,
+            presetId:
+                typeof presetId === 'number' && Number.isSafeInteger(presetId)
+                    ? presetId
+                    : null
+        }];
+    });
+}
+
 function responseCreditRoles(
     value: unknown
 ): PublicNamecardResponse['credits'][number]['roles'] {
@@ -247,6 +277,7 @@ export function toPublicNamecardResponse(
         accent: responseOptionalString(row.accent),
         seriesCodes: responseStringList(row.series_codes),
         credits: responseCredits(row.credits),
+        tags: responseTags(row.tags),
         canEdit:
             typeof row.owner_account_id === 'string' &&
             row.owner_account_id === viewerAccountId,
@@ -319,7 +350,8 @@ export function toAdminNamecardDiffResponse(
         lockReason: record.lockReason,
         reviewReason: record.reviewReason,
         live: diffSide(record.live),
-        pending: record.pending ? diffSide(record.pending) : null
+        pending: record.pending ? diffSide(record.pending) : null,
+        tags: responseTags(record.tags)
     };
 }
 

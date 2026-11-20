@@ -540,6 +540,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     WEB_TARGET,
     "spa"
   ),
+  route("tags", "pages/admin/tags/index.tsx", "admin", WEB_TARGET, "spa"),
   route(
     "site-packages",
     "pages/admin/site-packages/index.tsx",

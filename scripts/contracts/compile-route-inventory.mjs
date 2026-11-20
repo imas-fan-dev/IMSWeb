@@ -11,6 +11,7 @@ const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "optio
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
 const BASELINE = { mountedMethodPaths: 294, carriers: 373, reject: 86, acceptAndProject: 186, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagSuggestQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardCollectionOwnersQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
@@ -28,6 +29,25 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogGroupKindRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/group-kind", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogBindingRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/wiki-bindings", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileImageParamsSchema", kind: "param", method: "GET", path: "/api/admin/catalog/profile-images/:kind/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagFreeQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/free", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPromoteRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/promote", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlockRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/block", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetMergeRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/blocklist/:id/remove-matches", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
@@ -175,15 +195,43 @@ function importedSchema(root, node) {
 function contractSchemaInitializer(root, imported) {
   if (!imported?.module.startsWith("@imsweb/contracts")) return undefined;
   const suffix = imported.module === "@imsweb/contracts" ? "index" : imported.module.slice("@imsweb/contracts/".length);
-  const sourcePath = [`${suffix}.ts`, path.join(suffix, "index.ts")]
+  const entry = [`${suffix}.ts`, path.join(suffix, "index.ts")]
     .map((candidate) => path.join(root, "packages/contracts/src", candidate))
     .find((candidate) => fs.existsSync(candidate));
-  if (!sourcePath) return undefined;
+  if (!entry) return undefined;
+  // 契约模块可以再导出拆分文件（如 namecards.ts 导出 namecard-tags.ts），
+  // 直接读源文件时要把这条链路走完，否则声明只在 dist 里、拿不到初始值。
+  for (const sourcePath of contractModuleSources(entry)) {
+    const initializer = variableInitializerIn(sourcePath, imported.name);
+    if (initializer) return initializer;
+  }
+  return undefined;
+}
+function contractModuleSources(entry) {
+  const seen = new Set([entry]);
+  const queue = [entry];
+  while (queue.length) {
+    const sourcePath = queue.shift();
+    const source = ts.createSourceFile(sourcePath, fs.readFileSync(sourcePath, "utf8"), ts.ScriptTarget.ES2022, true);
+    for (const statement of source.statements) {
+      if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      if (!specifier.startsWith(".")) continue;
+      const resolved = path.resolve(path.dirname(sourcePath), specifier.replace(/\.js$/, ".ts"));
+      if (fs.existsSync(resolved) && !seen.has(resolved)) {
+        seen.add(resolved);
+        queue.push(resolved);
+      }
+    }
+  }
+  return seen;
+}
+function variableInitializerIn(sourcePath, name) {
   const source = ts.createSourceFile(sourcePath, fs.readFileSync(sourcePath, "utf8"), ts.ScriptTarget.ES2022, true);
   for (const statement of source.statements) {
     if (!ts.isVariableStatement(statement)) continue;
     for (const declarationNode of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declarationNode.name) && declarationNode.name.text === imported.name) return declarationNode.initializer;
+      if (ts.isIdentifier(declarationNode.name) && declarationNode.name.text === name) return declarationNode.initializer;
     }
   }
   return undefined;

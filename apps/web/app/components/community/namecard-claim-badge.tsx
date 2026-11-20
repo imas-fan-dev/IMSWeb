@@ -23,15 +23,31 @@ function badgeClassName(
 /**
  * 认领优先于补充：已认领 > 认领审核中 > 补充审核中。
  * 认领人已注册时徽标链接到其主页；三种状态都没有就不渲染。
+ *
+ * `iconOnly` 给瓦片信息区用：已认领只留一个绿色盾牌图标（无文字、无链接），
+ * 审核中的徽标保持原文案 —— 审核中还没有可链接的主页。
  */
 export function NamecardClaimBadge({
   card,
   layout = "card",
+  iconOnly = false,
 }: {
   card: Namecard
   layout?: "card" | "inline"
+  iconOnly?: boolean
 }) {
   if (card.claimStatus === "claimed") {
+    if (iconOnly) {
+      return (
+        <span
+          className="inline-flex shrink-0 items-center text-success"
+          title="已由注册用户认领"
+        >
+          <ShieldCheckIcon aria-hidden="true" className="size-4" />
+          <span className="sr-only">已由注册用户认领</span>
+        </span>
+      )
+    }
     return (
       <Badge
         variant="outline"

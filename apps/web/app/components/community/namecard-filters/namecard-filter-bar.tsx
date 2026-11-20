@@ -37,6 +37,7 @@ import {
   type NamecardOwnerSelection,
 } from "./owner-filter-select"
 import { SeriesFilterSelect } from "./series-filter-select"
+import { TagFilterSelect } from "./tag-filter-select"
 
 /** 名片册 / 名片墙共用的筛选状态：纯值，不含两个「显示」开关（PRD §4）。 */
 export interface NamecardFilterValue {
@@ -51,6 +52,8 @@ export interface NamecardFilterValue {
   excludeOther: boolean
   seriesCodes: string[]
   group: string
+  /** 标签筛选：多选，词之间 OR；只有名片墙用。 */
+  tags: string[]
   /** 所属用户：只看该卡主名下的名片；`null` 表示不限。 */
   owner: NamecardOwnerSelection | null
   /** 【不含越境】：排除企划数为复数的名片。 */
@@ -70,6 +73,7 @@ export const DEFAULT_NAMECARD_FILTERS: NamecardFilterValue = {
   excludeOther: false,
   seriesCodes: [],
   group: "",
+  tags: [],
   owner: null,
   excludeCross: false,
   invert: false,
@@ -108,6 +112,7 @@ export function NamecardFilterBar({
   catalogLoading = false,
   disabled = false,
   showOwner = true,
+  showTags = false,
 }: {
   id?: string
   value: NamecardFilterValue
@@ -123,6 +128,8 @@ export function NamecardFilterBar({
    * 其余筛选两边共用。
    */
   showOwner?: boolean
+  /** 标签筛选只在名片墙出现（名片册没有这个查询参数）。 */
+  showTags?: boolean
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   // 清空筛选时换 key 重挂角色选择器，把它的搜索框、企划与分类也一起复位。
@@ -183,6 +190,17 @@ export function NamecardFilterBar({
             ) : null}
           </div>
         </Field>
+
+        {showTags ? (
+          <div className="min-w-0 md:w-80 lg:w-96">
+            <TagFilterSelect
+              id={`${id}-tags`}
+              value={value.tags}
+              disabled={disabled}
+              onChange={(tags) => onChange({ ...value, tags })}
+            />
+          </div>
+        ) : null}
 
         {showOwner ? (
           <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">

@@ -27,11 +27,15 @@ const apiMocks = vi.hoisted(() => ({
   sendPublicCard: vi.fn(),
   getNamecardReactions: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
+  getNamecardTagSuggestions: vi.fn(),
+  setNamecardCardTags: vi.fn(),
   addNamecardReaction: vi.fn(),
   requestCardExchange: vi.fn(),
   sendPage: vi.fn(),
   sendReactions: vi.fn(),
   sendCharacterCatalog: vi.fn(),
+  sendTagSuggestions: vi.fn(),
+  sendSetTags: vi.fn(),
   sendAddReaction: vi.fn(),
 }))
 
@@ -53,6 +57,8 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getNamecardPage: apiMocks.getNamecardPage,
     getPublicCard: apiMocks.getPublicCard,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
+    getNamecardTagSuggestions: apiMocks.getNamecardTagSuggestions,
+    setNamecardCardTags: apiMocks.setNamecardCardTags,
     requestCardExchange: apiMocks.requestCardExchange,
     getFudabaSeries: () => ({
       send: () =>
@@ -185,6 +191,7 @@ const baseWallFilters = {
   series: [] as string[],
   group: undefined,
   character: [] as number[],
+  tags: [] as string[],
   match: "any",
   excludeOther: false,
   excludeCross: false,
@@ -245,6 +252,14 @@ describe("CommunityCardsPage", () => {
     apiMocks.sendAddReaction.mockResolvedValue({ ok: true })
     apiMocks.getNamecardPage.mockReturnValue({ send: apiMocks.sendPage })
     apiMocks.getPublicCard.mockReturnValue({ send: apiMocks.sendPublicCard })
+    apiMocks.sendTagSuggestions.mockResolvedValue({ presets: [] })
+    apiMocks.getNamecardTagSuggestions.mockReturnValue({
+      send: apiMocks.sendTagSuggestions,
+    })
+    apiMocks.sendSetTags.mockResolvedValue({ tags: [] })
+    apiMocks.setNamecardCardTags.mockReturnValue({
+      send: apiMocks.sendSetTags,
+    })
     apiMocks.getNamecardReactions.mockReturnValue({
       send: apiMocks.sendReactions,
     })
@@ -349,7 +364,7 @@ describe("CommunityCardsPage", () => {
     expect(screen.queryByText("制作人名片 #459")).not.toBeInTheDocument()
   })
 
-  it("links a claimed card to the claimant's public page by uid", async () => {
+  it("links the producer name to the claimant's public page by uid", async () => {
     apiMocks.sendPage.mockResolvedValue({
       list: [
         {
@@ -408,9 +423,117 @@ describe("CommunityCardsPage", () => {
       </MemoryRouter>
     )
 
+    const producer = await screen.findByRole("link", { name: "天海春香" })
+    expect(producer).toHaveAttribute("href", "/user/7")
+    // 所有者只保留一个绿色盾牌图标：没有文字，也没有第二个主页链接。
+    expect(screen.getByText("已由注册用户认领")).toHaveClass("sr-only")
     expect(
-      await screen.findByRole("link", { name: "认领制作人" })
-    ).toHaveAttribute("href", "/user/7")
+      screen.queryByRole("link", { name: "认领制作人" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("renders a manual 1:1 carousel with in-frame dots and a multi-page corner badge", async () => {
+    const card = { ...pageResult([42]).list[0], pageCount: 3 }
+    apiMocks.sendPage.mockResolvedValue({ ...pageResult([42]), list: [card] })
+
+    renderPage()
+
+    const carousel = await waitFor(() => {
+      const element = document.querySelector('[data-namecard-carousel="multi"]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(carousel).toHaveClass("aspect-square")
+    expect(within(carousel).getByRole("button", { name: "查看正面" })).toBeVisible()
+    expect(within(carousel).getByRole("button", { name: "查看背面" })).toBeVisible()
+    expect(within(carousel).getByLabelText("共 3 页")).toBeVisible()
+    // 制作人名与日期在缩略图下方，所有者徽标不再有文字链接。
+    expect(screen.getByText("天海春香")).toBeVisible()
+    expect(screen.getByText("08-06 14:30")).toBeVisible()
+  })
+
+  it("appends a tile tag to the wall tag filter without duplicating it", async () => {
+    const user = userEvent.setup()
+    const card = {
+      ...pageResult([42]).list[0],
+      tags: [
+        { name: "偶像", presetId: null },
+        { name: "本家", presetId: 3 },
+      ],
+    }
+    apiMocks.sendPage.mockResolvedValue({ ...pageResult([42]), list: [card] })
+
+    renderPage()
+
+    await user.click(
+      await screen.findByRole("button", { name: "按标签 偶像 筛选" })
+    )
+
+    await waitFor(() =>
+      expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+        1,
+        12,
+        expect.objectContaining({ tags: ["偶像"] })
+      )
+    )
+    expect(
+      screen.getByRole("button", { name: "移除标签筛选 偶像" })
+    ).toBeVisible()
+
+    // 再点一次同一条不会追加第二个筛选词。
+    await user.click(screen.getByRole("button", { name: "按标签 偶像 筛选" }))
+    expect(
+      screen.getAllByRole("button", { name: "移除标签筛选 偶像" })
+    ).toHaveLength(1)
+  })
+
+  it("saves inline tag drafts through the tag endpoint and updates the tile", async () => {
+    const user = userEvent.setup()
+    sessionMocks.useOptionalPlatformSession.mockReturnValue({
+      status: "authenticated",
+      session: {
+        success: true,
+        account: { id: "platform-1", status: "active" },
+        profile: {
+          displayName: "春香P",
+          avatarUrl: null,
+          homeCity: null,
+          bio: "",
+        },
+      },
+      error: null,
+      acceptSession: vi.fn(),
+      reload: vi.fn(),
+      logout: vi.fn(),
+    })
+    const card = {
+      ...pageResult([42]).list[0],
+      tags: [{ name: "偶像", presetId: null }],
+    }
+    apiMocks.sendPage.mockResolvedValue({ ...pageResult([42]), list: [card] })
+    apiMocks.sendSetTags.mockResolvedValue({
+      tags: [
+        { name: "偶像", presetId: null },
+        { name: "新标签", presetId: null },
+      ],
+    })
+
+    renderPage()
+
+    await user.click(await screen.findByRole("button", { name: "添加标签" }))
+    await user.type(screen.getByRole("combobox", { name: "新标签" }), "新标签")
+    await user.keyboard("{Enter}")
+    await user.click(screen.getByRole("button", { name: "保存" }))
+
+    await waitFor(() =>
+      expect(apiMocks.setNamecardCardTags).toHaveBeenCalledWith("card-42", [
+        "偶像",
+        "新标签",
+      ])
+    )
+    expect(
+      await screen.findByRole("button", { name: "按标签 新标签 筛选" })
+    ).toBeVisible()
   })
 
   it("opens a deep-linked card that is not on the current page", async () => {
@@ -689,13 +812,13 @@ describe("CommunityCardsPage", () => {
       "/emoji/twemoji/2764.svg"
     )
     expect(reaction).toHaveClass(
-      "h-8",
-      "min-h-8",
-      "min-w-8",
+      "h-7",
+      "min-h-7",
+      "min-w-7",
       "gap-0.5",
       "rounded-full",
       "px-1",
-      "text-[11px]",
+      "text-[10px]",
       "md:min-w-0"
     )
     expect(reaction.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
@@ -716,9 +839,9 @@ describe("CommunityCardsPage", () => {
     expect(reactionGroup).toBeVisible()
     expect(reactionGroup.lastElementChild).toBe(addButton)
     expect(addButton).toHaveAttribute("title", "添加反应")
-    expect(addButton).toHaveClass("size-11", "rounded-full")
+    expect(addButton).toHaveClass("size-8", "rounded-full")
     const visibleCircle = addButton.querySelector("span")
-    expect(visibleCircle).toHaveClass("size-8", "rounded-full", "border-dashed")
+    expect(visibleCircle).toHaveClass("size-6", "rounded-full", "border-dashed")
     expect(addButton.querySelector("svg")).toHaveAttribute(
       "aria-hidden",
       "true"
@@ -810,8 +933,8 @@ describe("CommunityCardsPage", () => {
 
     const add = within(summary).getByRole("button", { name: "添加反应" })
     expect(add).toHaveAttribute("title", "添加反应")
-    expect(add).toHaveClass("max-md:hidden", "size-11")
-    expect(add.querySelector("span")).toHaveClass("size-8", "border-dashed")
+    expect(add).toHaveClass("max-md:hidden", "size-8")
+    expect(add.querySelector("span")).toHaveClass("size-6", "border-dashed")
     await user.click(add)
     expect(screen.getByText("选择反应")).toBeVisible()
     expect(screen.getAllByRole("button", { name: /，添加反应$/ })).toHaveLength(
@@ -1182,9 +1305,9 @@ describe("CommunityCardsPage", () => {
     expect(group).toHaveClass(
       "flex",
       "flex-wrap",
-      "min-h-8",
-      "gap-0.75",
-      "md:gap-1.5"
+      "min-h-7",
+      "gap-0.5",
+      "md:gap-1"
     )
     expect(group).not.toHaveClass("-mx-2", "md:mx-0")
     const chips = within(group).getAllByRole("button", { name: /次反应$/ })
@@ -1207,22 +1330,22 @@ describe("CommunityCardsPage", () => {
     ])
     for (const chip of chips) {
       expect(chip).toHaveClass(
-        "h-8",
-        "min-h-8",
-        "min-w-8",
+        "h-7",
+        "min-h-7",
+        "min-w-7",
         "shrink-0",
         "gap-0.5",
         "rounded-full",
         "border-border",
         "bg-background",
         "px-1",
-        "text-[11px]",
+        "text-[10px]",
         "tabular-nums",
         "max-md:focus-visible:ring-inset",
         "md:min-w-0",
-        "md:gap-1.5",
-        "md:px-3",
-        "md:text-sm"
+        "md:gap-0.5",
+        "md:px-1.5",
+        "md:text-xs"
       )
       expect(chip).not.toHaveClass(
         "min-h-11",
@@ -1404,9 +1527,7 @@ describe("CommunityCardsPage", () => {
         "rounded-lg",
         "overflow-hidden",
         "self-start",
-        "md:h-full",
         "md:gap-0",
-        "md:self-stretch",
         "md:bg-muted/50",
         "max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start)",
         "max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end)",
@@ -1433,31 +1554,27 @@ describe("CommunityCardsPage", () => {
       const header = item.querySelector('[data-slot="card-header"]')!
       expect(header).toHaveClass(
         "flex",
-        "flex-wrap",
-        "items-center",
-        "gap-x-2",
-        "gap-y-1",
+        "flex-col",
+        "items-stretch",
+        "gap-0.5",
         "px-1.5",
-        "md:min-h-8",
         "md:px-4"
       )
-      expect(header.querySelector("svg")).toHaveClass("max-md:hidden")
+      // 第一行是制作人名（自适应字号），第二行是创建日期。
+      expect(header.querySelector("[data-slot=card-description] time")).not.toBeNull()
       const faces = within(item).getAllByRole("button", {
         name: /^查看制作人名片/,
       })
       expect(faces).toHaveLength(2)
       expect(faces[0].parentElement).toHaveClass(
-        "grid",
-        "gap-1",
-        "md:mb-4",
-        "md:grid-cols-2",
-        "md:border-b",
-        "md:bg-border"
+        "flex",
+        "size-full",
+        "will-change-transform"
       )
       for (const face of faces) {
         expect(face).not.toHaveClass("hidden")
-        expect(face).toHaveClass("aspect-3/2", "min-h-11", "rounded-none")
-        expect(face).not.toHaveClass("rounded-md")
+        expect(face).toHaveClass("relative", "size-full", "shrink-0")
+        expect(face).not.toHaveClass("aspect-3/2")
         expect(face.closest('[data-slot="card"]')).toBe(item)
         expect(face.querySelector("img")).toHaveClass("object-contain")
       }
@@ -1474,13 +1591,15 @@ describe("CommunityCardsPage", () => {
         footer
       )
     }
-    expect(screen.getByText("风晓星落P").closest('[data-slot="card"]')).toBe(
-      items[0]
+    // 已认领只留绿色图标：claimerName 不再作为文字/链接出现在瓦片上。
+    expect(screen.queryByText("风晓星落P")).toBeNull()
+    const ownerIcon = within(items[0]).getByText("已由注册用户认领")
+    expect(ownerIcon).toHaveClass("sr-only")
+    expect(ownerIcon.parentElement).toHaveClass("text-success")
+    // 所有者图标与制作人名同一行，仍在信息区里。
+    expect(ownerIcon.closest('[data-slot="card-header"]')).toBe(
+      items[0].querySelector('[data-slot="card-header"]')
     )
-    expect(screen.queryByText("已由 风晓星落P 认领")).not.toBeInTheDocument()
-    const claimedBadge = screen
-      .getByText("风晓星落P")
-      .closest('[data-slot="badge"]')!
     const claimPlacement = [
       "ml-auto",
       "h-auto",
@@ -1492,18 +1611,9 @@ describe("CommunityCardsPage", () => {
       "md:px-2.5",
       "md:whitespace-nowrap",
     ]
-    expect(claimedBadge).toHaveClass(
-      ...claimPlacement,
-      "md:text-muted-foreground"
-    )
-    expect(claimedBadge).not.toHaveClass("bg-secondary")
-    // The claim control shares the metadata row on mobile and desktop alike.
-    expect(claimedBadge.closest('[data-slot="card-header"]')).toBe(
-      items[0].querySelector('[data-slot="card-header"]')
-    )
     expect(
-      screen.getByText("已由注册用户认领").closest('[data-slot="card"]')
-    ).toBe(items[3])
+      within(items[3]).getByText("已由注册用户认领")
+    ).toBeInTheDocument()
     expect(
       screen.getByText("认领审核中").closest('[data-slot="badge"]')!
     ).toHaveClass(...claimPlacement)
@@ -1570,6 +1680,7 @@ describe("CommunityCardsPage", () => {
     expect(
       screen.getByRole("textbox", { name: "制作人名称" })
     ).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "标签筛选" })).toBeVisible()
   })
 
   it("passes every wall filter and resets the page on change", async () => {

@@ -8,7 +8,7 @@ import {
     parseMediaRotations
 } from '@/domains/community/fudaba/cards/request';
 import { deleteObjectWithCompensation } from '@/utils/storage/delete-object';
-import { fudabaRepository, services } from '@/middleware/hono-context';
+import { fudabaRepository, namecardTagRepository, services } from '@/middleware/hono-context';
 import type { UploadedFile } from '@/ports/http';
 import type {
     FudabaCardMutationResult,
@@ -58,6 +58,7 @@ export async function handleCreateFudabaCard(
             throw Object.assign(new Error('必须上传名片正面'), { status: 400 });
         }
         const fields = parseFudabaCardCreateFields(upload.fields);
+        const { tags, ...cardFields } = fields;
         // 旋转和上传同一次保存：写入前转好，revision 只由这次创建产生。
         const rotations = parseMediaRotations(upload.fields.rotations);
         const frontImage = await convertUserImageToWebp(
@@ -186,7 +187,7 @@ export async function handleCreateFudabaCard(
             result = await repository.createCardForOwner({
                 id: cardId,
                 ownerAccountId,
-                ...fields,
+                ...cardFields,
                 pages,
                 accent,
                 createdAt: now,
@@ -216,6 +217,13 @@ export async function handleCreateFudabaCard(
                     );
                 })
             ) {
+                // 幂等恢复也要补标签：创建提交成功但标签写入失败时重试仍能收敛。
+                if (tags !== undefined) {
+                    recovered.tags = await namecardTagRepository(c).replace({
+                        cardId,
+                        names: tags,
+                    });
+                }
                 const recoveredArtwork = ownerCardArtwork(recovered, {
                     live: recovered.pages,
                     pending: recovered.pending_pages ?? []
@@ -239,6 +247,13 @@ export async function handleCreateFudabaCard(
             return c.json({ success: false, code: 'FUDABA_CARD_UNAVAILABLE' }, 409);
         }
         cleanupCreatedObjects = false;
+        // 标签即时生效：内容已落库后再整组替换，不进审核载荷。
+        if (tags !== undefined) {
+            result.card.tags = await namecardTagRepository(c).replace({
+                cardId,
+                names: tags,
+            });
+        }
         const savedArtwork = ownerCardArtwork(result.card, {
             live: result.card.pages,
             pending: result.card.pending_pages ?? []

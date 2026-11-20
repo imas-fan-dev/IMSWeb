@@ -78,6 +78,7 @@ function draft(overrides: Partial<WallCardDraft> = {}): WallCardDraft {
     madeOn: null,
     seriesCodes: [],
     favoriteCharacterIds: [],
+    tags: [],
     ...overrides,
   }
 }
@@ -215,6 +216,7 @@ describe("wallCardDraftFromCard", () => {
       madeOn: null,
       seriesCodes: [],
       favoriteCharacterIds: [],
+      tags: [],
     })
   })
 
@@ -239,10 +241,38 @@ describe("wallCardDraftFromCard", () => {
       madeOn: "2025-10-07",
       seriesCodes: ["765", "cg"],
       favoriteCharacterIds: [1, 3],
+      tags: [],
     })
     // The draft owns its array: later wall edits must not mutate the card.
     seriesCodes.push("ml")
     expect(result.seriesCodes).toEqual(["765", "cg"])
+  })
+
+  it("carries the saved tag names and defaults a card without tags", () => {
+    const withTags = wallCardDraftFromCard({
+      producerName: "春香P",
+      producerReading: null,
+      groupName: null,
+      madeOn: null,
+      seriesCodes: [],
+      favoriteCharacters: [],
+      tags: [
+        { name: "765", presetId: 3 },
+        { name: "旧卡", presetId: null },
+      ],
+    })
+
+    expect(withTags.tags).toEqual(["765", "旧卡"])
+    expect(
+      wallCardDraftFromCard({
+        producerName: "春香P",
+        producerReading: null,
+        groupName: null,
+        madeOn: null,
+        seriesCodes: [],
+        favoriteCharacters: [],
+      }).tags
+    ).toEqual([])
   })
 })
 
@@ -326,6 +356,27 @@ describe("wallCardPayload", () => {
         twoSeries
       )
     ).toEqual({})
+  })
+
+  it("sends tags only when the list changed, for both window modes", () => {
+    const tagged = draft({ ...live, tags: ["765"] })
+
+    expect(wallCardPayload("claim", tagged, tagged)).toEqual({})
+    expect(wallCardChanged("claim", tagged, tagged)).toBe(false)
+
+    const added = { ...tagged, tags: ["765", "娘"] }
+    expect(wallCardPayload("claim", added, tagged)).toEqual({
+      tags: ["765", "娘"],
+    })
+    expect(wallCardPayload("supplement", added, tagged)).toEqual({
+      tags: ["765", "娘"],
+    })
+    expect(wallCardChanged("supplement", added, tagged)).toBe(true)
+
+    // 清空也要提交，否则服务端会保留旧标签。
+    expect(wallCardPayload("claim", { ...tagged, tags: [] }, tagged)).toEqual({
+      tags: [],
+    })
   })
 })
 
@@ -414,6 +465,28 @@ describe("NamecardWallFields", () => {
     expect(screen.getByRole("group", { name: "担当角色候选" })).toBeTruthy()
     // Only the series field keeps its required marker.
     expect(screen.getAllByText("*")).toHaveLength(1)
+  })
+
+  it("edits tags in place and reports the chip removal on the draft", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderFields({ initial: draft({ tags: ["765", "旧卡"] }), onChange })
+
+    const tags = within(screen.getByRole("group", { name: "名片标签" }))
+    expect(tags.getByText("765")).toBeVisible()
+    expect(tags.getByText("旧卡")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "删除标签 旧卡" }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["765"] })
+    )
+
+    await user.click(screen.getByRole("button", { name: "添加标签" }))
+    await user.type(screen.getByRole("combobox", { name: "新标签" }), "新标签")
+    await user.keyboard("{Enter}")
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["765", "新标签"] })
+    )
   })
 
   it("reports the text edits, normalising the reading and clearing the group", async () => {

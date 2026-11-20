@@ -16,6 +16,8 @@ import {
     namecardQuickSelectionSchema,
     namecardScanSessionRequestSchema,
     namecardScanTokenParamsSchema,
+    namecardTagCardParamsSchema,
+    namecardTagSetRequestSchema,
 } from '@imsweb/contracts/namecards';
 import {
     handleGetCardLayout,
@@ -33,6 +35,7 @@ import {
     handlePutQuickSettings,
 } from '@/domains/community/namecards/exchange/handlers/quick-settings';
 import { handleRequestCard } from '@/domains/community/namecards/exchange/handlers/request-card';
+import { handleReplaceNamecardTags } from '@/domains/community/namecards/exchange/handlers/replace-card-tags';
 import {
     handleCommitScanSession,
     handleCreateScanSession,
@@ -108,6 +111,8 @@ const exchangeHistoryQuery = querySchemaValidator(namecardExchangeHistoryQuerySc
 const quickCandidatesQuery = querySchemaValidator(namecardQuickCandidatesQuerySchema, {
     invalidMessage: '目标用户标识无效',
 });
+/** 标签写入只要登录会话（设计明确），因此不从 `write` 继承 CSRF 等写护栏。 */
+const tagWrite = [platformAuth] as const;
 
 export function namecardExchangeRoutes(): ImsCapabilityRouter {
     const routes = createCapabilityRouter();
@@ -118,6 +123,20 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
 
     // 墙上直接发起；快速交换页先看清单再一次收下。
     routes.post('/exchange/cards/:cardNumber/request', ...write, cardParam, commitBody, handleRequestCard);
+
+    // 墙 / 详情窗的内联标签保存：登录用户可改任意名片的标签，匿名只读。
+    // 标签即时生效，因此不受名片内容审核约束；设计只要求 `platformAuth`。
+    routes.put(
+        '/exchange/cards/:cardId/tags',
+        ...tagWrite,
+        paramSchemaValidator(namecardTagCardParamsSchema, {
+            invalidMessage: '名片 ID 无效',
+        }),
+        jsonSchemaValidator(namecardTagSetRequestSchema, {
+            invalidMessage: '标签无效',
+        }),
+        handleReplaceNamecardTags,
+    );
     routes.get('/exchange/quick/:handle', optionalPlatformAuth, handleParam, handleGetQuickExchange);
     routes.post('/exchange/quick/:handle/commit', ...write, handleParam, commitBody, handleCommitQuickExchange);
 

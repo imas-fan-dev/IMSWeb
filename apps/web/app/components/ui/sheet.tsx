@@ -59,7 +59,7 @@ function SheetContent({
   const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     dragState.current = { startY: event.clientY, pointerId: event.pointerId }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
   }
   const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const state = dragState.current
@@ -74,8 +74,8 @@ function SheetContent({
     const popup = popupRef.current
     dragState.current = null
     if (!state || !popup || state.pointerId !== event.pointerId) return
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
     }
     const offset = Math.max(0, event.clientY - state.startY)
     if (offset > 96) {

@@ -13,6 +13,9 @@ export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
 const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     REQUIRED_POSTGRESQL_SCHEMA_VERSION,
     '20261105120000_platform_profile_slug_not_numeric',
+    // Tags write/read columns the wall and card editor rely on; a deployment
+    // that skipped the additive migration would fail on first use.
+    '20261120120000_namecard_tags',
 ] as const;
 
 export class PostgresqlSchemaStrategy implements SqlSchemaStrategy {

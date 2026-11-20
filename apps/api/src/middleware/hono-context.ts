@@ -10,6 +10,7 @@ import type {
     FudabaRepository,
     NamecardRepository,
     NamecardCharacterRepository,
+    NamecardTagRepository,
     NamecardUnitRepository,
     NewsRepository,
     PlatformAccountRepository,
@@ -83,6 +84,12 @@ export function namecardCharacterRepository(
     c: Context<AppEnvironment>
 ): NamecardCharacterRepository {
     return requireRepository(c, 'namecardCharacters');
+}
+
+export function namecardTagRepository(
+    c: Context<AppEnvironment>
+): NamecardTagRepository {
+    return requireRepository(c, 'namecardTags');
 }
 
 export function namecardUnitRepository(

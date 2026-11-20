@@ -16,6 +16,7 @@ import {
 } from "@/utils/storage/business-object-keys";
 import { namecardSortKey } from "@/utils/sorting/namecard-sort-key";
 import { syncNamecardPages } from "@/infra/db/repositories/namecard-page-sync";
+import { SqlNamecardTagRepository } from "@/infra/db/repositories/namecard-tag-repository";
 import type {
     AuditLogInput,
     CardFavoriteSelectionRecord,
@@ -657,6 +658,7 @@ function cardRecord(row: FudabaCardRow): FudabaCardRecord {
         pending_pages: [],
         middle_object_keys: [],
         credits: [],
+        tags: [],
         legacy_card_id:
             row.legacy_card_id === null ? null : Number(row.legacy_card_id),
         review_submitted_at: nullableTimestampValue(row.review_submitted_at),
@@ -1004,11 +1006,14 @@ const CONTRIBUTION_LEADER_SQL = `SELECT event.account_id AS account_id,
 export class SqlFudabaRepository implements FudabaRepository {
     private initialized?: Promise<void>;
     private writeTail: Promise<void> = Promise.resolve();
+    private readonly tagRepository: SqlNamecardTagRepository;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
         private readonly schema: SqlSchemaStrategy,
-    ) {}
+    ) {
+        this.tagRepository = new SqlNamecardTagRepository(database);
+    }
 
     initialize(): Promise<void> {
         this.initialized ??= this.schema.initializeFudaba(this.database);
@@ -1298,12 +1303,13 @@ export class SqlFudabaRepository implements FudabaRepository {
         },
     >(database: SqlDatabase, records: readonly Record[]): Promise<Record[]> {
         const ids = records.map((record) => record.id);
-        const [characters, pagesByCard, credits, seriesCodes] =
+        const [characters, pagesByCard, credits, seriesCodes, tags] =
             await Promise.all([
                 this.listCardFavoritesFrom(database, ids),
                 this.listCardPagesFrom(database, ids),
                 this.listCardCreditsFrom(database, ids),
                 this.listCardSeriesFrom(database, ids),
+                this.tagRepository.listForCards(ids),
             ]);
         return records.map((record) => {
             const pages = pagesByCard.get(record.id) ?? {
@@ -1327,6 +1333,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     ),
                 credits: credits.get(record.id) ?? [],
                 series_codes: seriesCodes.get(record.id) ?? [],
+                tags: tags.get(record.id) ?? [],
             } as Record;
         });
     }
@@ -5409,6 +5416,34 @@ export class SqlFudabaRepository implements FudabaRepository {
                              ON CONFLICT (card_id, emoji)
                              DO UPDATE SET count=namecard_reactions.count+EXCLUDED.count`,
                                 [updated.id, ownerless.id],
+                            );
+                        }
+                        if (ownerless) {
+                            // 标签随认领并入目标名片：并集、按归一化去重、最多 20 个
+                            // （与编辑器上限一致）。目标已有标签保留原顺序。
+                            await executeSql(
+                                database,
+                                `INSERT INTO namecard_tags (card_id, name, normalized, preset_id, display_order)
+                                 SELECT ?, merged.name, merged.normalized, merged.preset_id,
+                                        merged.base + merged.rn
+                                   FROM (
+                                        SELECT name, normalized, preset_id,
+                                               COALESCE(
+                                                   (SELECT MAX(display_order)
+                                                      FROM namecard_tags
+                                                     WHERE card_id = ?),
+                                                   -1
+                                               ) AS base,
+                                               ROW_NUMBER() OVER (ORDER BY display_order, normalized) AS rn,
+                                               (SELECT COUNT(*)
+                                                  FROM namecard_tags
+                                                 WHERE card_id = ?) AS existing
+                                          FROM namecard_tags
+                                         WHERE card_id = ?
+                                   ) merged
+                                  WHERE merged.rn <= 20 - merged.existing
+                                 ON CONFLICT (card_id, normalized) DO NOTHING`,
+                                [updated.id, updated.id, updated.id, ownerless.id],
                             );
                         }
                         // The legacy card now lives twice: once on the

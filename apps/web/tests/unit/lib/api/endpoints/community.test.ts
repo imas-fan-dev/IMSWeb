@@ -134,6 +134,7 @@ describe("getNamecardPage", () => {
       series: ["765", "cg"],
       group: "765PRO",
       character: [1, 2],
+      tags: ["偶像", "本家"],
       match: "all",
       excludeOther: true,
       excludeCross: true,
@@ -151,6 +152,7 @@ describe("getNamecardPage", () => {
     expect(url.searchParams.getAll("series")).toEqual(["765", "cg"])
     expect(url.searchParams.get("group")).toBe("765PRO")
     expect(url.searchParams.getAll("character")).toEqual(["1", "2"])
+    expect(url.searchParams.getAll("tags")).toEqual(["偶像", "本家"])
     expect(url.searchParams.get("match")).toBe("all")
     expect(url.searchParams.get("excludeOther")).toBe("true")
     expect(url.searchParams.get("excludeCross")).toBe("true")
@@ -177,6 +179,7 @@ describe("getNamecardPage", () => {
       "series",
       "group",
       "character",
+      "tags",
       "match",
       "excludeOther",
       "excludeCross",

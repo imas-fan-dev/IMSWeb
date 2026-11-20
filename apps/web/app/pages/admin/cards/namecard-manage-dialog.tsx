@@ -101,6 +101,16 @@ export function fieldsFromSide(side: NamecardDiffSide): FudabaCardFields {
   }
 }
 
+/**
+ * 标签即时生效，契约把它们挂在 diff 根上而不是 live/pending 两版内容里；
+ * 管理窗把标签当作草稿字段之一，保存时随资料一起提交。
+ */
+export function tagsFromDiff(
+  card: Pick<AdminNamecardDiff, "tags">
+): string[] {
+  return (card.tags ?? []).map((tag) => tag.name)
+}
+
 /** Front, middle pages, then back — the same order the server stores. */
 export function slotsFromSide(side: NamecardDiffSide): MediaSlot[] {
   // 页面行是唯一来源；index 用页面顺序，保证 media_order 的 `#i` 语义不变。
@@ -128,6 +138,7 @@ const FIELD_LABELS: Record<string, string> = {
   seriesCodes: "企划",
   favoriteCharacterIds: "担当角色",
   credits: "创作人员",
+  tags: "标签",
   exchangeMode: "交换方式",
 }
 
@@ -292,7 +303,7 @@ export function NamecardManageDialog({
       .then(([card, catalog]) => {
         if (!active) return
         const display = manageDisplaySide(card)
-        const fields = fieldsFromSide(display)
+        const fields = { ...fieldsFromSide(display), tags: tagsFromDiff(card) }
         setDiff(card)
         setSeries(catalog.items)
         setDraft(fields)
@@ -385,7 +396,7 @@ export function NamecardManageDialog({
 
   function applyCard(card: AdminNamecardDiff) {
     const display = manageDisplaySide(card)
-    const fields = fieldsFromSide(display)
+    const fields = { ...fieldsFromSide(display), tags: tagsFromDiff(card) }
     setDiff(card)
     setDraft(fields)
     setOriginal(fields)

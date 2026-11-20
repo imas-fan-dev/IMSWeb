@@ -269,6 +269,7 @@ function RequestContent({
       */}
       <NamecardDetailDialog
         readOnly
+        showTags={false}
         card={inspected}
         onOpenChange={(open) => {
           if (!open) setInspected(null)

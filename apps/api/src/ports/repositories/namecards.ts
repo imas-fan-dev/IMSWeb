@@ -4,6 +4,7 @@ import type {
     FudabaCardPageWrite,
     NamecardFeedbackReason
 } from '@/ports/repositories/fudaba';
+import type { NamecardTagRecord } from '@/ports/repositories/namecard-tags';
 
 export type NamecardSubmissionKind = 'guest' | 'legacy';
 
@@ -82,6 +83,8 @@ export interface NamecardDiffRecord {
     reviewReason: string | null;
     live: NamecardDiffSide;
     pending: NamecardDiffSide | null;
+    /** 标签即时生效、不进 diff；管理窗单独展示。 */
+    tags: NamecardTagRecord[];
 }
 
 export type NamecardLifecycleStatus =
@@ -178,6 +181,8 @@ export type NamecardSubmissionStatus =
 export interface NamecardSubmissionRecord extends CardMediaRecord {
     id: number;
     status: NamecardSubmissionStatus;
+    /** 标签即时生效；读取侧批量补齐，缺省按空数组处理。 */
+    tags?: NamecardTagRecord[];
     /** 团体名片：制作人名称为空时由团体名称派生。 */
     is_group_card?: boolean;
     revision: number;
@@ -490,6 +495,8 @@ export interface NamecardWallQueryRecord {
     seriesCodes?: readonly string[];
     /** 所属团体（`groupName`）不区分大小写的子串匹配。 */
     groupName?: string;
+    /** 标签筛选（已归一化）：任一词命中即保留（OR），每个词一个 EXISTS。 */
+    tags?: readonly string[];
     /** 担当角色筛选；`match` 决定「或」还是「同时包含」。 */
     characterIds?: readonly number[];
     /** `all` = 【同时包含】。 */
