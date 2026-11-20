@@ -50,6 +50,7 @@ import {
   normalizeNamecardCollectionOwners,
   normalizeNamecardCollectionPage,
   normalizeNamecardPage,
+  normalizePublicProfile,
 } from "../media-urls"
 import { parsed } from "../parsed"
 import { apiClient } from "../client"
@@ -121,6 +122,7 @@ export function getPublicProfile(accountId: string) {
     apiPath(`/users/${encodeURIComponent(accountId)}`),
     parsed(publicProfileSchema, {
       errorSchema: namecardErrorResponseSchema,
+      select: normalizePublicProfile,
       cacheFor: NO_CLIENT_CACHE,
     })
   )

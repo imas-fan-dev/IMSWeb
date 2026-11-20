@@ -68,11 +68,13 @@ import type {
   FudabaRegisteredCardReview,
 } from "@imsweb/contracts/fudaba/card-claims"
 import type {
+  MyPlatformAccounts,
   Namecard,
   NamecardCollectionOwners,
   NamecardCollectionPage,
   NamecardPage,
   NamecardQuickSettings,
+  PublicProfile,
 } from "@imsweb/contracts/namecards"
 import type {
   PlatformProfileMutationResponse,
@@ -456,6 +458,33 @@ function namecard(card: Namecard): Namecard {
 }
 
 /** 单张公开名片与列表项共用同一套图片地址归一。 */
+/**
+ * 属主资料页的平台目录：上传的图标由 API 以站内路径返回，打包端要带上
+ * API origin；CDN 回退本身是绝对地址，保持原样。
+ */
+export function normalizeMyPlatformAccounts(
+  response: MyPlatformAccounts
+): MyPlatformAccounts {
+  return {
+    ...response,
+    catalog: response.catalog.map((kind) => ({
+      ...kind,
+      iconUrl: nullableMediaUrl(kind.iconUrl),
+    })),
+  }
+}
+
+/** 公开主页的平台链接与属主侧共用同一个图标字段。 */
+export function normalizePublicProfile(profile: PublicProfile): PublicProfile {
+  return {
+    ...profile,
+    accounts: profile.accounts.map((account) => ({
+      ...account,
+      iconUrl: nullableMediaUrl(account.iconUrl),
+    })),
+  }
+}
+
 export function normalizeNamecard(card: Namecard): Namecard {
   return namecard(card)
 }
