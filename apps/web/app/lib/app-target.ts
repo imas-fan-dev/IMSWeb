@@ -37,12 +37,9 @@ export const APP_STICKY_HEADER_OFFSET = "top-[var(--app-header-inset)]"
 /**
  * Where a floating control has to sit in the app build to clear the tab bar.
  *
- * Derived from the capsule geometry in `components/app/app-tab-bar.tsx`: its
- * bottom edge floats at `max(1.5rem, env(safe-area-inset-bottom) - 9px)`, i.e.
- * at least 24px above the screen edge, and the capsule is 58px tall (4px pad +
- * a 50px row + 4px pad). So its top edge never falls below 82px, and 6rem (96px)
- * leaves a 14px gap. Same budget as `APP_TAB_BAR_CLEARANCE`'s 5.25rem, plus the
- * gap a floating control needs to read as floating rather than docked.
+ * The capsule is 58px tall and sits at least 24px above the screen edge.
+ * On Android it can sit higher to clear the system navigation bar. The app
+ * shell adds the safe-area inset to both content and floating-control clearance.
  *
  * This lives here rather than beside the capsule because the wiki controls that
  * need it are shared with the web build: they already import `IS_APP_TARGET`

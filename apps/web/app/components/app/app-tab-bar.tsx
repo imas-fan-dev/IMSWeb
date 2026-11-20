@@ -67,13 +67,13 @@ export const APP_TAB_BAR_CLEARANCE = "pb-[var(--app-bottom-clearance)]"
  * screenshot of Files on an iPhone 17 Pro (874pt tall, 34pt bottom inset):
  * a 58pt capsule whose bottom edge sits 25pt above the screen edge, i.e. 9pt
  * *inside* the safe-area inset rather than stacked on top of it.
- *
- * The Android WebView reports a zero bottom inset unless the activity opts into
- * edge-to-edge, so the floor is not decoration: at 12px the capsule sat on top
- * of the gesture handle on a Pixel emulator. 24px clears it and lands within a
- * pixel of what iOS computes from its own inset.
  */
-const BAR_OFFSET = "bottom-[max(1.5rem,calc(var(--safe-area-bottom)-9px))]"
+const BAR_OFFSET =
+  "inset-x-0 bottom-[max(1.5rem,calc(var(--safe-area-bottom)-9px))]"
+// Android's system navigation can cover the WebView. Keep the capsule and its
+// raised Exchange button entirely clear of that area, with room for the ring.
+const ANDROID_BAR_OFFSET =
+  "right-(--safe-area-right) bottom-[max(1.5rem,calc(var(--safe-area-bottom)+0.5rem))] left-(--safe-area-left)"
 
 const NATIVE_TAB_BAR_SELECTED_COLOR = {
   red: 1,
@@ -118,10 +118,12 @@ const EXCHANGE_SUB_ACTION_DISABLED: Record<
 > = { qr: false, nfc: true, group: true }
 
 function ExchangeActionButton({
+  android,
   open,
   onToggle,
   onOpenQr,
 }: {
+  android: boolean
   open: boolean
   onToggle: () => void
   onOpenQr: () => void
@@ -132,18 +134,32 @@ function ExchangeActionButton({
         id="exchange-action-menu"
         aria-hidden={open ? undefined : true}
         inert={!open}
-        className="pointer-events-none absolute bottom-[calc(50%+2rem)] left-1/2 size-0"
+        className={cn(
+          "pointer-events-none absolute left-1/2",
+          android
+            ? "app-android-exchange-arc"
+            : "bottom-[calc(50%+2rem)] size-0"
+        )}
       >
         {EXCHANGE_SUB_ACTIONS.map((action, index) => {
           const disabled = EXCHANGE_SUB_ACTION_DISABLED[action.id]
           const Icon = action.icon
+          const color = disabled
+            ? "bg-muted text-muted-foreground ring-foreground/10"
+            : android
+              ? "bg-accent text-accent-foreground ring-primary/25"
+              : "bg-card text-primary"
           return (
             <span
               key={action.id}
-              className="absolute bottom-0 left-0"
-              style={{
-                transform: `translate(calc(-50% + ${action.x}px), ${action.y}px)`,
-              }}
+              className={android ? "contents" : "absolute bottom-0 left-0"}
+              style={
+                android
+                  ? undefined
+                  : {
+                      transform: `translate(calc(-50% + ${action.x}px), ${action.y}px)`,
+                    }
+              }
             >
               <button
                 type="button"
@@ -157,29 +173,45 @@ function ExchangeActionButton({
                 }}
                 className={cn(
                   "group flex flex-col items-center gap-1.5 outline-none",
+                  android && [
+                    "min-w-0 focus-visible:rounded-2xl focus-visible:outline-2 focus-visible:outline-ring",
+                    index === 1 && "relative -top-13",
+                  ],
                   "transition-[scale,translate,opacity] duration-420 ease-interactive motion-reduce:transition-none",
                   open
                     ? "pointer-events-auto translate-y-0 scale-100"
                     : "pointer-events-none translate-y-3 scale-50",
-                  open ? (disabled ? "opacity-60" : "opacity-100") : "opacity-0"
+                  open
+                    ? disabled && !android
+                      ? "opacity-60"
+                      : "opacity-100"
+                    : "opacity-0"
                 )}
               >
                 <span
                   className={cn(
-                    "grid size-14 place-items-center rounded-full shadow-[0_12px_26px_-14px_rgb(0_0_0/0.55)] ring-1 transition-colors",
-                    disabled
-                      ? "bg-muted text-muted-foreground ring-foreground/10"
-                      : "bg-card text-primary ring-primary/20"
+                    "grid place-items-center rounded-full transition-colors",
+                    android
+                      ? "size-13"
+                      : "size-14 shadow-[0_12px_26px_-14px_rgb(0_0_0/0.55)] ring-1",
+                    color,
+                    !disabled &&
+                      (android ? "shadow-sm ring-1" : "ring-primary/20")
                   )}
                 >
-                  <Icon aria-hidden="true" className="size-6" />
+                  <Icon
+                    aria-hidden="true"
+                    className={android ? "size-7" : "size-6"}
+                  />
                 </span>
                 <span
                   className={cn(
-                    "rounded-full px-2.5 py-1 text-[0.6875rem] leading-none font-semibold whitespace-nowrap ring-1",
-                    disabled
-                      ? "bg-muted text-muted-foreground ring-foreground/10"
-                      : "bg-card text-primary ring-primary/25"
+                    "rounded-full py-1 font-semibold",
+                    android
+                      ? "max-w-full px-2 text-center text-xs/tight wrap-anywhere"
+                      : "px-2.5 text-[0.6875rem] leading-none whitespace-nowrap ring-1",
+                    color,
+                    !android && !disabled && "ring-primary/25"
                   )}
                 >
                   {action.label}
@@ -195,7 +227,12 @@ function ExchangeActionButton({
         aria-controls="exchange-action-menu"
         aria-label={open ? "收起名片交换菜单" : "打开名片交换菜单"}
         onClick={onToggle}
-        className="absolute top-1/2 left-1/2 z-10 grid size-16 -translate-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none"
+        className={cn(
+          "absolute top-1/2 left-1/2 z-10 grid size-16 -translate-1/2 place-items-center rounded-full shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none",
+          android && open
+            ? "bg-accent text-accent-foreground"
+            : "bg-primary text-primary-foreground"
+        )}
       >
         <span
           className={cn(
@@ -211,8 +248,9 @@ function ExchangeActionButton({
         <XIcon
           aria-hidden="true"
           className={cn(
-            "absolute size-5 transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
-            open ? "scale-100 opacity-100" : "-rotate-90 scale-75 opacity-0"
+            "absolute transition-[rotate,scale,opacity] duration-300 ease-out motion-reduce:transition-none",
+            android ? "size-7" : "size-5",
+            open ? "scale-100 opacity-100" : "scale-75 -rotate-90 opacity-0"
           )}
         />
       </button>
@@ -274,9 +312,9 @@ export function AppTabBar() {
   const [nativeGlassActive, setNativeGlassActive] = useState(false)
   const [exchangeMenuOpen, setExchangeMenuOpen] = useState(false)
   const [scanPickerOpen, setScanPickerOpen] = useState(false)
-  const [scanShareCards, setScanShareCards] = useState<readonly number[] | null>(
-    null
-  )
+  const [scanShareCards, setScanShareCards] = useState<
+    readonly number[] | null
+  >(null)
   const [scanGiveCards, setScanGiveCards] = useState<readonly number[] | null>(
     null
   )
@@ -416,12 +454,14 @@ export function AppTabBar() {
     nativeTabBarSuppressedState,
   ])
 
-  const androidDragEnabled =
+  const isAndroidApp =
     hydrated &&
     IS_APP_TARGET &&
     typeof window !== "undefined" &&
     isTauri() &&
-    isAndroidRuntimeIdentity(window.navigator.userAgent) &&
+    isAndroidRuntimeIdentity(window.navigator.userAgent)
+  const androidDragEnabled =
+    isAndroidApp &&
     !nativeGlassActive &&
     !(useLightMapGlass && nativeTabBarSuppressedState)
   const androidMapGlass = androidDragEnabled && useLightMapGlass
@@ -470,106 +510,107 @@ export function AppTabBar() {
         aria-label={t("navigation.mainLabel")}
         inert={interactionBlocked}
         className={cn(
-          "pointer-events-none fixed inset-x-0 z-50 flex justify-center px-3",
-          BAR_OFFSET
+          "pointer-events-none fixed z-50 flex justify-center px-3",
+          isAndroidApp ? ANDROID_BAR_OFFSET : BAR_OFFSET
         )}
       >
-      <div
-        {...drag}
-        data-android-tab-drag={androidDragEnabled ? "" : undefined}
-        data-android-map-glass={androidMapGlass ? "" : undefined}
-        data-glass-fallback=""
-        className={cn(
-          "glass-surface glass-bar pointer-events-auto relative w-full max-w-sm rounded-full p-1",
-          !androidMapGlass &&
-            "glass-refract shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
-        )}
-        style={
-          {
-            "--tab-index": slot,
-            "--app-tab-count": tabs.length,
-            "--glass-lens-travel": travel.distance,
-          } as React.CSSProperties
-        }
-      >
-        {/* The lens that tracks the active tab. Translate and scale only, so it
+        <div
+          {...drag}
+          data-android-tab-drag={androidDragEnabled ? "" : undefined}
+          data-android-map-glass={androidMapGlass ? "" : undefined}
+          data-glass-fallback=""
+          className={cn(
+            "glass-surface glass-bar pointer-events-auto relative w-full max-w-sm rounded-full p-1",
+            !androidMapGlass &&
+              "glass-refract shadow-[0_10px_36px_-12px_rgb(0_0_0/0.45)] ring-1 ring-foreground/10"
+          )}
+          style={
+            {
+              "--tab-index": slot,
+              "--app-tab-count": tabs.length,
+              "--glass-lens-travel": travel.distance,
+            } as React.CSSProperties
+          }
+        >
+          {/* The lens that tracks the active tab. Translate and scale only, so it
             composites on the GPU: animating width or the blur radius would
             repaint the whole translucent surface every frame. The skin is keyed
             by slot so React remounts it on each switch, which replays the
             squash-and-stretch without interrupting the travel underneath. */}
-        <span
-          aria-hidden="true"
-          data-visible={
-            activeIndex >= 0 && !(IS_APP_TARGET && activeId === "map")
-              ? "true"
-              : undefined
-          }
-          className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/var(--app-tab-count))] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
-        >
           <span
-            key={travel.slot}
-            className="glass-lens-skin block size-full rounded-full bg-foreground/8 ring-1 ring-foreground/10"
-          />
-        </span>
+            aria-hidden="true"
+            data-visible={
+              activeIndex >= 0 && !(IS_APP_TARGET && activeId === "map")
+                ? "true"
+                : undefined
+            }
+            className="glass-lens absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/var(--app-tab-count))] translate-x-[calc(var(--tab-index)*100%)] opacity-0 data-visible:opacity-100"
+          >
+            <span
+              key={travel.slot}
+              className="glass-lens-skin block size-full rounded-full bg-foreground/8 ring-1 ring-foreground/10"
+            />
+          </span>
 
-        <ul className="relative flex items-stretch">
-          {tabs.map((tab) => {
-            if (IS_APP_TARGET && tab.id === "map") {
+          <ul className="relative flex items-stretch">
+            {tabs.map((tab) => {
+              if (IS_APP_TARGET && tab.id === "map") {
+                return (
+                  <li key={tab.to} className="relative flex-1">
+                    <ExchangeActionButton
+                      android={isAndroidApp}
+                      open={exchangeMenuOpen}
+                      onToggle={() => setExchangeMenuOpen((open) => !open)}
+                      onOpenQr={() => {
+                        setExchangeMenuOpen(false)
+                        setScanPickerOpen(true)
+                      }}
+                    />
+                  </li>
+                )
+              }
+              // Expanded means the page behind is frozen; the other four tabs
+              // belong to that page, so they stop responding too.
+              const frozen = IS_APP_TARGET && exchangeMenuOpen
               return (
-                <li key={tab.to} className="relative flex-1">
-                  <ExchangeActionButton
-                    open={exchangeMenuOpen}
-                    onToggle={() => setExchangeMenuOpen((open) => !open)}
-                    onOpenQr={() => {
-                      setExchangeMenuOpen(false)
-                      setScanPickerOpen(true)
-                    }}
-                  />
+                <li key={tab.to} className="flex-1" inert={frozen}>
+                  <NavigationLink
+                    to={tab.to}
+                    aria-current={tab.id === activeId ? "page" : undefined}
+                    className={cn(
+                      "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
+                      tab.id === activeId
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                      frozen && "pointer-events-none opacity-50"
+                    )}
+                    onClick={(event) => handleTabClick(event, tab.id)}
+                  >
+                    <tab.icon
+                      aria-hidden="true"
+                      data-glass-tab-icon=""
+                      className={cn(
+                        "size-5",
+                        tab.id === activeId && "fill-primary/15"
+                      )}
+                    />
+                    <span className="relative">
+                      {t(tab.label)}
+                      {tab.id === "account" && unread > 0 ? (
+                        <span
+                          className="absolute -top-6.5 -right-3 grid size-3.5 place-items-center rounded-full bg-destructive text-[9px] leading-none font-medium text-destructive-foreground"
+                          aria-label={`${unread} 条未读消息`}
+                        >
+                          {unread > 9 ? "9+" : unread}
+                        </span>
+                      ) : null}
+                    </span>
+                  </NavigationLink>
                 </li>
               )
-            }
-            // Expanded means the page behind is frozen; the other four tabs
-            // belong to that page, so they stop responding too.
-            const frozen = IS_APP_TARGET && exchangeMenuOpen
-            return (
-              <li key={tab.to} className="flex-1" inert={frozen}>
-                <NavigationLink
-                  to={tab.to}
-                  aria-current={tab.id === activeId ? "page" : undefined}
-                  className={cn(
-                    "glass-tab flex h-12.5 flex-col items-center justify-center gap-0.5 rounded-full text-[0.6875rem]",
-                    tab.id === activeId
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-foreground",
-                    frozen && "pointer-events-none opacity-50"
-                  )}
-                  onClick={(event) => handleTabClick(event, tab.id)}
-                >
-                  <tab.icon
-                    aria-hidden="true"
-                    data-glass-tab-icon=""
-                    className={cn(
-                      "size-5",
-                      tab.id === activeId && "fill-primary/15"
-                    )}
-                  />
-                  <span className="relative">
-                    {t(tab.label)}
-                    {tab.id === "account" && unread > 0 ? (
-                      <span
-                        className="absolute -top-6.5 -right-3 grid size-3.5 place-items-center rounded-full bg-destructive text-[9px] leading-none font-medium text-destructive-foreground"
-                        aria-label={`${unread} 条未读消息`}
-                      >
-                        {unread > 9 ? "9+" : unread}
-                      </span>
-                    ) : null}
-                  </span>
-                </NavigationLink>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+            })}
+          </ul>
+        </div>
       </nav>
       {IS_APP_TARGET ? (
         <div
@@ -578,7 +619,10 @@ export function AppTabBar() {
           aria-hidden="true"
           onClick={() => setExchangeMenuOpen(false)}
           className={cn(
-            "fixed inset-0 z-40 bg-background/50 backdrop-blur-sm transition-opacity duration-300 ease-out motion-reduce:transition-none",
+            "fixed inset-0 z-40 transition-opacity duration-300 ease-out motion-reduce:transition-none",
+            isAndroidApp
+              ? "bg-background/55"
+              : "bg-background/50 backdrop-blur-sm",
             exchangeMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
           )}
         />

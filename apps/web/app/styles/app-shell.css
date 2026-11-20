@@ -44,6 +44,19 @@
   }
 }
 
+@layer components {
+  .app-android-exchange-arc {
+    /* Keep the caption columns within the same safe edges as the tab bar. */
+    bottom: calc(50% + 2.5rem);
+    display: grid;
+    width: min(18rem, calc(100dvw - 2 * var(--app-safe-inline, 1rem)));
+    translate: -50% 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.5rem;
+  }
+}
+
 @layer overrides {
   /*
    * Native Liquid Glass controls are drawn above the WKWebView, which only
