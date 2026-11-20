@@ -117,11 +117,11 @@ function ServerRow({
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 rounded border border-border/70 px-1.5 py-px text-[11px]">
-            {EXCHANGE_SOURCE_LABEL[entry.source]}
-          </span>
           <span className="truncate">
             {namecardDateTimeLabel(entry.createdAt) ?? ""}
+          </span>
+          <span className="shrink-0 rounded border border-border/70 px-1.5 py-px text-[11px]">
+            {EXCHANGE_SOURCE_LABEL[entry.source]}
           </span>
         </span>
         <span className="shrink-0">共 {cardCount} 张名片</span>
@@ -158,6 +158,12 @@ function LocalRow({
   onRemove: (id: string) => void
 }) {
   const status = LOCAL_STATUS[entry.status]
+  const targetLabel =
+    entry.target.kind === "token"
+      ? "本机扫码交换"
+      : entry.target.kind === "card-share"
+        ? "本机扫码交换 · 单卡分享"
+        : "本机扫码交换 · 快速清单"
   return (
     <div className="rounded-lg border p-3">
       <div className="flex min-w-0 items-center gap-2">
@@ -165,7 +171,7 @@ function LocalRow({
           {status.label}
         </Badge>
         <span className="min-w-0 truncate text-sm font-medium">
-          本机扫码交换
+          {targetLabel}
         </span>
         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
           我给出 {entry.giveCardNumbers.length} 张
@@ -182,7 +188,7 @@ function LocalRow({
       ) : null}
       {entry.status === "expired" ? (
         <p className="mt-1 text-xs text-muted-foreground">
-          这次交换的二维码已失效，需要重新生成二维码后再扫一次。
+          这次交换的二维码或链接已失效，需要重新获取后再试一次。
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap gap-2">

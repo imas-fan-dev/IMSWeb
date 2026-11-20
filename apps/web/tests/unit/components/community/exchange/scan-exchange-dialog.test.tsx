@@ -209,6 +209,28 @@ describe("ScanExchangeDialog", () => {
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
   })
 
+  it("queues a share-link network failure for the history list", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: `${window.location.origin}/exchange/zheizhei`,
+      format: "QR_CODE",
+    })
+    apiMocks.commitQuickExchange.mockRejectedValue(
+      new ApiError("网络请求失败", { kind: "network" })
+    )
+    renderDialog()
+
+    await waitFor(() =>
+      expect(queueMocks.enqueue).toHaveBeenCalledWith({
+        target: { kind: "quick", handle: "zheizhei" },
+        clientExchangeId: expect.any(String),
+        giveCardNumbers: [3, 5],
+      })
+    )
+    expect(
+      await screen.findByText("已保存到本地，联网后自动重试")
+    ).toBeVisible()
+  })
+
   it("submits a single-card share QR through its own endpoint", async () => {
     scannerMocks.scan.mockResolvedValue({
       content: `${window.location.origin}/exchange/card/abcdef123456`,
@@ -281,7 +303,7 @@ describe("ScanExchangeDialog", () => {
     ).toBeVisible()
     await waitFor(() =>
       expect(queueMocks.enqueue).toHaveBeenCalledWith({
-        token: TOKEN,
+        target: { kind: "token", token: TOKEN },
         clientExchangeId: expect.any(String),
         giveCardNumbers: [3, 5],
       })

@@ -1,6 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core"
 
-import { PUBLIC_SITE_ORIGIN } from "~/lib/api/origin"
+import { PUBLIC_SITE_ORIGIN } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import {
   isAndroidRuntimeIdentity,

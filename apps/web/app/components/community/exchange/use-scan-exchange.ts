@@ -127,14 +127,10 @@ export function useScanExchange({
         return
       }
 
-      // 离线队列按令牌录入；分享二维码没有令牌可重放，失败直接给回执。
-      if (
-        target.kind === "token" &&
-        exchange.clientExchangeId &&
-        isRetryableScanExchangeFailure(cause)
-      ) {
+      // 网络类失败都要进本地队列：令牌 / 分享链接都可重放，历史里也能看见。
+      if (exchange.clientExchangeId && isRetryableScanExchangeFailure(cause)) {
         const queued = await scanExchangeQueue.enqueue({
-          token: target.token,
+          target,
           clientExchangeId: exchange.clientExchangeId,
           giveCardNumbers: cardNumbers,
         })
