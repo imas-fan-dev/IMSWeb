@@ -167,6 +167,12 @@ function NamecardItem({
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  /** 轮播在 pointerup 就打开详情，click 捕获太晚；两条路径都要记下触发按钮。 */
+  const captureTrigger = (target: EventTarget | null) => {
+    const button =
+      target instanceof Element ? target.closest("button") : null
+    triggerRef.current = button instanceof HTMLButtonElement ? button : null
+  }
   const tags = card.tags?.map((tag) => tag.name) ?? []
   const producerName = card.producerName || `名片 #${card.cardNumber ?? card.id}`
   const producer = (
@@ -181,15 +187,10 @@ function NamecardItem({
       className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:gap-0 md:rounded-xl md:bg-muted/50"
     >
       {/* 轮播自己只回传正/背面；打开详情要聚焦回原来那张图的按钮，所以在这里
-          捕获点击目标（捕获阶段早于轮播内部的 onClick）。 */}
+          捕获点击目标（pointerdown 早于轮播在 pointerup 里打开详情）。 */}
       <div
-        onClickCapture={(event) => {
-          const target = event.target
-          const button =
-            target instanceof Element ? target.closest("button") : null
-          triggerRef.current =
-            button instanceof HTMLButtonElement ? button : null
-        }}
+        onPointerDownCapture={(event) => captureTrigger(event.target)}
+        onClickCapture={(event) => captureTrigger(event.target)}
       >
         <NamecardWallCarousel
           pages={card.pages ?? []}
