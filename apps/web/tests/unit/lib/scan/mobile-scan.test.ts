@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   isMobileScanRuntime,
   ScanCancelledError,
+  ScanInvalidCodeError,
   ScanPermissionError,
   SCAN_FAILED_MESSAGE,
   SCAN_RUNTIME_UNSUPPORTED_MESSAGE,
-  scanExchangeToken,
+  scanExchangeCode,
 } from "~/lib/scan/mobile-scan"
 
 const runtime = vi.hoisted(() => ({ app: true, tauri: true }))
@@ -16,6 +17,10 @@ vi.mock("~/lib/app-target", () => ({
     return runtime.app
   },
 }))
+vi.mock("~/lib/api/origin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api/origin")>()),
+  PUBLIC_SITE_ORIGIN: "https://ims.test",
+}))
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
   isTauri: () => runtime.tauri,
@@ -23,6 +28,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 const scannerMocks = vi.hoisted(() => ({
   scan: vi.fn(),
+  cancel: vi.fn(),
   checkPermissions: vi.fn(),
   requestPermissions: vi.fn(),
 }))
@@ -30,6 +36,7 @@ const scannerMocks = vi.hoisted(() => ({
 vi.mock("@tauri-apps/plugin-barcode-scanner", () => ({
   Format: { QRCode: "QR_CODE" },
   scan: scannerMocks.scan,
+  cancel: scannerMocks.cancel,
   checkPermissions: scannerMocks.checkPermissions,
   requestPermissions: scannerMocks.requestPermissions,
 }))
@@ -82,25 +89,83 @@ describe("isMobileScanRuntime", () => {
   })
 })
 
-describe("scanExchangeToken", () => {
-  it("requests the QR format only and returns the trimmed token", async () => {
+describe("scanExchangeCode", () => {
+  it("opens the windowed camera for QR codes and returns the token", async () => {
     scannerMocks.scan.mockResolvedValue({
       content: `  ${TOKEN}\n`,
       format: "QR_CODE",
     })
 
-    await expect(scanExchangeToken()).resolves.toBe(TOKEN)
+    await expect(scanExchangeCode()).resolves.toEqual({
+      kind: "token",
+      token: TOKEN,
+    })
     expect(scannerMocks.scan).toHaveBeenCalledWith({
-      windowed: false,
+      windowed: true,
       formats: ["QR_CODE"],
     })
     expect(scannerMocks.requestPermissions).not.toHaveBeenCalled()
   })
 
+  it("rejects a non-QR symbol without touching the commit path", async () => {
+    scannerMocks.scan.mockResolvedValue({ content: "1234567890", format: "EAN_13" })
+
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(ScanInvalidCodeError)
+  })
+
+  it("rejects a QR code from another site", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://example.com/",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(
+      ScanInvalidCodeError
+    )
+  })
+
+  it("recognizes a single-card share link", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://ims.test/exchange/card/abcdef123456",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).resolves.toEqual({
+      kind: "card-share",
+      slug: "abcdef123456",
+    })
+  })
+
+  it("recognizes a quick-list share link", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://ims.test/exchange/zheizhei",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).resolves.toEqual({
+      kind: "quick",
+      handle: "zheizhei",
+    })
+  })
+
+  it("does not accept other site paths", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://ims.test/user/6",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(
+      ScanInvalidCodeError
+    )
+  })
+
   it("asks for camera permission before opening the camera", async () => {
     scannerMocks.checkPermissions.mockResolvedValue("prompt")
 
-    await expect(scanExchangeToken()).resolves.toBe(TOKEN)
+    await expect(scanExchangeCode()).resolves.toEqual({
+      kind: "token",
+      token: TOKEN,
+    })
     expect(scannerMocks.requestPermissions).toHaveBeenCalledTimes(1)
     expect(scannerMocks.scan).toHaveBeenCalledTimes(1)
   })
@@ -109,7 +174,7 @@ describe("scanExchangeToken", () => {
     scannerMocks.checkPermissions.mockResolvedValue("denied")
     scannerMocks.requestPermissions.mockResolvedValue("denied")
 
-    await expect(scanExchangeToken()).rejects.toBeInstanceOf(
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(
       ScanPermissionError
     )
     expect(scannerMocks.scan).not.toHaveBeenCalled()
@@ -118,7 +183,7 @@ describe("scanExchangeToken", () => {
   it("maps a cancelled scan to ScanCancelledError", async () => {
     scannerMocks.scan.mockRejectedValue("cancelled")
 
-    await expect(scanExchangeToken()).rejects.toBeInstanceOf(
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(
       ScanCancelledError
     )
   })
@@ -126,7 +191,7 @@ describe("scanExchangeToken", () => {
   it("keeps other camera failures as-is", async () => {
     scannerMocks.scan.mockRejectedValue("No camera available on this device")
 
-    await expect(scanExchangeToken()).rejects.toBe(
+    await expect(scanExchangeCode()).rejects.toBe(
       "No camera available on this device"
     )
     expect(SCAN_FAILED_MESSAGE).toBe("扫码失败，请重试")

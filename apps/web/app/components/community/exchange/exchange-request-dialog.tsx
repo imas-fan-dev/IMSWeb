@@ -29,6 +29,8 @@ import type {
   NamecardExchangeDetail,
 } from "@imsweb/contracts/namecards"
 
+import { EXCHANGE_SOURCE_LABEL } from "./exchange-source-label"
+
 const DIALOG_TITLE = "名片交换请求"
 const TARGET_SECTION_TITLE = "对方希望交换的名片"
 const INITIATOR_SECTION_TITLE = "对方用于交换的名片"
@@ -192,7 +194,7 @@ function RequestContent({
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
-              发起于 {startedAt}
+              交换方式 {detail ? EXCHANGE_SOURCE_LABEL[detail.source] : "-"} · 发起于 {startedAt}
               {expiresAt ? ` · 有效期至 ${expiresAt}` : ""}
             </p>
             <ExchangeCardSection

@@ -1,4 +1,9 @@
-import { commitScanSession, isApiError } from "~/lib/api"
+import {
+  commitCardShare,
+  commitQuickExchange,
+  commitScanSession,
+  isApiError,
+} from "~/lib/api"
 import { createRandomId } from "~/lib/random-id"
 
 import { notifyNamecardDataChanged } from "./data-refresh"
@@ -6,9 +11,14 @@ import {
   scanExchangeStore,
   type ScanExchangeQueueEntry,
   type ScanExchangeQueueStatus,
+  type ScanExchangeQueueTarget,
 } from "./scan-exchange-store"
 
-export type { ScanExchangeQueueEntry, ScanExchangeQueueStatus }
+export type {
+  ScanExchangeQueueEntry,
+  ScanExchangeQueueStatus,
+  ScanExchangeQueueTarget,
+}
 
 /** 入队后展示的那句话：面板与离线提示共用。 */
 export const SCAN_EXCHANGE_QUEUED_MESSAGE = "已保存到本地，联网后自动重试"
@@ -17,8 +27,8 @@ export const SCAN_EXCHANGE_QUEUED_MESSAGE = "已保存到本地，联网后自�
 const QUEUE_FAILED_MESSAGE = "网络请求失败"
 
 export interface ScanExchangeQueueInput {
-  /** 二维码里的令牌，重放时原样再用一次。 */
-  token: string
+  /** 重放目标：一次性令牌 / 单卡分享 / 快速清单。 */
+  target: ScanExchangeQueueTarget
   /** 入队这一轮的幂等锚点，重放沿用。 */
   clientExchangeId: string
   giveCardNumbers: readonly number[]
@@ -73,7 +83,8 @@ async function enqueue(
 ): Promise<ScanExchangeQueueEntry | null> {
   const entry: ScanExchangeQueueEntry = {
     id: createRandomId(),
-    token: input.token,
+    token: input.target.kind === "token" ? input.target.token : "",
+    target: input.target,
     clientExchangeId: input.clientExchangeId,
     giveCardNumbers: [...input.giveCardNumbers],
     createdAt: new Date().toISOString(),
@@ -159,10 +170,16 @@ async function replay(id: string): Promise<void> {
     const entry = await scanExchangeStore.read(id)
     if (!entry || entry.status === "expired") return
     try {
-      await commitScanSession(entry.token, {
+      const input = {
         clientExchangeId: entry.clientExchangeId,
         giveCardNumbers: entry.giveCardNumbers,
-      })
+      }
+      const target = entry.target
+      await (target.kind === "token"
+        ? commitScanSession(target.token, input)
+        : target.kind === "card-share"
+          ? commitCardShare(target.slug, input)
+          : commitQuickExchange(target.handle, input))
       await remove(id)
       notifyNamecardDataChanged()
     } catch (failure) {

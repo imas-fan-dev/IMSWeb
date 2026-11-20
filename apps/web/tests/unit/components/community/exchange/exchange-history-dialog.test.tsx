@@ -72,6 +72,7 @@ function localEntry(
   return {
     id: "local-1",
     token: "a".repeat(64),
+    target: { kind: "token", token: "a".repeat(64) },
     clientExchangeId: "client-1",
     giveCardNumbers: [3, 5],
     createdAt: "2026-08-04T00:00:00.000Z",
@@ -141,6 +142,8 @@ describe("ExchangeHistoryDialog", () => {
     expect(within(items[0]!).getByText("本机扫码交换")).toBeVisible()
     expect(within(items[1]!).getByText("春日未来")).toBeVisible()
     expect(within(items[2]!).getByText("如月千早")).toBeVisible()
+    // 交换方式跟着行一起标出来，扫的与手动请求一眼可分。
+    expect(within(items[1]!).getByText("扫码交换")).toBeVisible()
     expect(apiMocks.getExchangeHistory).toHaveBeenCalledWith({
       page: 1,
       size: EXCHANGE_HISTORY_PAGE_SIZE,
@@ -242,7 +245,7 @@ describe("ExchangeHistoryDialog", () => {
 
     expect(
       await screen.findByText(
-        "这次交换的二维码已失效，需要重新生成二维码后再扫一次。"
+        "这次交换的二维码或链接已失效，需要重新获取后再试一次。"
       )
     ).toBeVisible()
     expect(screen.queryByRole("button", { name: /重试/ })).toBeNull()

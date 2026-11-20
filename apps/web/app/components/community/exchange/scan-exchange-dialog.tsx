@@ -29,17 +29,37 @@ import {
 } from "~/lib/scan/mobile-scan"
 
 import { EXCHANGE_COMPLETED_MESSAGE } from "./use-exchange-submit"
+import { ScanOverlay } from "./scan-overlay"
+import type { ScanExchangeState } from "./use-scan-exchange"
 import { useScanExchange } from "./use-scan-exchange"
 
 const SCAN_TITLE = "扫码"
 const SCAN_DESCRIPTION = "扫描对方的扫码交换二维码。"
 
 /**
- * 扫码提交面板：内容只在打开时挂载，相机把令牌交回来后立刻提交。
+ * 取景阶段只渲染全屏遮罩（相机在 WebView 后面），提交后再套回窗口外壳：
+ * 桌面 `Dialog layout="pinned"`、窄屏底部 `Sheet`，与账号工作区的断点一致。
  *
- * 桌面 App 没有相机通道，只给「请在手机 App 内扫码」，不接 web 摄像头兜底；
- * 用户返回 / 取消扫码不弹错误，直接关窗。
+ * 每次打开都重新挂载主体，关窗即卸载——原生取景不留到下一次。
  */
+export function ScanExchangeDialog({
+  open,
+  onOpenChange,
+  cardNumbers,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  cardNumbers: readonly number[]
+}) {
+  if (!open) return null
+  return (
+    <ScanExchangeBody
+      cardNumbers={cardNumbers}
+      onClose={() => onOpenChange(false)}
+    />
+  )
+}
+
 function ScanExchangeBody({
   cardNumbers,
   onClose,
@@ -47,8 +67,66 @@ function ScanExchangeBody({
   cardNumbers: readonly number[]
   onClose: () => void
 }) {
+  const desktop = useDesktopAccountWorkspace()
   const exchange = useScanExchange({ cardNumbers, onCancel: onClose })
 
+  if (exchange.phase === "scanning" || exchange.phase === "decoding") {
+    return (
+      <ScanOverlay
+        decoding={exchange.phase === "decoding"}
+        onClose={onClose}
+        onPickImage={exchange.submitImage}
+      />
+    )
+  }
+
+  const body = <ScanResultBody exchange={exchange} onClose={onClose} />
+
+  if (desktop) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(value) => {
+          if (!value) onClose()
+        }}
+      >
+        <DialogContent layout="pinned" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{SCAN_TITLE}</DialogTitle>
+            <DialogDescription>{SCAN_DESCRIPTION}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>{body}</DialogBody>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  return (
+    <Sheet
+      open
+      onOpenChange={(value) => {
+        if (!value) onClose()
+      }}
+    >
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>{SCAN_TITLE}</SheetTitle>
+          <SheetDescription>{SCAN_DESCRIPTION}</SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-4">{body}</div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/** 取景之外的阶段：不支持、提交中、完成、已入队、失败。 */
+function ScanResultBody({
+  exchange,
+  onClose,
+}: {
+  exchange: ScanExchangeState
+  onClose: () => void
+}) {
   if (exchange.phase === "unsupported") {
     return (
       <div className="flex flex-col items-center gap-4 py-6 text-center">
@@ -103,53 +181,7 @@ function ScanExchangeBody({
 
   return (
     <p className="py-8 text-center text-sm text-muted-foreground">
-      {exchange.phase === "committing" ? "正在提交交换…" : "正在打开相机…"}
+      正在提交交换…
     </p>
-  )
-}
-
-/**
- * 桌面用 `Dialog layout="pinned"`、窄屏用底部 `Sheet`，断点与账号工作区一致
- * （`useDesktopAccountWorkspace`）；两种外壳共用同一份内容。
- */
-export function ScanExchangeDialog({
-  open,
-  onOpenChange,
-  cardNumbers,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  cardNumbers: readonly number[]
-}) {
-  const desktop = useDesktopAccountWorkspace()
-  const close = () => onOpenChange(false)
-  const body = open ? (
-    <ScanExchangeBody cardNumbers={cardNumbers} onClose={close} />
-  ) : null
-
-  if (desktop) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent layout="pinned" className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{SCAN_TITLE}</DialogTitle>
-            <DialogDescription>{SCAN_DESCRIPTION}</DialogDescription>
-          </DialogHeader>
-          <DialogBody>{body}</DialogBody>
-        </DialogContent>
-      </Dialog>
-    )
-  }
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom">
-        <SheetHeader>
-          <SheetTitle>{SCAN_TITLE}</SheetTitle>
-          <SheetDescription>{SCAN_DESCRIPTION}</SheetDescription>
-        </SheetHeader>
-        <div className="px-4 pb-4">{body}</div>
-      </SheetContent>
-    </Sheet>
   )
 }
