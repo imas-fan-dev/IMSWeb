@@ -1,5 +1,6 @@
 import {
   adminExchangePath,
+  apiPath,
   exchangeCardRequestPath,
   exchangeCardShareCommitPath,
   exchangeMyCardsLayoutPath,
@@ -24,9 +25,22 @@ import {
   namecardScanSessionRequestSchema,
   namecardScanSessionSchema,
   namecardScanSessionStatusResponseSchema,
+  namecardTagCardParamsSchema,
+  namecardTagSetRequestSchema,
+  namecardTagSetResponseSchema,
+  namecardTagValidateRequestSchema,
+  namecardTagValidateResponseSchema,
+  namecardTagSuggestQuerySchema,
+  namecardTagSuggestResponseSchema,
   type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
+export type { NamecardTagSuggestionPreset } from "@imsweb/contracts/namecards"
+import {
+  errorResponseSchema,
+  failureMessageResponseSchema,
+  messageErrorResponseSchema,
+} from "@imsweb/contracts/common"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -52,7 +66,7 @@ import {
 import { adminApiClient } from "../../admin-client"
 import { apiClient } from "../../client"
 import { bundleAssetClient } from "../../bundle-client"
-import { STABLE_CONTENT_CACHE_FOR } from "../../cache-policy"
+import { STABLE_CONTENT_CACHE_FOR, NO_CLIENT_CACHE } from "../../cache-policy"
 import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
 import {
@@ -1001,6 +1015,8 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("madeWithAi", String(fields.madeWithAi))
   form.append("visible", String(fields.visible))
   form.append("credits", JSON.stringify(fields.credits))
+  // 标签随保存一起提交，multipart 里是 JSON 字符串；没填就整个省略。
+  if (fields.tags) form.append("tags", JSON.stringify(fields.tags))
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
@@ -1103,6 +1119,74 @@ export function replaceFudabaCardMedia(
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),
       select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/**
+ * 标签端点的失败载荷：业务拦截 `{ success:false, code, message }`、请求校验
+ * `{ error }`、登录态拦截 `{ message }` 三种都可能出现，契约校验要都能过。
+ */
+const namecardTagFailureSchema = z.union([
+  z
+    .object({
+      success: z.literal(false),
+      code: z.string(),
+      message: z.string(),
+    })
+    .strict(),
+  errorResponseSchema,
+  messageErrorResponseSchema,
+  failureMessageResponseSchema,
+])
+
+/**
+ * 标签候选（公开）：只回预设标签，名称/别名包含即命中、前缀优先；自由标签
+ * 由用户输入的原文直接创建，所以不进候选。
+ */
+export function getNamecardTagSuggestions(query: string, limit = 8) {
+  const request = namecardTagSuggestQuerySchema.parse({ q: query, limit })
+  const params = new URLSearchParams({ limit: String(request.limit) })
+  if (request.q) params.set("q", request.q)
+  return apiClient.Get(
+    `${apiPath("/cards/tags/suggest")}?${params.toString()}`,
+    parsed(namecardTagSuggestResponseSchema, {
+      // 预设会随管理台改名/合并变化，候选不做客户端缓存。
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
+}
+
+/**
+ * 墙 / 详情窗的内联标签保存：整组替换、即时生效。这条写入口只要登录会话，
+ * 因此不带 CSRF（见后端路由注释）。
+ */
+export function setNamecardCardTags(cardId: string, tags: readonly string[]) {
+  const params = namecardTagCardParamsSchema.parse({ cardId })
+  const submission = namecardTagSetRequestSchema.parse({ tags })
+  return platformApiClient.Put(
+    exchangePath(`/cards/${encodeURIComponent(params.cardId)}/tags`),
+    submission,
+    parsed(namecardTagSetResponseSchema, {
+      errorSchema: namecardTagFailureSchema,
+      businessErrorSchema: namecardTagFailureSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * 标签提交前自检：命中屏蔽词时编辑器即时提示并丢弃草稿。
+ * 匿名可调用，响应只含被命中的原文，不暴露规则。
+ */
+export function validateNamecardTags(names: readonly string[]) {
+  const body = namecardTagValidateRequestSchema.parse({ names })
+  return apiClient.Post(
+    "/api/cards/tags/validate",
+    body,
+    parsed(namecardTagValidateResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
     })
   )
 }

@@ -12,6 +12,7 @@ import type { MouseEvent } from "react"
 
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { creditParts } from "~/components/community/namecard-credit-format"
+import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
 import {
   CardMediaPreview,
   publicMediaSlotsFromCard,
@@ -86,6 +87,7 @@ export type NamecardReactionState = {
 function ReactionChip({
   entry: [emoji, count],
   compact,
+  size = "default",
   className,
   disabled,
   onClick,
@@ -93,6 +95,8 @@ function ReactionChip({
   entry: ReactionEntry
   className?: string
   compact?: boolean
+  /** `sm`：名片墙瓦片与详情窗把反应区整体收一档。 */
+  size?: "default" | "sm"
   disabled?: boolean
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void
 }) {
@@ -101,6 +105,8 @@ function ReactionChip({
       type="button"
       className={cn(
         "h-8 min-h-8 min-w-8 shrink-0 gap-0.5 rounded-full border border-border bg-background px-1 text-[11px] tabular-nums max-md:focus-visible:ring-inset md:min-w-0 md:gap-1.5 md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30",
+        size === "sm" &&
+          "h-7 min-h-7 min-w-7 gap-0.5 px-1 text-[10px] md:h-7 md:min-h-7 md:gap-0.5 md:px-1.5 md:text-xs [&_svg]:size-3 [&_img]:size-3",
         !compact && "max-w-none grow-0",
         compact &&
           (String(count).length > 3
@@ -125,12 +131,14 @@ function NamecardReactionPicker({
   onReact,
   className,
   closeBelowMd = false,
+  size = "default",
 }: {
   reactions: NamecardReactions
   busy: boolean
   onReact: (emoji: string) => Promise<boolean>
   className?: string
   closeBelowMd?: boolean
+  size?: "default" | "sm"
 }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -165,6 +173,7 @@ function NamecardReactionPicker({
             variant="ghost"
             className={cn(
               "size-11 rounded-full bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground max-md:focus-visible:ring-inset dark:hover:bg-transparent",
+              size === "sm" && "size-8 min-h-8 md:size-8 md:min-h-8",
               className
             )}
             title="添加反应"
@@ -173,7 +182,12 @@ function NamecardReactionPicker({
           />
         }
       >
-        <span className="flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input">
+        <span
+          className={cn(
+            "flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input",
+            size === "sm" && "size-6 [&_svg]:size-3.5"
+          )}
+        >
           <PlusIcon aria-hidden="true" />
         </span>
       </PopoverTrigger>
@@ -234,16 +248,22 @@ export function NamecardReactionSummary({
   busy,
   onOpen,
   onReact,
+  size = "default",
 }: NamecardReactionState & {
   busy: boolean
   onOpen: (trigger: HTMLButtonElement) => void
   onReact: (emoji: string) => Promise<boolean>
+  /** `sm`：名片墙瓦片与详情窗的反应区整体收一档。 */
+  size?: "default" | "sm"
 }) {
   const all = activeNamecardReactions(reactions)
   const mobile = mobileNamecardReactionSummary(reactions)
   return (
     <div
-      className="flex min-h-8 min-w-0 flex-wrap items-center gap-0.75 md:gap-1.5"
+      className={cn(
+        "flex min-h-8 min-w-0 flex-wrap items-center gap-0.75 md:gap-1.5",
+        size === "sm" && "min-h-7 gap-0.5 md:gap-1"
+      )}
       aria-label="名片反应摘要"
       aria-busy={loading || busy}
     >
@@ -252,6 +272,7 @@ export function NamecardReactionSummary({
           key={`mobile-${entry[0]}`}
           entry={entry}
           compact
+          size={size}
           onClick={(event) => onOpen(event.currentTarget)}
           className="md:hidden"
         />
@@ -261,6 +282,7 @@ export function NamecardReactionSummary({
           key={`desktop-${entry[0]}`}
           entry={entry}
           compact
+          size={size}
           disabled={!IS_APP_TARGET && busy}
           onClick={(event) => {
             if (IS_APP_TARGET) onOpen(event.currentTarget)
@@ -274,6 +296,7 @@ export function NamecardReactionSummary({
           reactions={reactions}
           busy={busy}
           onReact={onReact}
+          size={size}
           className="max-md:hidden"
           closeBelowMd
         />
@@ -284,6 +307,7 @@ export function NamecardReactionSummary({
           variant="ghost"
           className={cn(
             "h-8 min-h-8 rounded-full border border-dashed px-2 text-xs text-muted-foreground",
+            size === "sm" && "h-7 min-h-7 px-1.5 text-[11px]",
             !IS_APP_TARGET && "md:hidden"
           )}
           onClick={(event) => onOpen(event.currentTarget)}
@@ -377,8 +401,10 @@ export function NamecardDetailDialog({
   onExchange,
   onReact,
   onReturnFocus,
+  onTagsChange,
   dismissible = true,
   readOnly = false,
+  showTags = true,
   collection,
   authorizeMedia = false,
 }: {
@@ -401,6 +427,13 @@ export function NamecardDetailDialog({
   onExchange?: (card: Namecard, target: NamecardExchangeTarget) => void
   onReact?: (emoji: string) => Promise<boolean>
   onReturnFocus?: () => void
+  /** 内联标签保存成功后回调，调用方据此更新列表里的同一张卡。 */
+  onTagsChange?: (tags: string[]) => void
+  /**
+   * 是否挂载标签区。通知里的交换详情传 `false`（那里只做只读核对）；
+   * 只读模式无论该值如何都不渲染编辑器。
+   */
+  showTags?: boolean
   /** 认领/补充窗开着时置 false，点它不算「点了详情窗外面」。 */
   dismissible?: boolean
   /**
@@ -432,6 +465,16 @@ export function NamecardDetailDialog({
   const platformCanReport =
     platform.status === "authenticated" || platform.status === "restricted"
   const entries = activeNamecardReactions(reactions.reactions)
+  // inline 编辑器自己保存，但详情窗是受控视图：保存成功后先把本地 chips 换掉，
+  // 再通知调用方刷新列表里的同一张卡（弹窗可能不重挂）。
+  const [savedTagState, setSavedTagState] = useState<{
+    cardId: string
+    tags: string[]
+  } | null>(null)
+  const savedTags =
+    card && savedTagState?.cardId === card.cardId
+      ? savedTagState.tags
+      : (card?.tags?.map((tag) => tag.name) ?? [])
   // 只读调用方没有反应写路径；交互区在只读下整块不渲染，这里只保证类型完整。
   const react = onReact ?? (() => Promise.resolve(false))
   const share = useCardShareDialog()
@@ -578,6 +621,24 @@ export function NamecardDetailDialog({
                 />
               ) : null}
 
+              {readOnly || !showTags || !card ? null : (
+                <section aria-labelledby="namecard-detail-tags">
+                  <h2 id="namecard-detail-tags" className="mb-2 font-medium">
+                    标签
+                  </h2>
+                  <NamecardTagEditor
+                    variant="inline"
+                    value={savedTags}
+                    cardId={card.cardId}
+                    disabled={platform.status !== "authenticated"}
+                    onChange={(tags) => {
+                      setSavedTagState({ cardId: card.cardId, tags })
+                      onTagsChange?.(tags)
+                    }}
+                  />
+                </section>
+              )}
+
               {readOnly ? null : (
                 <section aria-labelledby="namecard-detail-reactions">
                   <h2
@@ -595,6 +656,7 @@ export function NamecardDetailDialog({
                       <ReactionChip
                         key={entry[0]}
                         entry={entry}
+                        size="sm"
                         disabled={busy}
                         onClick={() => void react(entry[0])}
                       />
@@ -608,6 +670,7 @@ export function NamecardDetailDialog({
                       reactions={reactions.reactions}
                       busy={busy}
                       onReact={react}
+                      size="sm"
                     />
                   </div>
                 </section>

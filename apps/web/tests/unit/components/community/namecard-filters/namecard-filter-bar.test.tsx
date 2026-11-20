@@ -18,7 +18,8 @@ const series: SeriesOption[] = [
 
 function renderBar(
   initial: NamecardFilterValue = DEFAULT_NAMECARD_FILTERS,
-  timeLabel?: string
+  timeLabel?: string,
+  showTags = false
 ) {
   const onChange = vi.fn()
   function Harness() {
@@ -32,6 +33,7 @@ function renderBar(
         }}
         series={series}
         catalog={makeNamecardCharacterCatalog()}
+        showTags={showTags}
         {...(timeLabel ? { timeLabel } : {})}
       />
     )
@@ -66,6 +68,28 @@ describe("NamecardFilterBar", () => {
       "hidden",
       "md:flex"
     )
+  })
+
+  it("places the tag filter between the producer search and the sort control", () => {
+    renderBar(DEFAULT_NAMECARD_FILTERS, undefined, true)
+
+    const search = screen.getByLabelText("制作人名称")
+    const tags = screen.getByRole("combobox", { name: "标签筛选" })
+    const sort = screen.getByRole("combobox", { name: "排序方式" })
+    expect(
+      search.compareDocumentPosition(tags) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      tags.compareDocumentPosition(sort) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("keeps the tag filter out of the collection bar", () => {
+    renderBar()
+
+    expect(
+      screen.queryByRole("combobox", { name: "标签筛选" })
+    ).not.toBeInTheDocument()
   })
 
   it("uses the caller's time label instead of 交换时间", () => {
