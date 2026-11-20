@@ -98,7 +98,7 @@ import {
     NAMECARD_PUBLIC_ORIGIN
 } from '@/infra/db/repositories/namecard-origins';
 import { SqlNamecardTagRepository } from '@/infra/db/repositories/namecard-tag-repository';
-import { normalizeTagKey } from '@/utils/namecard-tags';
+import { normalizeTagKey } from '@/utils/validation/namecard-tags';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 

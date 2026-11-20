@@ -1182,7 +1182,7 @@ export function setNamecardCardTags(cardId: string, tags: readonly string[]) {
 export function validateNamecardTags(names: readonly string[]) {
   const body = namecardTagValidateRequestSchema.parse({ names })
   return apiClient.Post(
-    "/api/cards/tags/validate",
+    apiPath("/cards/tags/validate"),
     body,
     parsed(namecardTagValidateResponseSchema, {
       errorSchema: fudabaErrorResponseSchema,

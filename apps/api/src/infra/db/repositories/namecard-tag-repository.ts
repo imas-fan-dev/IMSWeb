@@ -17,7 +17,7 @@ import {
     normalizeTagName,
     tagConflict,
     type TagBlockMatch,
-} from "@/utils/namecard-tags";
+} from "@/utils/validation/namecard-tags";
 
 interface TagRow {
     card_id: string;
@@ -68,7 +68,7 @@ function aliasList(value: unknown): string[] {
 /**
  * 标签库的 PostgreSQL 实现。
  *
- * 归一化/校验规则在 `@/utils/namecard-tags`；这一层只负责落库与读取。
+ * 归一化/校验规则在 `@/utils/validation/namecard-tags`；这一层只负责落库与读取。
  * 所有写路径都经过一个事务：预设解析、屏蔽词校验、整组替换要么全成要么全败。
  */
 export class SqlNamecardTagRepository implements NamecardTagRepository {

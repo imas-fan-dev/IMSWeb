@@ -1,4 +1,4 @@
-import type { TagBlockMatch, TagBlockRule } from "@/utils/namecard-tags";
+import type { TagBlockMatch, TagBlockRule } from "@/utils/validation/namecard-tags";
 
 /** 名片上的一枚标签：显示名 + 命中的预设（自由标签为 null）。 */
 export interface NamecardTagRecord {

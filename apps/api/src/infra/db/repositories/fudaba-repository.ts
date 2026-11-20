@@ -5418,6 +5418,34 @@ export class SqlFudabaRepository implements FudabaRepository {
                                 [updated.id, ownerless.id],
                             );
                         }
+                        if (ownerless) {
+                            // 标签随认领并入目标名片：并集、按归一化去重、最多 20 个
+                            // （与编辑器上限一致）。目标已有标签保留原顺序。
+                            await executeSql(
+                                database,
+                                `INSERT INTO namecard_tags (card_id, name, normalized, preset_id, display_order)
+                                 SELECT ?, merged.name, merged.normalized, merged.preset_id,
+                                        merged.base + merged.rn
+                                   FROM (
+                                        SELECT name, normalized, preset_id,
+                                               COALESCE(
+                                                   (SELECT MAX(display_order)
+                                                      FROM namecard_tags
+                                                     WHERE card_id = ?),
+                                                   -1
+                                               ) AS base,
+                                               ROW_NUMBER() OVER (ORDER BY display_order, normalized) AS rn,
+                                               (SELECT COUNT(*)
+                                                  FROM namecard_tags
+                                                 WHERE card_id = ?) AS existing
+                                          FROM namecard_tags
+                                         WHERE card_id = ?
+                                   ) merged
+                                  WHERE merged.rn <= 20 - merged.existing
+                                 ON CONFLICT (card_id, normalized) DO NOTHING`,
+                                [updated.id, updated.id, updated.id, ownerless.id],
+                            );
+                        }
                         // The legacy card now lives twice: once on the
                         // claimant's own card (just bound above) and once as
                         // the ownerless row the unification backfill created.

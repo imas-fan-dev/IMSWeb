@@ -114,7 +114,7 @@ export function NamecardWallCarousel({
     // 拖动期间关掉过渡，否则每次 move 的位移都会被动画吃掉，看起来不跟手。
     setAnimate(false)
     try {
-      event.currentTarget.setPointerCapture(event.pointerId)
+      event.currentTarget.setPointerCapture?.(event.pointerId)
     } catch {
       // 合成事件或指针已失效时拿不到捕获，退回元素上的事件即可。
     }
@@ -132,8 +132,8 @@ export function NamecardWallCarousel({
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
     dragRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
     }
     setAnimate(true)
     const dx = event.clientX - drag.startX
