@@ -34,10 +34,14 @@ struct NativeColor: Decodable {
 }
 
 private struct NativeTabItem: Decodable {
-  let route: String
-  let lucideIcon: String
+  let route: String?
+  let lucideIcon: String?
+  let action: String?
   let title: String
+  let menu: NativeExchangeMenuLabels?
 }
+
+private let exchangeActionTabID = "ims:exchange"
 
 private struct ConfigureArgs: Decodable {
   let dark: Bool
@@ -46,6 +50,9 @@ private struct ConfigureArgs: Decodable {
   let items: [NativeTabItem]
   let selectedColor: NativeColor?
   let selectedIndex: Int
+  let currentRoute: String
+  let routeKey: String?
+  let accountBadge: String
 }
 
 private struct BackPolicyArgs: Decodable {
@@ -60,6 +67,9 @@ private struct UpdateArgs: Decodable {
   let interactionBlocked: Bool?
   let selectedColor: NativeColor?
   let selectedIndex: Int?
+  let currentRoute: String?
+  let routeKey: String?
+  let accountBadge: String?
 }
 
 private final class NativeTabContentViewController: UIViewController {
@@ -74,26 +84,105 @@ private final class NativeTabContentViewController: UIViewController {
 
 private final class NativeTabBarOverlayView: UIView {
   weak var interactiveView: UIView?
+  weak var exchangeButton: UIButton?
+  weak var exchangeMenuView: UIView?
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    guard
-      let hitView = super.hitTest(point, with: event),
-      let interactiveView,
-      hitView === interactiveView || hitView.isDescendant(of: interactiveView)
-    else {
-      return nil
-    }
-    return hitView
+    guard let hit = super.hitTest(point, with: event) else { return nil }
+    if let exchangeButton, hit === exchangeButton || hit.isDescendant(of: exchangeButton) { return hit }
+    if let exchangeMenuView, hit === exchangeMenuView || hit.isDescendant(of: exchangeMenuView) { return hit }
+    if let interactiveView, hit === interactiveView || hit.isDescendant(of: interactiveView) { return hit }
+    return nil
+  }
+}
+
+@available(iOS 26.0, *)
+private final class NativeExchangeGlassButton: UIButton {
+  private let title: String
+  private let glyph: UIImage
+  private var closeLabel: String?
+
+  init(title: String, glyph: UIImage) {
+    self.title = title
+    self.glyph = glyph
+    super.init(frame: .zero)
+    accessibilityIdentifier = "ims-native-exchange-button"
+    accessibilityLabel = title
+    isHidden = true
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+    UIBezierPath(ovalIn: bounds).contains(point)
+  }
+
+  private var labelFont: UIFont {
+    UIFontMetrics(forTextStyle: .caption2).scaledFont(
+      for: .systemFont(ofSize: 11, weight: .semibold), compatibleWith: traitCollection
+    )
+  }
+
+  var preferredDiameter: CGFloat {
+    let titleWidth = (title as NSString).size(withAttributes: [.font: labelFont]).width
+    return ceil(max(54, (titleWidth + 10) / 0.85, labelFont.lineHeight + 40))
+  }
+
+  func setCloseLabel(_ label: String?) {
+    closeLabel = label
+    accessibilityLabel = label ?? title
+  }
+
+  func applyAppearance(dark: Bool) {
+    let ink = dark
+      ? UIColor(red: 1, green: 0.74, blue: 0.85, alpha: 1)
+      : UIColor(red: 0.57, green: 0.05, blue: 0.26, alpha: 1)
+    let tint = dark
+      ? UIColor(red: 0.32, green: 0.17, blue: 0.24, alpha: 1)
+      : UIColor(red: 1, green: 0.89, blue: 0.93, alpha: 1)
+    let reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
+    var config: UIButton.Configuration = reduceTransparency ? .filled() : .prominentGlass()
+    config.cornerStyle = .capsule
+    config.baseBackgroundColor = tint.withAlphaComponent(reduceTransparency ? 1 : 0.7)
+    config.baseForegroundColor = ink
+    config.image = closeLabel == nil
+      ? glyph.withTintColor(ink, renderingMode: .alwaysOriginal)
+      : UIImage(systemName: "xmark", withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold))
+    config.imagePlacement = .top
+    config.imagePadding = 2
+    config.contentInsets = .zero
+    var styledTitle = AttributedString(title)
+    styledTitle.font = labelFont
+    if closeLabel == nil { config.attributedTitle = styledTitle }
+    config.titleLineBreakMode = .byClipping
+    configuration = config
   }
 }
 
 private final class NativeGlassTabBarHostViewController: UIViewController {
   let systemTabController: UITabBarController
   var onLayout: (() -> Void)?
+  var onExchange: (() -> Void)?
+  var onExchangeQR: (() -> Void)?
   private let overlayView = NativeTabBarOverlayView()
+  private let exchangeTitle: String?
+  private let exchangeGlyph: UIImage
+  private let exchangeMenuLabels: NativeExchangeMenuLabels?
+  // The host is available at the deployment target; the radial is iOS 26-only.
+  private var exchangeMenuView: UIView?
+  private weak var previousUpperSibling: UIView?
+  private var exchangeButton: UIButton?
+  private var usesExchangeCircle = false
+  private var interactionBlocked = false
 
-  init(tabBarController: UITabBarController) {
+  init(tabBarController: UITabBarController, exchangeTitle: String?, exchangeGlyph: UIImage,
+    exchangeMenuLabels: NativeExchangeMenuLabels?) {
     self.systemTabController = tabBarController
+    self.exchangeTitle = exchangeTitle
+    self.exchangeGlyph = exchangeGlyph
+    self.exchangeMenuLabels = exchangeMenuLabels
     super.init(nibName: nil, bundle: nil)
   }
 
@@ -126,16 +215,144 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
 
     systemTabController.tabBar.accessibilityIdentifier = "ims-native-liquid-glass-tab-bar"
     overlayView.interactiveView = systemTabController.tabBar
-    if #available(iOS 17.0, *) {
+    if #available(iOS 26.0, *), let exchangeTitle {
+      let button = NativeExchangeGlassButton(title: exchangeTitle, glyph: exchangeGlyph)
+      if let exchangeMenuLabels {
+        let menu = NativeExchangeMenu(labels: exchangeMenuLabels)
+        menu.onDismiss = { [weak self] in self?.dismissExchangeMenu(animated: true) }
+        menu.onQR = { [weak self] in
+          guard let self, !self.interactionBlocked else { return }
+          self.dismissExchangeMenu(animated: false)
+          self.onExchangeQR?()
+        }
+        view.addSubview(menu)
+        overlayView.exchangeMenuView = menu
+        exchangeMenuView = menu
+      }
+      button.addAction(UIAction { [weak self] _ in self?.toggleExchangeMenu() }, for: .primaryActionTriggered)
+      view.addSubview(button)
+      overlayView.exchangeButton = button
+      exchangeButton = button
       registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self]) {
-        (host: NativeGlassTabBarHostViewController, _: UITraitCollection) in host.view.setNeedsLayout()
+        (host: NativeGlassTabBarHostViewController, _: UITraitCollection) in
+        host.updateExchangeAppearance()
+        host.view.setNeedsLayout()
       }
     }
   }
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    if #available(iOS 26.0, *) { layoutExchangeButton() }
     onLayout?()
+  }
+
+  @available(iOS 26.0, *)
+  func applyTheme(dark: Bool) {
+    let style: UIUserInterfaceStyle = dark ? .dark : .light
+    guard overrideUserInterfaceStyle != style else { return }
+    overrideUserInterfaceStyle = style
+    updateExchangeAppearance()
+  }
+
+  @available(iOS 26.0, *)
+  func updateExchangeAppearance() {
+    let dark = overrideUserInterfaceStyle == .dark
+    (exchangeButton as? NativeExchangeGlassButton)?.applyAppearance(dark: dark)
+    (exchangeMenuView as? NativeExchangeMenu)?.applyAppearance(dark: dark)
+    if !usesExchangeCircle { updateExchangeSlot() }
+  }
+
+  func setExchangeInert(_ inert: Bool) {
+    interactionBlocked = inert
+    if inert { dismissExchangeMenu() }
+    exchangeButton?.isHidden = inert || !usesExchangeCircle
+    exchangeButton?.isEnabled = !inert
+    if !inert { view.setNeedsLayout() }
+  }
+
+  var exchangeMenuVisible: Bool { exchangeMenuView?.isHidden == false }
+
+  @available(iOS 26.0, *)
+  private func positionExchangeMenu(_ menu: NativeExchangeMenu) -> Bool {
+    guard usesExchangeCircle, !UIAccessibility.isVoiceOverRunning, let button = exchangeButton else { return false }
+    return menu.position(in: view.bounds, safeArea: view.safeAreaLayoutGuide.layoutFrame, anchor: button.center)
+  }
+
+  @available(iOS 26.0, *)
+  private func toggleExchangeMenu() {
+    guard !interactionBlocked, !systemTabController.isTabBarHidden else { return }
+    if let menu = exchangeMenuView as? NativeExchangeMenu, menu.isOpen {
+      dismissExchangeMenu(animated: true)
+      return
+    }
+    guard let menu = exchangeMenuView as? NativeExchangeMenu, positionExchangeMenu(menu), let parent = view.superview else {
+      onExchange?()
+      return
+    }
+    if !exchangeMenuVisible, let index = parent.subviews.firstIndex(of: view) {
+      previousUpperSibling = parent.subviews.dropFirst(index + 1).first
+    }
+    parent.bringSubviewToFront(view)
+    systemTabController.tabBar.accessibilityElementsHidden = true
+    (exchangeButton as? NativeExchangeGlassButton)?.setCloseLabel(menu.closeLabel)
+    updateExchangeAppearance()
+    menu.setOpen(true, animated: true)
+  }
+
+  func dismissExchangeMenu(animated: Bool = false) {
+    guard #available(iOS 26.0, *), let menu = exchangeMenuView as? NativeExchangeMenu, !menu.isHidden else { return }
+    (exchangeButton as? NativeExchangeGlassButton)?.setCloseLabel(nil)
+    updateExchangeAppearance()
+    menu.setOpen(false, animated: animated) { [weak self] in
+      guard let self else { return }
+      if let sibling = self.previousUpperSibling, let parent = self.view.superview, sibling.superview === parent {
+        parent.insertSubview(self.view, belowSubview: sibling)
+      }
+      self.previousUpperSibling = nil
+      self.systemTabController.tabBar.accessibilityElementsHidden = self.interactionBlocked
+    }
+  }
+
+  @available(iOS 26.0, *)
+  private func updateExchangeSlot() {
+    guard let exchangeTitle,
+      let tab = systemTabController.tabs.first(where: { $0.identifier == exchangeActionTabID }) else { return }
+    let tint = overrideUserInterfaceStyle == .dark
+      ? UIColor(red: 1, green: 0.47, blue: 0.71, alpha: 1)
+      : UIColor(red: 0.76, green: 0.14, blue: 0.42, alpha: 1)
+    tab.title = usesExchangeCircle ? "" : exchangeTitle
+    tab.image = usesExchangeCircle ? nil : exchangeGlyph.withTintColor(tint, renderingMode: .alwaysOriginal)
+    tab.isEnabled = !usesExchangeCircle
+  }
+
+  @available(iOS 26.0, *)
+  private func layoutExchangeButton() {
+    guard let button = exchangeButton as? NativeExchangeGlassButton, !systemTabController.isTabBarHidden else { return }
+    let diameter = button.preferredDiameter
+    let range = navigationRange(in: view)
+    let docking = navigationDockingFrame(in: view)
+    // Keep the system action when the available slot is too small, or when
+    // VoiceOver needs UIKit's tab order without an empty center stop.
+    let fits = traitCollection.userInterfaceIdiom == .phone && traitCollection.verticalSizeClass == .regular
+      && !UIAccessibility.isVoiceOverRunning
+      && diameter <= min(64, (range?.width ?? 0) / 5 - 4)
+      && (docking?.height ?? 0) >= diameter
+    if fits != usesExchangeCircle {
+      usesExchangeCircle = fits
+      updateExchangeSlot()
+    }
+    if fits, let docking {
+      // The public docking strip includes the home-indicator area and is not
+      // the painted capsule. Keep the circle centered in its upper section.
+      let centerY = docking.minY + min(31, docking.height / 2)
+      button.frame = CGRect(x: docking.midX - diameter / 2, y: centerY - diameter / 2,
+        width: diameter, height: diameter)
+    }
+    if let menu = exchangeMenuView as? NativeExchangeMenu, menu.isOpen, !positionExchangeMenu(menu) {
+      dismissExchangeMenu()
+    }
+    button.isHidden = interactionBlocked || !usesExchangeCircle
   }
 
   override func viewLayoutMarginsDidChange() {
@@ -169,7 +386,8 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
   private weak var webview: WKWebView?
   private var items: [NativeTabItem] = []
   private var selectedColor = imsTabBarSelectedColor
-  private var selectedIndex = 0
+  private var currentRoute = ""
+  private var routeKey: String?
   private var isSynchronizingSelection = false
   private var interactionBlocked = false
   private var tabBarController: UITabBarController?
@@ -286,6 +504,18 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     // reach entries from another tab, so the system gesture stays disabled and
     // the App admits its own edge gesture instead.
     webview.allowsBackForwardNavigationGestures = false
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(exchangeAccessibilityDidChange(_:)),
+      name: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(exchangeAccessibilityDidChange(_:)),
+      name: UIAccessibility.voiceOverStatusDidChangeNotification,
+      object: nil
+    )
     #if DEBUG
     logNativeGlass("plugin loaded")
     #endif
@@ -336,7 +566,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
 
   func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard gestureRecognizer === backEdgeRecognizer else { return true }
-    return backCanNavigate
+    return backCanNavigate && tabBarHost?.exchangeMenuVisible != true
   }
 
   @objc private func handleBackEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
@@ -436,15 +666,24 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
         invoke.resolve(["supported": false, "reason": "native-glass-inactive"])
         return
       }
-      if let selectedIndex = args.selectedIndex {
-        self.selectTab(at: selectedIndex)
+      if let routeKey = args.routeKey, routeKey != self.routeKey {
+        self.routeKey = routeKey
+        self.tabBarHost?.dismissExchangeMenu()
       }
+      if let currentRoute = args.currentRoute, currentRoute != self.currentRoute {
+        self.currentRoute = currentRoute
+        self.tabBarHost?.dismissExchangeMenu()
+      }
+      if let selectedIndex = args.selectedIndex { self.selectTab(at: selectedIndex) }
+      if let accountBadge = args.accountBadge { self.setAccountBadge(accountBadge) }
       if let selectedColor = args.selectedColor {
         self.selectedColor = selectedColor.uiColor
       }
       self.applyAppearance(dark: args.dark)
       self.setInteractionBlocked(args.interactionBlocked ?? false)
-      self.setBarHidden(args.hidden ?? false, animated: args.interactionBlocked != true)
+      // Yield to a modal immediately. The return uses UIKit's own transition.
+      self.setBarHidden(args.hidden ?? false, animated: args.hidden != true && !UIAccessibility.isReduceMotionEnabled)
+      self.publishExchangeNavigationLayout()
       invoke.resolve(["supported": true])
     }
   }
@@ -491,7 +730,10 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
           search.hasLocate = host.hasLocate
           search.view.setNeedsLayout()
           search.view.layoutIfNeeded()
-          host.setSearchLocateFrame(search.locateFrame.map { search.view.convert($0, to: host.overlayView) })
+          host.setSearchLocateFrame(
+            search.locateFrame.map { search.view.convert($0, to: host.overlayView) },
+            covered: search.locateCovered
+          )
         }
         invoke.resolve(["supported": true])
       } else {
@@ -524,6 +766,8 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
   private func install(in hostController: UIViewController, args: ConfigureArgs) -> Bool {
     removeBar(animated: false)
     items = args.items
+    currentRoute = args.currentRoute
+    routeKey = args.routeKey
     selectedColor = args.selectedColor?.uiColor ?? imsTabBarSelectedColor
     guard let tabs = makeTabs() else {
       items = []
@@ -534,10 +778,18 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     tabController.delegate = self
     tabController.mode = .tabBar
     tabController.tabs = tabs
+    // Apply visibility before attaching the host, including a launch into a modal.
+    tabController.setTabBarHidden(args.hidden ?? false, animated: false)
 
+    let exchangeItem = items.first(where: { $0.action == "exchange" })
     let tabBarHost = NativeGlassTabBarHostViewController(
-      tabBarController: tabController
+      tabBarController: tabController,
+      exchangeTitle: exchangeItem?.title,
+      exchangeGlyph: Self.exchangeTabMask,
+      exchangeMenuLabels: args.routeKey == nil ? nil : exchangeItem?.menu
     )
+    tabBarHost.onExchange = { [weak self] in self?.dispatchExchange() }
+    tabBarHost.onExchangeQR = { [weak self] in self?.dispatchExchangeQR() }
     hostController.addChild(tabBarHost)
     hostController.view.addSubview(tabBarHost.view)
     tabBarHost.view.translatesAutoresizingMaskIntoConstraints = false
@@ -557,12 +809,12 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
       self.searchHost?.view.setNeedsLayout()
       self.publishExchangeNavigationLayout()
     }
-    hostController.view.layoutIfNeeded()
-    publishExchangeNavigationLayout(force: true)
     selectTab(at: args.selectedIndex)
+    setAccountBadge(args.accountBadge)
     applyAppearance(dark: args.dark)
     setInteractionBlocked(args.interactionBlocked ?? false)
-    setBarHidden(args.hidden ?? false, animated: false)
+    hostController.view.layoutIfNeeded()
+    publishExchangeNavigationLayout()
     return true
   }
 
@@ -570,20 +822,57 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
   private func makeTabs() -> [UITab]? {
     var tabs: [UITab] = []
     for item in items {
-      guard let image = lucideImage(for: item.lucideIcon) else {
+      let identifier: String
+      let image: UIImage?
+      if item.action == "exchange" {
+        identifier = exchangeActionTabID
+        image = Self.exchangeTabMask
+      } else if let route = item.route, let lucideIcon = item.lucideIcon {
+        identifier = route
+        image = lucideImage(for: lucideIcon)
+      } else {
         return nil
       }
-      tabs.append(
-        UITab(
-          title: item.title,
-          image: image.withRenderingMode(.alwaysTemplate),
-          identifier: item.route
-        ) { _ in
-          NativeTabContentViewController()
-        }
-      )
+      guard let image else { return nil }
+      tabs.append(UITab(title: item.title, image: image, identifier: identifier) { _ in
+        NativeTabContentViewController()
+      })
     }
     return tabs
+  }
+
+  // Draw the same 24-unit silhouette as ExchangeActionButton at 22 pt.
+  private static let exchangeTabMask = UIGraphicsImageRenderer(
+    size: CGSize(width: 22, height: 22)
+  ).image { renderer in
+    let context = renderer.cgContext
+    context.scaleBy(x: 22.0 / 24, y: 22.0 / 24)
+    UIColor.black.setFill()
+    let card = UIBezierPath(roundedRect: CGRect(x: 6, y: 7.7, width: 12, height: 8.6), cornerRadius: 1.6)
+    card.append(UIBezierPath(ovalIn: CGRect(x: 8.7, y: 10.75, width: 2.5, height: 2.5)))
+    card.append(UIBezierPath(roundedRect: CGRect(x: 12.8, y: 10.55, width: 3.55, height: 1.3), cornerRadius: 0.65))
+    card.append(UIBezierPath(roundedRect: CGRect(x: 12.8, y: 12.65, width: 2.8, height: 1.3), cornerRadius: 0.65))
+    card.usesEvenOddFillRule = true
+    card.fill()
+
+    let hand = UIBezierPath()
+    hand.move(to: CGPoint(x: 4.8, y: 16.1))
+    hand.addLine(to: CGPoint(x: 7, y: 14.2))
+    hand.addCurve(to: CGPoint(x: 9.2, y: 16.38),
+      controlPoint1: CGPoint(x: 8.46, y: 12.74), controlPoint2: CGPoint(x: 10.65, y: 14.94))
+    hand.addLine(to: CGPoint(x: 8.42, y: 17.31))
+    hand.addLine(to: CGPoint(x: 12.59, y: 17.31))
+    hand.addCurve(to: CGPoint(x: 13.21, y: 19.5),
+      controlPoint1: CGPoint(x: 13.79, y: 17.31), controlPoint2: CGPoint(x: 14.22, y: 18.88))
+    hand.addLine(to: CGPoint(x: 10.57, y: 20.9))
+    hand.addQuadCurve(to: CGPoint(x: 8.13, y: 21.14), controlPoint: CGPoint(x: 9.36, y: 21.53))
+    hand.addLine(to: CGPoint(x: 4.8, y: 20.2))
+    hand.close()
+    hand.append(UIBezierPath(roundedRect: CGRect(x: 1.05, y: 15.15, width: 2.6, height: 6.1), cornerRadius: 0.8))
+    hand.fill()
+    context.translateBy(x: 24, y: 24)
+    context.scaleBy(x: -1, y: -1)
+    hand.fill()
   }
 
   private func lucideImage(for identifier: String) -> UIImage? {
@@ -592,44 +881,65 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
 
   @available(iOS 26.0, *)
   private func selectTab(at index: Int) {
-    guard let tabBarController, !items.isEmpty else { return }
-    selectedIndex = clampedIndex(index)
-    guard tabBarController.tabs.indices.contains(selectedIndex) else { return }
-
+    guard let tabBarController else { return }
+    let tab = tabBarController.tabs.indices.contains(index) ? tabBarController.tabs[index] : nil
+    let selection = tab?.identifier == exchangeActionTabID ? nil : tab
+    guard tabBarController.selectedTab !== selection else { return }
     isSynchronizingSelection = true
     defer { isSynchronizingSelection = false }
-    tabBarController.selectedTab = tabBarController.tabs[selectedIndex]
-    publishExchangeNavigationLayout(force: true)
+    tabBarController.selectedTab = selection
   }
 
-  private func clampedIndex(_ index: Int) -> Int {
-    guard !items.isEmpty else { return 0 }
-    return min(max(index, 0), items.count - 1)
+  @available(iOS 26.0, *)
+  private func setAccountBadge(_ value: String) {
+    guard let account = tabBarController?.tabs.first(where: { $0.identifier == "/account/me" }) else { return }
+    let badge = value.isEmpty ? nil : value
+    if account.badgeValue != badge { account.badgeValue = badge }
   }
 
   @available(iOS 26.0, *)
   private func applyAppearance(dark: Bool) {
-    tabBarController?.overrideUserInterfaceStyle = dark ? .dark : .light
-    tabBarController?.tabBar.tintColor = selectedColor
-    tabBarController?.tabBar.unselectedItemTintColor = .secondaryLabel
+    guard let tabBarController else { return }
+    tabBarHost?.applyTheme(dark: dark)
+    tabBarController.tabBar.tintColor = selectedColor
+    tabBarController.tabBar.unselectedItemTintColor = .secondaryLabel
+  }
+
+  @objc private func exchangeAccessibilityDidChange(_ notification: Notification) {
+    DispatchQueue.main.async { [weak self] in
+      guard #available(iOS 26.0, *), let host = self?.tabBarHost else { return }
+      host.updateExchangeAppearance()
+      host.view.setNeedsLayout()
+    }
   }
 
   @available(iOS 18.0, *)
   private func setInteractionBlocked(_ blocked: Bool) {
     interactionBlocked = blocked
-    tabBarController?.tabBar.isUserInteractionEnabled = !blocked
+    updateBarInteraction()
+  }
+
+  @available(iOS 18.0, *)
+  private func updateBarInteraction() {
+    guard let tabBarController else { return }
+    let inert = interactionBlocked || tabBarController.isTabBarHidden
+    tabBarController.tabBar.isUserInteractionEnabled = !inert
+    tabBarHost?.setExchangeInert(inert)
+    tabBarController.tabBar.accessibilityElementsHidden = inert || tabBarHost?.exchangeMenuVisible == true
   }
 
   @available(iOS 18.0, *)
   private func setBarHidden(_ hidden: Bool, animated: Bool) {
-    tabBarController?.setTabBarHidden(hidden, animated: animated)
-    if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
+    guard let tabBarController, tabBarController.isTabBarHidden != hidden else { return }
+    tabBarController.setTabBarHidden(hidden, animated: animated)
+    updateBarInteraction()
+    searchHost?.view.setNeedsLayout()
   }
 
   @available(iOS 26.0, *)
   private func publishExchangeNavigationLayout(force: Bool = false, removedRoute: String? = nil) {
     guard let webview, webview.bounds.width > 0, webview.bounds.height > 0 else { return }
-    let route = removedRoute ?? (items.indices.contains(selectedIndex) ? items[selectedIndex].route : "")
+    let route = removedRoute ?? currentRoute
     let range = tabBarHost?.navigationRange(in: webview)
     let inset = webview.scrollView.adjustedContentInset
     let available = range != nil && tabBarController != nil
@@ -660,7 +970,28 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     _ tabBarController: UITabBarController,
     shouldSelectTab tab: UITab
   ) -> Bool {
-    return isSynchronizingSelection || !interactionBlocked
+    if isSynchronizingSelection { return tab.identifier != exchangeActionTabID }
+    guard !interactionBlocked, !tabBarController.isTabBarHidden else { return false }
+    if tab.identifier == exchangeActionTabID {
+      dispatchExchange()
+      return false
+    }
+    return true
+  }
+
+  @available(iOS 18.0, *)
+  private func dispatchExchange() {
+    // An action never acquires the selection lens or changes the routed page.
+    guard !interactionBlocked, tabBarController?.isTabBarHidden == false else { return }
+    webview?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('ims:native-tab-action',{detail:{action:'exchange'}}))", completionHandler: nil)
+  }
+
+  @available(iOS 26.0, *)
+  private func dispatchExchangeQR() {
+    guard !interactionBlocked, tabBarController?.isTabBarHidden == false,
+      let routeKey, let data = try? JSONEncoder().encode(routeKey),
+      let literal = String(data: data, encoding: .utf8) else { return }
+    webview?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('ims:native-tab-action',{detail:{action:'exchange-qr',routeKey:\(literal)}}))", completionHandler: nil)
   }
 
   @available(iOS 18.0, *)
@@ -669,13 +1000,8 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     didSelectTab selectedTab: UITab,
     previousTab: UITab?
   ) {
-    guard !isSynchronizingSelection, !interactionBlocked else { return }
-    guard let index = items.firstIndex(where: { $0.route == selectedTab.identifier }) else {
-      return
-    }
-
-    selectedIndex = index
-    if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true) }
+    guard !isSynchronizingSelection, !interactionBlocked, !tabBarController.isTabBarHidden,
+      items.contains(where: { $0.route == selectedTab.identifier }) else { return }
     if #available(iOS 26.0, *), selectedTab.identifier != "/community/exchange",
       let host = searchHost as? NativeGlassSearchHost {
       searchGeneration = max(searchGeneration, (host.snapshot?.generation ?? searchGeneration) + 1)
@@ -697,12 +1023,15 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
 
   private func removeBar(animated: Bool) {
     guard let tabBarHost, let tabBarController else { return }
-    let removedRoute = items.indices.contains(selectedIndex) ? items[selectedIndex].route : ""
+    let removedRoute = currentRoute
+    currentRoute = ""
+    routeKey = nil
     self.tabBarHost = nil
     self.tabBarController = nil
     navigationLayoutGeneration += 1
     if #available(iOS 26.0, *) { publishExchangeNavigationLayout(force: true, removedRoute: removedRoute) }
     tabBarController.delegate = nil
+    tabBarHost.setExchangeInert(true)
     items = []
 
     guard animated else {
@@ -756,9 +1085,13 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
   /// The search host owns the shared material; locate ink must composite above
   /// that material after either installation order or modal reinstallation.
   private func orderSearchAndControlHosts(in parent: UIViewController) {
-    guard let search = searchHost, let controls = controlHost,
-      search.view.superview === parent.view, controls.view.superview === parent.view else { return }
-    parent.view.insertSubview(controls.view, aboveSubview: search.view)
+    if let search = searchHost, let controls = controlHost,
+      search.view.superview === parent.view, controls.view.superview === parent.view {
+      parent.view.insertSubview(controls.view, aboveSubview: search.view)
+    }
+    if let tabBarHost, tabBarHost.exchangeMenuVisible, tabBarHost.view.superview === parent.view {
+      parent.view.bringSubviewToFront(tabBarHost.view)
+    }
   }
 
   @available(iOS 26.0, *)

@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core"
 import { IS_APP_TARGET } from "~/lib/app-target"
 
 export const NATIVE_TAB_SELECT_EVENT = "ims:native-tab-select"
+export const NATIVE_TAB_ACTION_EVENT = "ims:native-tab-action"
 
 export type NativeGlassColor = {
   red: number
@@ -11,11 +12,13 @@ export type NativeGlassColor = {
   alpha: number
 }
 
-export type NativeGlassTabItem = {
-  route: string
-  lucideIcon: string
-  title: string
-}
+export type NativeGlassTabItem = { title: string } & (
+  | { route: string; lucideIcon: string }
+  | {
+      action: "exchange"
+      menu?: { qr: string; nfc: string; group: string; close: string }
+    }
+)
 
 export type NativeGlassConfigureOptions = {
   dark: boolean
@@ -23,15 +26,17 @@ export type NativeGlassConfigureOptions = {
   interactionBlocked?: boolean
   items: NativeGlassTabItem[]
   selectedColor: NativeGlassColor
+  /** -1 means the current page has no selectable tab (e.g. exchange map). */
   selectedIndex: number
+  currentRoute: string
+  routeKey?: string
+  accountBadge: string
 }
 
-export type NativeGlassUpdateOptions = Pick<
+export type NativeGlassUpdateOptions = Omit<
   NativeGlassConfigureOptions,
-  "dark" | "hidden" | "interactionBlocked" | "selectedColor"
-> & {
-  selectedIndex?: number
-}
+  "items"
+>
 
 export type NativeGlassStatus = {
   reason?: string

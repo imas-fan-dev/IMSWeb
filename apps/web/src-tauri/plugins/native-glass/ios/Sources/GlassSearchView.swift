@@ -177,6 +177,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   }
   private(set) var locateFrame: CGRect?
   private(set) var locateCovered = false
+  private var yieldingToTool = false
   weak var webview: WKWebView?
   private(set) var snapshot: NativeSearchArgs?
   private let overlay = SearchOverlayView()
@@ -615,6 +616,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     loadViewIfNeeded()
     let newSession = snapshot?.generation != args.generation
     if newSession || (settling && args.editing && !lastCommandedEditing) { interruptSettle() }
+    if newSession { yieldingToTool = false }
     snapshot = args
     overrideUserInterfaceStyle = args.dark ? .dark : .light
     view.tintColor = args.tint?.uiColor ?? imsTabBarSelectedColor
@@ -784,7 +786,8 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     browseHandle.isHidden = !collapsed
     clearSelection.isHidden = !collapsed || snapshot?.selected.isEmpty != false
     more.isHidden = !collapsed
-    moreGlass.isHidden = !collapsed
+    glass.isHidden = yieldingToTool
+    moreGlass.isHidden = !collapsed || yieldingToTool
     actionButtons["cancel"]?.isHidden = collapsed
     field.isHidden = collapsed
     actions.isHidden = collapsed || inlineSubmit
@@ -822,8 +825,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     }
     handle.accessibilityCustomActions = detentActions
     browseHandle.accessibilityCustomActions = detentActions
-    sideGlass.isHidden = !collapsed || settling
-    refresh.isHidden = !collapsed || settling
+
   }
 
   override func accessibilityPerformEscape() -> Bool {
@@ -846,11 +848,16 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
       refresh.isEnabled = false
     }
     field.resignFirstResponder()
-    if ["filter", "offices", "source", "account"].contains(key) {
+    // Only latch for guaranteed modal handoffs. Attribution may disappear
+    // and account navigation may be interrupted before the host is removed.
+    if key == "filter" || key == "offices" {
       notice.setActive(false)
       placeholder.setActive(false)
+      // Keep handing off even if layout or a stale snapshot arrives before the
+      // modal removes this host. Do not pop locate back to its standalone skin.
+      yieldingToTool = true
       for surface in [glass, sideGlass, moreGlass] { surface.isHidden = true }
-      onSideLayout?(nil, false)
+      updateLocateFrame(locateFrame, covered: true)
     }
     emit("tool", value: key)
   }
@@ -920,7 +927,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     contentSurface.accessibilityElementsHidden = true
     sideGlass.isHidden = true
     refresh.isHidden = true
-    onSideLayout?(nil, false)
+    updateLocateFrame(locateFrame, covered: true)
     // A zero-duration property animator uses UIKit's default duration rather
     // than completing immediately. Reduced Motion must bypass it entirely.
     if UIAccessibility.isReduceMotionEnabled {
@@ -1072,19 +1079,16 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     sideGlass.layer.cornerRadius = 24
     refresh.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
     let refreshFrame = refresh.convert(refresh.bounds, to: view)
-    let refreshCovered = settling || glass.frame.intersects(refreshFrame) || refreshFrame.maxY > keyboardTop
+    let hideSide = yieldingToTool || settling || (detent != "collapsed" && dragHeight == nil)
+    let refreshCovered = hideSide || glass.frame.intersects(refreshFrame) || refreshFrame.maxY > keyboardTop
     refresh.isHidden = refreshCovered
     // Locate ink is hosted by the shared control overlay above this view.
     // Retire only the covered ink; its browsing anchor stays stationary.
     let candidate = CGRect(x: sideGlass.frame.minX, y: sideGlass.frame.maxY - 48, width: 48, height: 48)
     let nextLocate = hasLocate ? candidate : nil
-    let covered = settling || glass.frame.intersects(candidate) || candidate.maxY > keyboardTop
+    let covered = hideSide || glass.frame.intersects(candidate) || candidate.maxY > keyboardTop
     sideGlass.isHidden = refreshCovered && (!hasLocate || covered)
-    if locateFrame != nextLocate || locateCovered != covered {
-      locateFrame = nextLocate
-      locateCovered = covered
-      onSideLayout?(nextLocate, covered)
-    }
+    updateLocateFrame(nextLocate, covered: covered)
     guard union != lastGeometry else { return }
     let now = CACurrentMediaTime()
     if dragHeight != nil && now - lastGeometryTime < 1.0 / 30.0 { return }
@@ -1092,6 +1096,13 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     lastGeometry = union
     let css = view.convert(union, to: webview)
     emit("geometry", frame: ["x": css.minX - inset.left, "y": css.minY - inset.top, "width": css.width, "height": css.height])
+  }
+
+  private func updateLocateFrame(_ frame: CGRect?, covered: Bool) {
+    guard locateFrame != frame || locateCovered != covered else { return }
+    locateFrame = frame
+    locateCovered = covered
+    onSideLayout?(frame, covered)
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { snapshot?.results.count ?? 0 }
