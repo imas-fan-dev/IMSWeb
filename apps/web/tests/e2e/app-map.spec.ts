@@ -799,7 +799,8 @@ test.describe("app map", () => {
           const button = await locate.boundingBox()
           return dock!.y - button!.y - button!.height
         })
-        .toBe(12)
+        // 布局是亚像素的：11.89 也是「12px 间距」，按 close 比较而不是精确相等。
+        .toBeCloseTo(12, 0)
       const browsingControls = [
         await locate.boundingBox(),
         await refresh.boundingBox(),
