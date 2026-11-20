@@ -48,3 +48,6 @@ objc2 = "0.6"
 # tao >= 0.36.
 [patch.crates-io]
 tao = { git = "https://github.com/tauri-apps/tao", rev = "f2163508104413ef0609178dcebdd5803b496211" }
+# Android 的 ML Kit 换成 bundled 版本（见 vendor 目录内的 README）：
+# 原插件依赖 play-services-mlkit-barcode-scanning，需要设备能下载到条码模型。
+tauri-plugin-barcode-scanner = { path = "vendor/tauri-plugin-barcode-scanner" }

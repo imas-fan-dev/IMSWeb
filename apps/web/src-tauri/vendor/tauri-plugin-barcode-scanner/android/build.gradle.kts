@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -20,11 +18,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = JvmTarget.JVM_1_8
+    kotlinOptions {
+        jvmTarget = "1.8"
     }
 }
 
@@ -37,9 +32,10 @@ dependencies {
     implementation("androidx.camera:camera-camera2:${camerax_version}")
     implementation("androidx.camera:camera-lifecycle:${camerax_version}")
     implementation("androidx.camera:camera-view:${camerax_version}")
-    // Bundled ML Kit: the Play-services variant needs Google Play services to fetch
-    // the barcode model, so devices without GMS (common on mainland ROMs) open the
-    // camera but never decode. The bundled artifact ships the model in the APK.
+    // Bundled ML Kit: the Play-services variant asks Google Play services to fetch
+    // the barcode model, so devices where that download fails (verified on a vivo
+    // Android 16 device) open the camera but never decode. The bundled artifact
+    // ships the model in the APK.
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

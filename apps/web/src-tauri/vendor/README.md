@@ -1,6 +1,7 @@
 # Vendored `tauri-plugin-barcode-scanner`
 
-- Upstream: `tauri-plugin-barcode-scanner` 2.5.3 (crate tarball from crates.io).
+- Upstream: `tauri-plugin-barcode-scanner` 2.4.6 (crate tarball from crates.io).
+  2.4.6 is the version Cargo already resolves; 2.5.x requires tauri 2.12.
 - Patched file: `android/build.gradle.kts`.
 - Change: `com.google.android.gms:play-services-mlkit-barcode-scanning:18.1.0`
   → `com.google.mlkit:barcode-scanning:17.3.0`.
