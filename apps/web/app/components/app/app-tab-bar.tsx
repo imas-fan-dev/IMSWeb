@@ -22,6 +22,8 @@ import {
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
+import exchangeGlyph from "../../../src-tauri/plugins/native-glass/ios/Sources/Resources/AppNavigation.xcassets/exchange-two-namecards.imageset/exchange-two-namecards.svg?url&inline"
+
 import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
 import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
@@ -176,10 +178,6 @@ function NativeExchangeMenu({
   )
 }
 
-// The iOS exchangeTabMask draws the same card and mirrored hand silhouette.
-const EXCHANGE_HAND_PATH =
-  "M4.8 16.1 7 14.2a1.55 1.55 0 0 1 2.2 2.18l-.78.93h4.17a1.18 1.18 0 0 1 .62 2.19l-2.64 1.4a3.3 3.3 0 0 1-2.44.24L4.8 20.2Z"
-
 function ExchangeActionButton({
   android,
   open,
@@ -296,7 +294,9 @@ function ExchangeActionButton({
         )}
         onClick={onToggle}
         className={cn(
-          "absolute top-1/2 left-1/2 z-10 grid size-16 -translate-1/2 place-items-center rounded-full shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none",
+          "absolute top-1/2 left-1/2 z-10 grid -translate-1/2 place-items-center rounded-full shadow-[0_14px_30px_-14px_rgb(0_0_0/0.6)] ring-1 ring-primary/25 transition-transform duration-300 ease-out active:scale-95 motion-reduce:transition-none",
+          // Match the native circle’s visual proportion inside the dock (about 88%).
+          android ? "size-12.75" : "size-16",
           android && open
             ? "bg-accent text-accent-foreground"
             : "bg-primary text-primary-foreground"
@@ -308,23 +308,14 @@ function ExchangeActionButton({
             open ? "scale-75 -rotate-45 opacity-0" : "scale-100 opacity-100"
           )}
         >
-          <svg
+          <span
             aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="size-6"
-          >
-            <path
-              fillRule="evenodd"
-              d="M7.6 7.7h8.8A1.6 1.6 0 0 1 18 9.3v5.4a1.6 1.6 0 0 1-1.6 1.6H7.6A1.6 1.6 0 0 1 6 14.7V9.3a1.6 1.6 0 0 1 1.6-1.6Z M11.2 12a1.25 1.25 0 1 0-2.5 0 1.25 1.25 0 0 0 2.5 0Z M13.45 10.55h2.25a.65.65 0 1 1 0 1.3h-2.25a.65.65 0 1 1 0-1.3Z M13.45 12.65h1.5a.65.65 0 1 1 0 1.3h-1.5a.65.65 0 1 1 0-1.3Z"
-            />
-            <rect x="1.05" y="15.15" width="2.6" height="6.1" rx=".8" />
-            <path d={EXCHANGE_HAND_PATH} />
-            <g transform="rotate(180 12 12)">
-              <rect x="1.05" y="15.15" width="2.6" height="6.1" rx=".8" />
-              <path d={EXCHANGE_HAND_PATH} />
-            </g>
-          </svg>
+            className="size-5.5 bg-current mask-contain mask-center mask-no-repeat"
+            style={{
+              maskImage: `url("${exchangeGlyph}")`,
+              WebkitMaskImage: `url("${exchangeGlyph}")`,
+            }}
+          />
           <span className="text-[0.625rem] leading-none font-semibold">
             {t("appNavigation.exchange")}
           </span>

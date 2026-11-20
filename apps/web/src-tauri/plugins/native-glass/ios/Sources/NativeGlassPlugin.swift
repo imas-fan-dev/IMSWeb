@@ -168,7 +168,7 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
   var onExchangeQR: (() -> Void)?
   private let overlayView = NativeTabBarOverlayView()
   private let exchangeTitle: String?
-  private let exchangeGlyph: UIImage
+  private let exchangeGlyph: UIImage?
   private let exchangeMenuLabels: NativeExchangeMenuLabels?
   // The host is available at the deployment target; the radial is iOS 26-only.
   private var exchangeMenuView: UIView?
@@ -177,7 +177,7 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
   private var usesExchangeCircle = false
   private var interactionBlocked = false
 
-  init(tabBarController: UITabBarController, exchangeTitle: String?, exchangeGlyph: UIImage,
+  init(tabBarController: UITabBarController, exchangeTitle: String?, exchangeGlyph: UIImage?,
     exchangeMenuLabels: NativeExchangeMenuLabels?) {
     self.systemTabController = tabBarController
     self.exchangeTitle = exchangeTitle
@@ -215,7 +215,7 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
 
     systemTabController.tabBar.accessibilityIdentifier = "ims-native-liquid-glass-tab-bar"
     overlayView.interactiveView = systemTabController.tabBar
-    if #available(iOS 26.0, *), let exchangeTitle {
+    if #available(iOS 26.0, *), let exchangeTitle, let exchangeGlyph {
       let button = NativeExchangeGlassButton(title: exchangeTitle, glyph: exchangeGlyph)
       if let exchangeMenuLabels {
         let menu = NativeExchangeMenu(labels: exchangeMenuLabels)
@@ -316,7 +316,7 @@ private final class NativeGlassTabBarHostViewController: UIViewController {
 
   @available(iOS 26.0, *)
   private func updateExchangeSlot() {
-    guard let exchangeTitle,
+    guard let exchangeTitle, let exchangeGlyph,
       let tab = systemTabController.tabs.first(where: { $0.identifier == exchangeActionTabID }) else { return }
     let tint = overrideUserInterfaceStyle == .dark
       ? UIColor(red: 1, green: 0.47, blue: 0.71, alpha: 1)
@@ -785,7 +785,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     let tabBarHost = NativeGlassTabBarHostViewController(
       tabBarController: tabController,
       exchangeTitle: exchangeItem?.title,
-      exchangeGlyph: Self.exchangeTabMask,
+      exchangeGlyph: Self.exchangeGlyph,
       exchangeMenuLabels: args.routeKey == nil ? nil : exchangeItem?.menu
     )
     tabBarHost.onExchange = { [weak self] in self?.dispatchExchange() }
@@ -826,7 +826,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
       let image: UIImage?
       if item.action == "exchange" {
         identifier = exchangeActionTabID
-        image = Self.exchangeTabMask
+        image = Self.exchangeGlyph
       } else if let route = item.route, let lucideIcon = item.lucideIcon {
         identifier = route
         image = lucideImage(for: lucideIcon)
@@ -841,39 +841,9 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate, UIGestureReco
     return tabs
   }
 
-  // Draw the same 24-unit silhouette as ExchangeActionButton at 22 pt.
-  private static let exchangeTabMask = UIGraphicsImageRenderer(
-    size: CGSize(width: 22, height: 22)
-  ).image { renderer in
-    let context = renderer.cgContext
-    context.scaleBy(x: 22.0 / 24, y: 22.0 / 24)
-    UIColor.black.setFill()
-    let card = UIBezierPath(roundedRect: CGRect(x: 6, y: 7.7, width: 12, height: 8.6), cornerRadius: 1.6)
-    card.append(UIBezierPath(ovalIn: CGRect(x: 8.7, y: 10.75, width: 2.5, height: 2.5)))
-    card.append(UIBezierPath(roundedRect: CGRect(x: 12.8, y: 10.55, width: 3.55, height: 1.3), cornerRadius: 0.65))
-    card.append(UIBezierPath(roundedRect: CGRect(x: 12.8, y: 12.65, width: 2.8, height: 1.3), cornerRadius: 0.65))
-    card.usesEvenOddFillRule = true
-    card.fill()
-
-    let hand = UIBezierPath()
-    hand.move(to: CGPoint(x: 4.8, y: 16.1))
-    hand.addLine(to: CGPoint(x: 7, y: 14.2))
-    hand.addCurve(to: CGPoint(x: 9.2, y: 16.38),
-      controlPoint1: CGPoint(x: 8.46, y: 12.74), controlPoint2: CGPoint(x: 10.65, y: 14.94))
-    hand.addLine(to: CGPoint(x: 8.42, y: 17.31))
-    hand.addLine(to: CGPoint(x: 12.59, y: 17.31))
-    hand.addCurve(to: CGPoint(x: 13.21, y: 19.5),
-      controlPoint1: CGPoint(x: 13.79, y: 17.31), controlPoint2: CGPoint(x: 14.22, y: 18.88))
-    hand.addLine(to: CGPoint(x: 10.57, y: 20.9))
-    hand.addQuadCurve(to: CGPoint(x: 8.13, y: 21.14), controlPoint: CGPoint(x: 9.36, y: 21.53))
-    hand.addLine(to: CGPoint(x: 4.8, y: 20.2))
-    hand.close()
-    hand.append(UIBezierPath(roundedRect: CGRect(x: 1.05, y: 15.15, width: 2.6, height: 6.1), cornerRadius: 0.8))
-    hand.fill()
-    context.translateBy(x: 24, y: 24)
-    context.scaleBy(x: -1, y: -1)
-    hand.fill()
-  }
+  // The DOM twin imports the same vector asset as a tintable mask.
+  private static let exchangeGlyph = UIImage(named: "exchange-two-namecards")?
+    .withRenderingMode(.alwaysTemplate)
 
   private func lucideImage(for identifier: String) -> UIImage? {
     return UIImage(named: identifier)?.withRenderingMode(.alwaysTemplate)
