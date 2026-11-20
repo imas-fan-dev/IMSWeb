@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   isMobileScanRuntime,
   ScanCancelledError,
+  ScanInvalidCodeError,
   ScanPermissionError,
   SCAN_FAILED_MESSAGE,
   SCAN_RUNTIME_UNSUPPORTED_MESSAGE,
@@ -23,6 +24,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 const scannerMocks = vi.hoisted(() => ({
   scan: vi.fn(),
+  cancel: vi.fn(),
   checkPermissions: vi.fn(),
   requestPermissions: vi.fn(),
 }))
@@ -30,6 +32,7 @@ const scannerMocks = vi.hoisted(() => ({
 vi.mock("@tauri-apps/plugin-barcode-scanner", () => ({
   Format: { QRCode: "QR_CODE" },
   scan: scannerMocks.scan,
+  cancel: scannerMocks.cancel,
   checkPermissions: scannerMocks.checkPermissions,
   requestPermissions: scannerMocks.requestPermissions,
 }))
@@ -83,18 +86,31 @@ describe("isMobileScanRuntime", () => {
 })
 
 describe("scanExchangeToken", () => {
-  it("requests the QR format only and returns the trimmed token", async () => {
+  it("opens the windowed camera without a formats list and returns the token", async () => {
     scannerMocks.scan.mockResolvedValue({
       content: `  ${TOKEN}\n`,
       format: "QR_CODE",
     })
 
     await expect(scanExchangeToken()).resolves.toBe(TOKEN)
-    expect(scannerMocks.scan).toHaveBeenCalledWith({
-      windowed: false,
-      formats: ["QR_CODE"],
-    })
+    // 不能传 formats：Android 的 mapFormats 会把 [QR_CODE] 变成 [0]，MLKit 建 scanner 失败。
+    expect(scannerMocks.scan).toHaveBeenCalledWith({ windowed: true })
     expect(scannerMocks.requestPermissions).not.toHaveBeenCalled()
+  })
+
+  it("rejects a non-QR symbol without touching the commit path", async () => {
+    scannerMocks.scan.mockResolvedValue({ content: "1234567890", format: "EAN_13" })
+
+    await expect(scanExchangeToken()).rejects.toBeInstanceOf(ScanInvalidCodeError)
+  })
+
+  it("rejects a QR code that is not an exchange token", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://example.com/",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeToken()).rejects.toBeInstanceOf(ScanInvalidCodeError)
   })
 
   it("asks for camera permission before opening the camera", async () => {
