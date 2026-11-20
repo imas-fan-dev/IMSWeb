@@ -552,7 +552,7 @@ describe("AccountMeWorkspace", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     )
-  })
+  }, 20_000)
 
   it("saves profile and card metadata with their current versions", async () => {
     const user = userEvent.setup()

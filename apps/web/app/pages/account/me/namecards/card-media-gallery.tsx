@@ -214,12 +214,15 @@ function SlotImage({
   style,
   onAspect,
   onPainted,
+  authorize = false,
 }: {
   slot: MediaSlot
   className: string
   alt: string
   draggable?: boolean
   style?: CSSProperties
+  /** 匿名读者看不到的卡（交换墙 `hidden`）：这张图要带平台凭据。 */
+  authorize?: boolean
   /** 报告原图宽高比，预览按它决定旋转后要不要缩小。 */
   onAspect?: (ratio: number) => void
   /** 这张位图已经画上屏幕；用它决定何时撤掉预览里待保存的旋转。 */
@@ -230,6 +233,7 @@ function SlotImage({
       src={slot.url}
       alt={alt}
       className={className}
+      authorize={authorize}
       draggable={draggable}
       style={style}
       fallback={
@@ -272,6 +276,7 @@ export function CardMediaPreview({
   rotations,
   onRotate,
   disabled = false,
+  authorizeMedia = false,
 }: {
   slots: readonly MediaSlot[]
   roleLabels?: boolean
@@ -283,11 +288,14 @@ export function CardMediaPreview({
   onRotate?: (position: number, direction: "left" | "right") => void
   /** 弹窗正在提交：旋转按钮跟着锁住，避免提交中途改草稿。 */
   disabled?: boolean
+  /** 交换墙媒体对匿名读者不可见时，交给 `CardImage` 走 Bearer。 */
+  authorizeMedia?: boolean
 }) {
   return (
     <CardMediaGallery
       slots={slots}
       disabled
+      authorizeMedia={authorizeMedia}
       readOnly
       allowUpload={false}
       rotationLocked={disabled}
@@ -329,6 +337,7 @@ export function CardMediaGallery({
    * 但审核前的旋转预览必须还能点，只有弹窗在提交时才锁。
    */
   rotationLocked = false,
+  authorizeMedia = false,
 }: {
   slots: readonly MediaSlot[]
   disabled: boolean
@@ -345,6 +354,8 @@ export function CardMediaGallery({
   rotations?: Readonly<Record<number, number>>
   /** 提交/刷新期间锁住旋转按钮；只读预览传入 `onRotate` 时仍可旋转。 */
   rotationLocked?: boolean
+  /** 交换墙媒体对匿名读者不可见时，交给 `CardImage` 走 Bearer。 */
+  authorizeMedia?: boolean
 }) {
   const [active, setActive] = useState(() => Math.max(0, initialIndex))
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -721,6 +732,7 @@ export function CardMediaGallery({
               >
                 <SlotImage
                   slot={current}
+                  authorize={authorizeMedia}
                   alt={role ? `名片${role}` : "名片图片"}
                   className="size-full object-contain"
                   onAspect={(ratio) =>
@@ -741,6 +753,7 @@ export function CardMediaGallery({
             >
               <SlotImage
                 slot={current}
+                authorize={authorizeMedia}
                 alt={role ? `名片${role}` : "名片图片"}
                 className="size-full object-contain"
                 onAspect={(ratio) =>
@@ -827,6 +840,7 @@ export function CardMediaGallery({
             onPointerDown={startDrag}
             turns={slotTurns(entry.index, entry.slot.url)}
             onPainted={markPainted}
+            authorizeMedia={authorizeMedia}
           />
         ))}
 
@@ -839,6 +853,7 @@ export function CardMediaGallery({
           >
             <SlotImage
               slot={drag.slot}
+              authorize={authorizeMedia}
               alt=""
               className="size-full rounded-[4px] object-cover opacity-40"
               style={
@@ -866,6 +881,7 @@ export function CardMediaGallery({
             onPointerDown={startDrag}
             turns={slotTurns(entry.index, entry.slot.url)}
             onPainted={markPainted}
+            authorizeMedia={authorizeMedia}
           />
         ))}
 
@@ -891,6 +907,7 @@ export function CardMediaGallery({
         ? createPortal(
             <SlotImage
               slot={drag.slot}
+              authorize={authorizeMedia}
               alt=""
               className="pointer-events-none fixed z-50 rounded-md border-2 border-primary object-cover shadow-xl"
               style={{
@@ -943,6 +960,7 @@ function Thumbnail({
   onPointerDown,
   turns,
   onPainted,
+  authorizeMedia,
 }: {
   entry: { slot: MediaSlot; index: number }
   active: boolean
@@ -957,6 +975,8 @@ function Thumbnail({
   turns: number
   /** 该槽位的位图已经画上屏幕。 */
   onPainted: (url: string) => void
+  /** 交换墙媒体对匿名读者不可见时走 Bearer。 */
+  authorizeMedia: boolean
 }) {
   const { slot, index } = entry
   return (
@@ -982,6 +1002,7 @@ function Thumbnail({
       >
         <SlotImage
           slot={slot}
+          authorize={authorizeMedia}
           alt=""
           className="size-full object-cover"
           style={

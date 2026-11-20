@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import type { NamecardCollectionEntry } from "@imsweb/contracts/namecards"
 
 import { ExchangeHistoryDialog } from "~/components/community/exchange/exchange-history-dialog"
+import { CardImage } from "~/components/shared/card-image"
 import {
   DEFAULT_NAMECARD_FILTERS,
   NamecardFilterBar,
@@ -95,11 +96,13 @@ function CollectionTile({
           aria-label={`查看名片 #${entry.cardNumber}`}
           onClick={() => onOpen(entry)}
         >
-          <img
+          <CardImage
             src={front.thumbUrl ?? front.url}
             alt=""
             loading="lazy"
             className="max-h-full max-w-full border object-contain"
+            // 原卡下线后墙上的图只对持有者开放；App 没有 cookie，得走 Bearer。
+            authorize={!entry.available}
           />
         </button>
       ) : (
@@ -637,6 +640,7 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
                 }
             : undefined
         }
+        authorizeMedia={selected ? !selected.available : false}
         onOpenChange={(open) => {
           if (!open) setSelected(null)
         }}

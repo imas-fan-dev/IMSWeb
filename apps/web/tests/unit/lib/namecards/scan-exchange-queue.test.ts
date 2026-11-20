@@ -27,11 +27,20 @@ vi.mock("~/lib/namecards/scan-exchange-store", () => ({
   },
 }))
 
-const apiMocks = vi.hoisted(() => ({ commitScanSession: vi.fn() }))
+const apiMocks = vi.hoisted(() => ({
+  commitScanSession: vi.fn(),
+  commitCardShare: vi.fn(),
+  commitQuickExchange: vi.fn(),
+}))
 
 vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
-  return { ...actual, commitScanSession: apiMocks.commitScanSession }
+  return {
+    ...actual,
+    commitScanSession: apiMocks.commitScanSession,
+    commitCardShare: apiMocks.commitCardShare,
+    commitQuickExchange: apiMocks.commitQuickExchange,
+  }
 })
 
 const refreshMocks = vi.hoisted(() => ({ notify: vi.fn() }))
@@ -57,7 +66,7 @@ function storedRows(): ScanExchangeQueueEntry[] {
 
 async function enqueueSample() {
   const entry = await scanExchangeQueue.enqueue({
-    token: TOKEN,
+    target: { kind: "token", token: TOKEN },
     clientExchangeId: "client-1",
     giveCardNumbers: [3, 5],
   })
@@ -87,13 +96,13 @@ beforeEach(() => {
 describe("scanExchangeQueue", () => {
   it("enqueues a scan exchange as a pending local record", async () => {
     const entry = await scanExchangeQueue.enqueue({
-      token: TOKEN,
+      target: { kind: "token", token: TOKEN },
       clientExchangeId: "client-1",
       giveCardNumbers: [3, 5],
     })
 
     expect(entry).toMatchObject({
-      token: TOKEN,
+      target: { kind: "token", token: TOKEN },
       clientExchangeId: "client-1",
       giveCardNumbers: [3, 5],
       expiresAt: null,
@@ -111,7 +120,7 @@ describe("scanExchangeQueue", () => {
 
     await expect(
       scanExchangeQueue.enqueue({
-        token: TOKEN,
+        target: { kind: "token", token: TOKEN },
         clientExchangeId: "client-1",
         giveCardNumbers: [3],
       })
@@ -122,7 +131,7 @@ describe("scanExchangeQueue", () => {
   it("lists the newest record first", async () => {
     const first = await enqueueSample()
     const second = await scanExchangeQueue.enqueue({
-      token: "b".repeat(64),
+      target: { kind: "token", token: "b".repeat(64) },
       clientExchangeId: "client-2",
       giveCardNumbers: [7],
     })
@@ -150,6 +159,24 @@ describe("scanExchangeQueue", () => {
     })
     expect(storedRows()).toHaveLength(0)
     expect(refreshMocks.notify).toHaveBeenCalledTimes(1)
+  })
+
+  it("replays a quick-list share target through its own endpoint", async () => {
+    const entry = await scanExchangeQueue.enqueue({
+      target: { kind: "quick", handle: "zheizhei" },
+      clientExchangeId: "client-share",
+      giveCardNumbers: [3, 5],
+    })
+    expect(entry).not.toBeNull()
+    apiMocks.commitQuickExchange.mockResolvedValue(COMPLETED_RESULT)
+
+    await scanExchangeQueue.replayAll()
+
+    expect(apiMocks.commitQuickExchange).toHaveBeenCalledWith("zheizhei", {
+      clientExchangeId: "client-share",
+      giveCardNumbers: [3, 5],
+    })
+    expect(storeMocks.rows.size).toBe(0)
   })
 
   it("keeps a network failure queued and counts the attempt", async () => {

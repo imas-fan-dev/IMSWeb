@@ -6,6 +6,10 @@ export {
   getOwnerCardMedia,
   ownerCardMediaRequiresAuth,
 } from "./endpoints/fudaba/owner-card-media"
+export {
+  getHeldCardMedia,
+  heldCardMediaRequiresAuth,
+} from "./endpoints/fudaba/held-card-media"
 export type { ApiErrorKind, ApiErrorOptions } from "./api-error"
 export {
   API_ORIGIN,

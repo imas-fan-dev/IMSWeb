@@ -200,11 +200,8 @@ describe("PlatformAccountMenu", () => {
       "href",
       "/account/me"
     )
-    // Web 目标不路由 /account/me，头部菜单是 ·/account/security 唯一的入口。
-    expect(screen.getByRole("link", { name: "帐号安全" })).toHaveAttribute(
-      "href",
-      "/account/security"
-    )
+    // 帐号安全从 /account/me 进入（桌面侧栏与移动页内都有入口），头部菜单不再重复。
+    expect(screen.queryByRole("link", { name: "帐号安全" })).toBeNull()
   })
 
   it("links a signed-in account to the namecard manager", async () => {

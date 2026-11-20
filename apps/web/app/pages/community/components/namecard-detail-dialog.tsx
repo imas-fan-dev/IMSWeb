@@ -380,6 +380,7 @@ export function NamecardDetailDialog({
   dismissible = true,
   readOnly = false,
   collection,
+  authorizeMedia = false,
 }: {
   card: Namecard | null
   canClaim?: boolean
@@ -420,6 +421,11 @@ export function NamecardDetailDialog({
         onToggleHidden: () => void
       }
     | null
+  /**
+   * 名片册里原卡已被属主下线（`available: false`）时置 true：交换墙的媒体
+   * 只剩「持有者可读」，App 里没有 cookie，必须让图片走平台凭据。
+   */
+  authorizeMedia?: boolean
 }) {
   const navigate = useNavigation()
   const platform = useOptionalPlatformSession()
@@ -557,6 +563,7 @@ export function NamecardDetailDialog({
                   key={slideKey}
                   slots={mediaSlots}
                   roleLabels={false}
+                  authorizeMedia={authorizeMedia}
                   initialIndex={initialSlide}
                   onOpenPreview={
                     onOpenPreview

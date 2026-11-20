@@ -2,6 +2,12 @@ import AxeBuilder from "@axe-core/playwright"
 import { api, expect, test } from "./fixtures/test"
 
 import { installBrowserIconMock } from "./fixtures/homepage"
+import {
+  installPlatformOAuthProvidersMock,
+  installPlatformSessionMock,
+  platformOAuthProviderFixtures,
+} from "./fixtures/platform-auth"
+
 
 const series = {
   items: [
@@ -1153,6 +1159,7 @@ test.describe("map first-use guide", () => {
 test("offers office creation at a right-clicked position and keyboard-selected map center @mobile", async ({
   page,
   api,
+  isMobile,
 }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await api.mockRoute(
@@ -1172,6 +1179,18 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     (route) => route.fulfill({ json: { items: [], truncated: false } }),
     "GET",
     { min: 1, max: 5 }
+  )
+  // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
+  // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
+  await installPlatformSessionMock(
+    api,
+    { success: false, code: "PLATFORM_SESSION_INVALID" },
+    { status: 401, times: { min: 0, max: 4 } }
+  )
+  await installPlatformOAuthProvidersMock(
+    api,
+    { min: 0, max: 2 },
+    platformOAuthProviderFixtures
   )
   await page.goto("/community/exchange")
   const surface = page.locator("[data-exchange-office-map]")
@@ -1198,7 +1217,16 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     page.getByRole("button", { name: "在此创建事务所" })
   ).toBeVisible()
   await page.getByRole("button", { name: "在此创建事务所" }).click()
-  await expect(page).toHaveURL(/\/account\/me\/offices\?create=[\w-]+$/)
+  if (isMobile) {
+    await expect(page).toHaveURL(/\/account\/me\/offices\?create=[\w-]+$/)
+  } else {
+    // 桌面端创建事务所要先登录：返回地址里带着 create 意图（见
+    // account-office-auth-return.spec.ts）。登录页会读会话与 OAuth 供应商，
+    // 这里按匿名放行，避免把「未注册请求」误报成失败。
+    await expect(page).toHaveURL(
+      /\/account\/login\?returnTo=%2Faccount%2Fme%2Foffices%3Fcreate%3D[\w-]+$/
+    )
+  }
   expect(
     await page.evaluate(
       () =>
