@@ -17,7 +17,10 @@ vi.mock("~/lib/app-target", () => ({
     return runtime.app
   },
 }))
-vi.mock("~/lib/api/origin", () => ({ PUBLIC_SITE_ORIGIN: "https://ims.test" }))
+vi.mock("~/lib/api/origin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api/origin")>()),
+  PUBLIC_SITE_ORIGIN: "https://ims.test",
+}))
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
   isTauri: () => runtime.tauri,
@@ -87,7 +90,7 @@ describe("isMobileScanRuntime", () => {
 })
 
 describe("scanExchangeCode", () => {
-  it("opens the windowed camera without a formats list and returns the token", async () => {
+  it("opens the windowed camera for QR codes and returns the token", async () => {
     scannerMocks.scan.mockResolvedValue({
       content: `  ${TOKEN}\n`,
       format: "QR_CODE",
@@ -97,8 +100,10 @@ describe("scanExchangeCode", () => {
       kind: "token",
       token: TOKEN,
     })
-    // 不能传 formats：Android 的 mapFormats 会把 [QR_CODE] 变成 [0]，MLKit 建 scanner 失败。
-    expect(scannerMocks.scan).toHaveBeenCalledWith({ windowed: true })
+    expect(scannerMocks.scan).toHaveBeenCalledWith({
+      windowed: true,
+      formats: ["QR_CODE"],
+    })
     expect(scannerMocks.requestPermissions).not.toHaveBeenCalled()
   })
 

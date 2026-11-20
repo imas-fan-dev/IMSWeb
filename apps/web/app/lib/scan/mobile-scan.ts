@@ -137,10 +137,6 @@ let cancelRequested = false
  * 失败分开，前者给可操作的提示，后者由调用方静默收场。
  *
  * 返回的不只是令牌：单卡/快速清单分享二维码也能扫，见 `parseScannedExchangeContent`。
- *
- * **不要传 `formats`**：2.5.x 的 Android 实现把 `[QR_CODE]` 映射成 `[0]` 再交给
- * MLKit，扫描器创建失败，表现为「相机开着但永远不解码」。不传时走全格式分支，
- * 返回后再在这里过滤。
  */
 export async function scanExchangeCode(): Promise<ScannedExchangeTarget> {
   cancelRequested = false
@@ -161,7 +157,10 @@ export async function scanExchangeCode(): Promise<ScannedExchangeTarget> {
 
   activeScanner = scanner
   try {
-    const result = await scanner.scan({ windowed: true })
+    const result = await scanner.scan({
+      windowed: true,
+      formats: [scanner.Format.QRCode],
+    })
     if (result.format && result.format !== "QR_CODE") {
       throw new ScanInvalidCodeError()
     }

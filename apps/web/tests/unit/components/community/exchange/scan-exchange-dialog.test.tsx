@@ -127,9 +127,11 @@ describe("ScanExchangeDialog", () => {
   it("scans a QR token and commits the cards picked for this exchange", async () => {
     renderDialog()
 
-    // 不能传 formats：Android 插件把 [QR_CODE] 映射成 [0]，MLKit 会直接失败。
     await waitFor(() =>
-      expect(scannerMocks.scan).toHaveBeenCalledWith({ windowed: true })
+      expect(scannerMocks.scan).toHaveBeenCalledWith({
+        windowed: true,
+        formats: ["QR_CODE"],
+      })
     )
     await waitFor(() =>
       expect(apiMocks.commitScanSession).toHaveBeenCalledWith(TOKEN, {
