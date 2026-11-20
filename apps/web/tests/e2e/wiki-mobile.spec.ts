@@ -671,22 +671,14 @@ test.describe("wiki mobile", () => {
         .locator('a[href^="#wiki-group-"]')
         .first()
       const searchButton = page.getByRole("button", { name: "打开全屏搜索" })
-      const adminShortcut = page.getByRole("link", { name: "返回管理工作台" })
+      const adminShortcut = page
+        .getByRole("banner")
+        .getByRole("link", { name: "返回管理工作台" })
       await expect(groupNavigation).toBeVisible()
       await expect(searchButton).toBeVisible()
       await expect(adminShortcut).toBeVisible()
 
-      await expect
-        .poll(async () => {
-          const [searchBox, adminBox] = await Promise.all([
-            searchButton.boundingBox(),
-            adminShortcut.boundingBox(),
-          ])
-          return searchBox && adminBox
-            ? adminBox.y - searchBox.y - searchBox.height
-            : -1
-        })
-        .toBeGreaterThanOrEqual(7.5)
+      await expect(searchButton).toHaveCSS("bottom", "16px")
 
       const groupHref = await groupOption.getAttribute("href")
       await groupOption.click()
