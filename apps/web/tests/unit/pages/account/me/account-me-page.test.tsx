@@ -27,6 +27,7 @@ const activeSession = {
   success: true as const,
   account: { id: "platform-1", status: "active" as const },
   profile: {
+    uid: 7,
     displayName: "测试制作人",
     avatarUrl: "/avatar.webp",
     homeCity: "上海",
@@ -167,6 +168,11 @@ describe("AccountMePage", () => {
     )
     expect(screen.getByText("测试制作人")).toBeVisible()
     expect(screen.getByText("上海")).toBeVisible()
+    // 移动端身份区要能进自己的主页，与桌面侧栏一致。
+    expect(screen.getByText("测试制作人").closest("a")).toHaveAttribute(
+      "href",
+      "/user/7"
+    )
     expect(screen.getByText("已登录")).toBeVisible()
     expect(
       await screen.findByRole("img", { name: "测试制作人的头像" })
