@@ -16,9 +16,9 @@ export async function handleCreatePreset(
             aliases: body.aliases,
             now: new Date().toISOString(),
         });
-        return {
-            status: 201,
-            body: { success: true, preset } satisfies AdminNamecardTagPresetMutation,
-        };
+        return c.json(
+            { success: true, preset } satisfies AdminNamecardTagPresetMutation,
+            201
+        );
     });
 }

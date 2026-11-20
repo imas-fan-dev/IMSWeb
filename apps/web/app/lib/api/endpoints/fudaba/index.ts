@@ -26,6 +26,8 @@ import {
   namecardScanSessionSchema,
   namecardScanSessionStatusResponseSchema,
   namecardTagCardParamsSchema,
+  namecardTagErrorSchema,
+  namecardTagSuggestFailureSchema,
   namecardTagSetRequestSchema,
   namecardTagSetResponseSchema,
   namecardTagValidateRequestSchema,
@@ -36,11 +38,6 @@ import {
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
 export type { NamecardTagSuggestionPreset } from "@imsweb/contracts/namecards"
-import {
-  errorResponseSchema,
-  failureMessageResponseSchema,
-  messageErrorResponseSchema,
-} from "@imsweb/contracts/common"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -1124,23 +1121,6 @@ export function replaceFudabaCardMedia(
 }
 
 /**
- * 标签端点的失败载荷：业务拦截 `{ success:false, code, message }`、请求校验
- * `{ error }`、登录态拦截 `{ message }` 三种都可能出现，契约校验要都能过。
- */
-const namecardTagFailureSchema = z.union([
-  z
-    .object({
-      success: z.literal(false),
-      code: z.string(),
-      message: z.string(),
-    })
-    .strict(),
-  errorResponseSchema,
-  messageErrorResponseSchema,
-  failureMessageResponseSchema,
-])
-
-/**
  * 标签候选（公开）：只回预设标签，名称/别名包含即命中、前缀优先；自由标签
  * 由用户输入的原文直接创建，所以不进候选。
  */
@@ -1151,6 +1131,8 @@ export function getNamecardTagSuggestions(query: string, limit = 8) {
   return apiClient.Get(
     `${apiPath("/cards/tags/suggest")}?${params.toString()}`,
     parsed(namecardTagSuggestResponseSchema, {
+      errorSchema: namecardTagSuggestFailureSchema,
+      businessErrorSchema: namecardTagSuggestFailureSchema,
       // 预设会随管理台改名/合并变化，候选不做客户端缓存。
       cacheFor: NO_CLIENT_CACHE,
     })
@@ -1168,8 +1150,8 @@ export function setNamecardCardTags(cardId: string, tags: readonly string[]) {
     exchangePath(`/cards/${encodeURIComponent(params.cardId)}/tags`),
     submission,
     parsed(namecardTagSetResponseSchema, {
-      errorSchema: namecardTagFailureSchema,
-      businessErrorSchema: namecardTagFailureSchema,
+      errorSchema: namecardTagErrorSchema,
+      businessErrorSchema: namecardTagErrorSchema,
       meta: withPlatformAuth(),
     })
   )

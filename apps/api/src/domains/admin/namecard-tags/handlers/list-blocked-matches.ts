@@ -7,11 +7,13 @@ import { namecardTagRepository } from '@/middleware/hono-context';
 export async function handleListBlockedMatches(
     c: Context<AppEnvironment>
 ): Promise<Response> {
-    return tagRepositoryResponse(c, async () => ({
-        status: 200,
-        body: {
-            success: true,
-            items: await namecardTagRepository(c).listBlockedMatches(),
-        } satisfies AdminNamecardTagBlockedMatchList,
-    }));
+    return tagRepositoryResponse(c, async () =>
+        c.json(
+            {
+                success: true,
+                items: await namecardTagRepository(c).listBlockedMatches(),
+            } satisfies AdminNamecardTagBlockedMatchList,
+            200
+        )
+    );
 }

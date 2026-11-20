@@ -17,9 +17,9 @@ export async function handleBlockFreeTag(
             isRegex: body.isRegex ?? false,
             now: new Date().toISOString(),
         });
-        return {
-            status: 200,
-            body: { success: true, removed, item } satisfies AdminNamecardTagBlockResult,
-        };
+        return c.json(
+            { success: true, removed, item } satisfies AdminNamecardTagBlockResult,
+            200
+        );
     });
 }

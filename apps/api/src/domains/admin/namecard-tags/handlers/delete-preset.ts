@@ -15,9 +15,9 @@ export async function handleDeletePreset(
         if (!deleted) {
             throw Object.assign(new Error('预设标签不存在'), { status: 404 });
         }
-        return {
-            status: 200,
-            body: { success: true, id: numberParam(id) } satisfies AdminNamecardTagPresetDelete,
-        };
+        return c.json(
+            { success: true, id: numberParam(id) } satisfies AdminNamecardTagPresetDelete,
+            200
+        );
     });
 }

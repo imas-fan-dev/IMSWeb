@@ -24,9 +24,9 @@ export async function handleUpdateBlocklist(
         if (!item) {
             throw Object.assign(new Error('屏蔽词不存在'), { status: 404 });
         }
-        return {
-            status: 200,
-            body: { success: true, item } satisfies AdminNamecardTagBlocklistMutation,
-        };
+        return c.json(
+            { success: true, item } satisfies AdminNamecardTagBlocklistMutation,
+            200
+        );
     });
 }

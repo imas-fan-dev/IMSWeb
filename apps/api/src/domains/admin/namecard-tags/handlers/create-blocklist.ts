@@ -13,9 +13,9 @@ export async function handleCreateBlocklist(
             isRegex: body.isRegex,
             now: new Date().toISOString(),
         });
-        return {
-            status: 201,
-            body: { success: true, item } satisfies AdminNamecardTagBlocklistMutation,
-        };
+        return c.json(
+            { success: true, item } satisfies AdminNamecardTagBlocklistMutation,
+            201
+        );
     });
 }

@@ -15,9 +15,9 @@ export async function handleDeleteBlocklist(
         if (!deleted) {
             throw Object.assign(new Error('屏蔽词不存在'), { status: 404 });
         }
-        return {
-            status: 200,
-            body: { success: true, id: numberParam(id) } satisfies AdminNamecardTagBlocklistDelete,
-        };
+        return c.json(
+            { success: true, id: numberParam(id) } satisfies AdminNamecardTagBlocklistDelete,
+            200
+        );
     });
 }

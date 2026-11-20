@@ -40,6 +40,7 @@ import type {
     NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
+    NamecardTagError,
     NamecardTagSetResponse as NamecardTagSetContract,
     NamecardTagSuggestResponse as NamecardTagSuggestContract,
     NamecardTagValidateResponse as NamecardTagValidateContract,
@@ -103,11 +104,7 @@ export type NamecardTagSetResponse = NamecardTagSetContract;
 export type NamecardTagSuggestResponse = NamecardTagSuggestContract;
 export type NamecardTagValidateResponse = NamecardTagValidateContract;
 /** 标签写入失败的业务错误（400/404/409/500 共用）。 */
-export interface NamecardTagErrorResponse {
-    success: false;
-    code: string;
-    message: string;
-}
+export type NamecardTagErrorResponse = NamecardTagError;
 
 
 interface NamecardRow {

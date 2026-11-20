@@ -14,9 +14,9 @@ export async function handleRemoveBlocklistMatches(
         const removed = await namecardTagRepository(c).removeBlocklistMatches(
             numberParam(id)
         );
-        return {
-            status: 200,
-            body: { success: true, removed } satisfies AdminNamecardTagBlocklistRemoveMatches,
-        };
+        return c.json(
+            { success: true, removed } satisfies AdminNamecardTagBlocklistRemoveMatches,
+            200
+        );
     });
 }

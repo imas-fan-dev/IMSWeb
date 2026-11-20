@@ -20,9 +20,9 @@ export async function handleMergeFreeTag(
             name: c.req.valid('json').name,
             now: new Date().toISOString(),
         });
-        return {
-            status: 200,
-            body: { success: true, preset } satisfies AdminNamecardTagPresetMutation,
-        };
+        return c.json(
+            { success: true, preset } satisfies AdminNamecardTagPresetMutation,
+            200
+        );
     });
 }

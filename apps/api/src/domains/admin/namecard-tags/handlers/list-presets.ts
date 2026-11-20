@@ -17,9 +17,8 @@ export async function handleListPresets(
             offset: (page - 1) * pageSize,
         });
         const totalPages = Math.ceil(total / pageSize);
-        return {
-            status: 200,
-            body: {
+        return c.json(
+            {
                 success: true,
                 items,
                 pageInfo: {
@@ -30,6 +29,7 @@ export async function handleListPresets(
                     hasNextPage: page < totalPages,
                 },
             } satisfies AdminNamecardTagPresetList,
-        };
+            200
+        );
     });
 }

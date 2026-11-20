@@ -17,9 +17,9 @@ export async function handlePromoteFreeTag(
             aliases: body.aliases,
             now: new Date().toISOString(),
         });
-        return {
-            status: 201,
-            body: { success: true, preset } satisfies AdminNamecardTagPromoteResponse,
-        };
+        return c.json(
+            { success: true, preset } satisfies AdminNamecardTagPromoteResponse,
+            201
+        );
     });
 }

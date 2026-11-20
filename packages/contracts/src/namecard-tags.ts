@@ -5,7 +5,10 @@ import {
   NAMECARD_TAG_FILTER_LIMIT,
 } from "./namecards-runtime.js"
 import {
+  errorResponseSchema,
   exactJsonResponse,
+  failureMessageResponseSchema,
+  messageErrorResponseSchema,
   numberedPageInfoSchema,
   strictRequestObject,
   successEnvelope,
@@ -55,6 +58,23 @@ export const namecardTagCardParamsSchema = strictRequestObject({
 export const namecardTagSetRequestSchema = strictRequestObject({
   tags: namecardTagNamesSchema,
 })
+
+/**
+ * 标签写入失败：业务拦截 `{ success:false, code, message }`、参数校验
+ * `{ error }`、登录态拦截 `{ message }` 三种载荷都可能出现。
+ */
+export const namecardTagErrorSchema = z.union([
+  z
+    .object({
+      success: z.literal(false),
+      code: z.string(),
+      message: z.string(),
+    })
+    .strict(),
+  errorResponseSchema,
+  messageErrorResponseSchema,
+  failureMessageResponseSchema,
+])
 
 export const namecardTagSetResponseSchema = exactJsonResponse({
   tags: namecardTagListSchema,
@@ -348,3 +368,13 @@ export type NamecardTagValidateRequest = z.infer<
 export type NamecardTagValidateResponse = z.infer<
   typeof namecardTagValidateResponseSchema
 >
+
+export type NamecardTagError = z.infer<typeof namecardTagErrorSchema>
+
+/** 标签候选失败：500 时退回空候选，其余是标准错误体。 */
+export const namecardTagSuggestFailureSchema = z.union([
+  namecardTagSuggestResponseSchema,
+  errorResponseSchema,
+  messageErrorResponseSchema,
+  failureMessageResponseSchema,
+])

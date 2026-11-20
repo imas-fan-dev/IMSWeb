@@ -17,9 +17,8 @@ export async function handleListBlocklist(
             offset: (page - 1) * pageSize,
         });
         const totalPages = Math.ceil(total / pageSize);
-        return {
-            status: 200,
-            body: {
+        return c.json(
+            {
                 success: true,
                 items,
                 pageInfo: {
@@ -30,6 +29,7 @@ export async function handleListBlocklist(
                     hasNextPage: page < totalPages,
                 },
             } satisfies AdminNamecardTagBlocklistList,
-        };
+            200
+        );
     });
 }

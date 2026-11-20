@@ -76,7 +76,6 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
             { invalidMessage: '标签候选参数无效' },
         ),
         handleSuggestNamecardTags,
-    handleValidateNamecardTags,
     );
     // 提交前自检：命中屏蔽词时编辑器即时提示并丢弃该草稿标签。
     routes.post(
