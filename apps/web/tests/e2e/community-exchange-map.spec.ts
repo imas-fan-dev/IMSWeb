@@ -214,19 +214,7 @@ test.describe("community exchange map", () => {
       "GET",
       1
     )
-    // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
-  // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
-  await installPlatformSessionMock(
-    api,
-    { success: false, code: "PLATFORM_SESSION_INVALID" },
-    { status: 401, times: { min: 0, max: 4 } }
-  )
-  await installPlatformOAuthProvidersMock(
-    api,
-    { min: 0, max: 2 },
-    platformOAuthProviderFixtures
-  )
-  await page.goto("/community/exchange")
+    await page.goto("/community/exchange")
     await expect(page.locator("[data-map-office-count]")).toHaveText("5")
     await page.getByRole("button", { name: "展开地图面板" }).click()
     await page.getByRole("tab", { name: "地点", exact: true }).click()
@@ -1191,6 +1179,18 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     (route) => route.fulfill({ json: { items: [], truncated: false } }),
     "GET",
     { min: 1, max: 5 }
+  )
+  // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
+  // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
+  await installPlatformSessionMock(
+    api,
+    { success: false, code: "PLATFORM_SESSION_INVALID" },
+    { status: 401, times: { min: 0, max: 4 } }
+  )
+  await installPlatformOAuthProvidersMock(
+    api,
+    { min: 0, max: 2 },
+    platformOAuthProviderFixtures
   )
   await page.goto("/community/exchange")
   const surface = page.locator("[data-exchange-office-map]")
