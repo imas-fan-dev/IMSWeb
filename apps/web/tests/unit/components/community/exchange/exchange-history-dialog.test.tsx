@@ -141,6 +141,8 @@ describe("ExchangeHistoryDialog", () => {
     expect(within(items[0]!).getByText("本机扫码交换")).toBeVisible()
     expect(within(items[1]!).getByText("春日未来")).toBeVisible()
     expect(within(items[2]!).getByText("如月千早")).toBeVisible()
+    // 交换方式跟着行一起标出来，扫的与手动请求一眼可分。
+    expect(within(items[1]!).getByText("扫码")).toBeVisible()
     expect(apiMocks.getExchangeHistory).toHaveBeenCalledWith({
       page: 1,
       size: EXCHANGE_HISTORY_PAGE_SIZE,

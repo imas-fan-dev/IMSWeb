@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
@@ -19,6 +19,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 const scannerMocks = vi.hoisted(() => ({
   scan: vi.fn(),
+  cancel: vi.fn(),
   checkPermissions: vi.fn(),
   requestPermissions: vi.fn(),
 }))
@@ -26,6 +27,7 @@ const scannerMocks = vi.hoisted(() => ({
 vi.mock("@tauri-apps/plugin-barcode-scanner", () => ({
   Format: { QRCode: "QR_CODE" },
   scan: scannerMocks.scan,
+  cancel: scannerMocks.cancel,
   checkPermissions: scannerMocks.checkPermissions,
   requestPermissions: scannerMocks.requestPermissions,
 }))
@@ -66,6 +68,11 @@ vi.mock("~/lib/namecards/scan-exchange-queue", async (importOriginal) => {
     },
   }
 })
+const qrMocks = vi.hoisted(() => ({ decode: vi.fn() }))
+vi.mock("~/lib/scan/qr-image", () => ({
+  decodeQrFromImage: qrMocks.decode,
+}))
+
 vi.mock("~/lib/use-desktop-account-workspace", () => ({
   useDesktopAccountWorkspace: () => true,
 }))
@@ -116,11 +123,9 @@ describe("ScanExchangeDialog", () => {
   it("scans a QR token and commits the cards picked for this exchange", async () => {
     renderDialog()
 
+    // 不能传 formats：Android 插件把 [QR_CODE] 映射成 [0]，MLKit 会直接失败。
     await waitFor(() =>
-      expect(scannerMocks.scan).toHaveBeenCalledWith({
-        windowed: false,
-        formats: ["QR_CODE"],
-      })
+      expect(scannerMocks.scan).toHaveBeenCalledWith({ windowed: true })
     )
     await waitFor(() =>
       expect(apiMocks.commitScanSession).toHaveBeenCalledWith(TOKEN, {
@@ -145,6 +150,41 @@ describe("ScanExchangeDialog", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
     expect(toastMocks.error).not.toHaveBeenCalled()
+  })
+
+  it("submits a token decoded from an album image", async () => {
+    scannerMocks.scan.mockReturnValue(new Promise(() => {}))
+    qrMocks.decode.mockResolvedValue(TOKEN)
+    renderDialog()
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).not.toBeNull()
+    const file = new File(["fake"], "code.png", { type: "image/png" })
+    fireEvent.change(input!, { target: { files: [file] } })
+
+    await waitFor(() =>
+      expect(apiMocks.commitScanSession).toHaveBeenCalledWith(TOKEN, {
+        clientExchangeId: expect.any(String),
+        giveCardNumbers: [3, 5],
+      })
+    )
+    expect(await screen.findByText("交换完成，名片已放进你的名片册")).toBeVisible()
+  })
+
+  it("rejects an album image without a valid exchange code", async () => {
+    scannerMocks.scan.mockReturnValue(new Promise(() => {}))
+    qrMocks.decode.mockResolvedValue("https://example.com/not-a-token")
+    renderDialog()
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')
+    fireEvent.change(input!, {
+      target: { files: [new File(["fake"], "x.png", { type: "image/png" })] },
+    })
+
+    expect(
+      await screen.findByText("不是有效的名片交换二维码")
+    ).toBeVisible()
+    expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
   })
 
   it("does not open a camera on desktop and points at the phone app", async () => {

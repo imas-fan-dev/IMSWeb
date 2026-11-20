@@ -84,3 +84,17 @@
     }
   }
 }
+
+/*
+ * 扫码取景：原生相机画面垫在 WebView 后面（插件把 WebView 背景置透明）。
+ * 只要页面还有不透明背景，相机就被盖住；这一条把除取景层以外的 body 子节点
+ * 全部让开，镂空区域才真的透到相机。
+ */
+html[data-camera-scan],
+html[data-camera-scan] body {
+  background: transparent !important;
+}
+
+html[data-camera-scan] body > :not([data-scan-overlay]) {
+  visibility: hidden;
+}

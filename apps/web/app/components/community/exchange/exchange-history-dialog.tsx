@@ -48,6 +48,7 @@ import { namecardDateTimeLabel } from "~/lib/namecards/dates"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 
 import { ExchangeRequestDialog } from "./exchange-request-dialog"
+import { EXCHANGE_SOURCE_LABEL } from "./exchange-source-label"
 import { useExchangeHistory } from "./use-exchange-history"
 
 const DIALOG_TITLE = "交换记录"
@@ -115,8 +116,15 @@ function ServerRow({
         </span>
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{namecardDateTimeLabel(entry.createdAt) ?? ""}</span>
-        <span>共 {cardCount} 张名片</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 rounded border border-border/70 px-1.5 py-px text-[11px]">
+            {EXCHANGE_SOURCE_LABEL[entry.source]}
+          </span>
+          <span className="truncate">
+            {namecardDateTimeLabel(entry.createdAt) ?? ""}
+          </span>
+        </span>
+        <span className="shrink-0">共 {cardCount} 张名片</span>
       </div>
     </>
   )

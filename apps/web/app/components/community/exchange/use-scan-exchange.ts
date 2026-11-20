@@ -7,13 +7,18 @@ import {
   scanExchangeQueue,
 } from "~/lib/namecards/scan-exchange-queue"
 import {
+  cancelExchangeScan,
+  exchangeTokenFromText,
   isMobileScanRuntime,
   ScanCancelledError,
+  ScanInvalidCodeError,
   ScanPermissionError,
   SCAN_FAILED_MESSAGE,
+  SCAN_INVALID_CODE_MESSAGE,
   SCAN_PERMISSION_MESSAGE,
   scanExchangeToken,
 } from "~/lib/scan/mobile-scan"
+import { decodeQrFromImage } from "~/lib/scan/qr-image"
 
 import {
   EXCHANGE_FAILED_MESSAGE,
@@ -23,6 +28,8 @@ import {
 export type ScanExchangePhase =
   | "unsupported"
   | "scanning"
+  /** 相册图片正在解码；取景遮罩保留，提交后切走。 */
+  | "decoding"
   | "committing"
   | "committed"
   /** 网络类失败已存进离线队列，联网后自动重放。 */
@@ -35,6 +42,8 @@ export interface ScanExchangeState {
   errorMessage: string | null
   /** 重新打开相机（也会沿用失败轮次的 `clientExchangeId`）。 */
   retry: () => void
+  /** 相册图片：先关原生取景，再在 WebView 里解出令牌并提交。 */
+  submitImage: (file: File) => Promise<void>
 }
 
 /**
@@ -59,6 +68,9 @@ export function useScanExchange({
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const cancelRef = useRef(onCancel)
+  const aliveRef = useRef(true)
+  /** 相册提交会主动取消取景；这次取消不能当成用户返回。 */
+  const handoffRef = useRef(false)
 
   useEffect(() => {
     cancelRef.current = onCancel
@@ -70,31 +82,8 @@ export function useScanExchange({
     onFailure: (failure) => isRetryableScanExchangeFailure(failure),
   })
 
-  useEffect(() => {
-    if (!isMobileScanRuntime()) return
-
-    let active = true
-
-    const run = async () => {
-      let token: string
-      try {
-        token = await scanExchangeToken()
-      } catch (failure) {
-        if (!active) return
-        if (failure instanceof ScanCancelledError) {
-          cancelRef.current()
-          return
-        }
-        setPhase("error")
-        setErrorMessage(
-          failure instanceof ScanPermissionError
-            ? SCAN_PERMISSION_MESSAGE
-            : SCAN_FAILED_MESSAGE
-        )
-        return
-      }
-      if (!active) return
-
+  const commitToken = useCallback(
+    async (token: string) => {
       setPhase("committing")
       let cause: unknown = null
       // 幂等锚点由提交钩子生成；入队要沿用同一把，重放才是同一次交换。
@@ -113,7 +102,7 @@ export function useScanExchange({
           throw failure
         }
       })
-      if (!active) return
+      if (!aliveRef.current) return
 
       if (result) {
         setPhase("committed")
@@ -126,7 +115,7 @@ export function useScanExchange({
           clientExchangeId: exchange.clientExchangeId,
           giveCardNumbers: cardNumbers,
         })
-        if (!active) return
+        if (!aliveRef.current) return
         if (queued) {
           setPhase("queued")
           return
@@ -137,19 +126,80 @@ export function useScanExchange({
       setErrorMessage(
         isApiError(cause) ? cause.message : EXCHANGE_FAILED_MESSAGE
       )
+    },
+    [cardNumbers, submit]
+  )
+
+  // 卸载即收相机：原生取景不能留在 WebView 后面。
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+      void cancelExchangeScan()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isMobileScanRuntime()) return
+
+    let active = true
+
+    const run = async () => {
+      let token: string
+      try {
+        token = await scanExchangeToken()
+      } catch (failure) {
+        if (!active || !aliveRef.current) return
+        if (failure instanceof ScanCancelledError) {
+          // 相册提交先取消取景再解码：这不是用户返回。
+          if (handoffRef.current) return
+          cancelRef.current()
+          return
+        }
+        setPhase("error")
+        setErrorMessage(
+          failure instanceof ScanPermissionError
+            ? SCAN_PERMISSION_MESSAGE
+            : failure instanceof ScanInvalidCodeError
+              ? SCAN_INVALID_CODE_MESSAGE
+              : SCAN_FAILED_MESSAGE
+        )
+        return
+      }
+      if (!active) return
+      await commitToken(token)
     }
 
     void run()
     return () => {
       active = false
     }
-  }, [attempt, cardNumbers, submit])
+  }, [attempt, commitToken])
 
   const retry = useCallback(() => {
-    setPhase("scanning")
+    handoffRef.current = false
     setErrorMessage(null)
+    setPhase(isMobileScanRuntime() ? "scanning" : "unsupported")
     setAttempt((current) => current + 1)
   }, [])
 
-  return { phase, errorMessage, retry }
+  const submitImage = useCallback(
+    async (file: File) => {
+      handoffRef.current = true
+      setPhase("decoding")
+      await cancelExchangeScan()
+      const text = await decodeQrFromImage(file).catch(() => null)
+      if (!aliveRef.current) return
+      const token = exchangeTokenFromText(text)
+      if (!token) {
+        setPhase("error")
+        setErrorMessage(SCAN_INVALID_CODE_MESSAGE)
+        return
+      }
+      await commitToken(token)
+    },
+    [commitToken]
+  )
+
+  return { phase, errorMessage, retry, submitImage }
 }
