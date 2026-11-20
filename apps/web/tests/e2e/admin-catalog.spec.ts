@@ -23,14 +23,12 @@ import {
 } from "../../mocks/data/wiki"
 import { createAdminCatalog } from "../../mocks/data/catalog"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
 
 test("story workspace selects the character profile and reuses a related content entry @mobile", async ({
   page,
   api,
 }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: { dept: "editor", adminRole: null },
   })
@@ -160,7 +158,6 @@ test("both former character lists open the same full profile workspace @mobile",
   page,
   api,
 }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, { sessionTimes: 2 })
   api.expect({
     method: "GET",
@@ -213,7 +210,6 @@ test("character list edits the full project profile inline @mobile", async ({
   page,
   api,
 }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api)
   const data = createAdminCatalog()
   api.expect({
@@ -289,7 +285,6 @@ test("full first profile creates one new character identity @mobile", async ({
   page,
   api,
 }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api)
   const data = createAdminCatalog()
   api.expect({

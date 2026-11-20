@@ -3,7 +3,6 @@ import type { Locator, Page } from "@playwright/test"
 import { api, expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const content = {
   version: 1,
@@ -134,7 +133,6 @@ async function moveDownWithKeyboard(
 }
 
 test.beforeEach(async ({ page, api }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     csrfToken: "about-avatar-e2e",
     user: {

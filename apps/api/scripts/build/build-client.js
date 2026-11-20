@@ -19,7 +19,9 @@ const allowedExtensions = new Set([
     '.jpg', '.js', '.json', '.png', '.svg', '.webp', '.woff', '.woff2'
 ]);
 const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg']);
-const allowedTextAssets = new Set([
+const allowedExactAssets = new Set([
+    'robots.txt',
+    'sitemap.xml',
     'emoji/twemoji/LICENSE-GRAPHICS.txt',
     'emoji/twemoji/NOTICE.txt'
 ]);
@@ -43,10 +45,10 @@ function assertPublishable(relative, stat) {
         throw new Error(`Unsafe client asset path: ${relative}`);
     }
     const lower = relative.toLowerCase();
-    const allowedTextAsset = allowedTextAssets.has(relative);
+    const allowedExactAsset = allowedExactAssets.has(relative);
     if (
         lower.split('/').some((segment) => forbiddenSegments.has(segment)) ||
-        (!allowedTextAsset && (
+        (!allowedExactAsset && (
             forbiddenExtensions.test(lower) ||
             !allowedExtensions.has(path.posix.extname(lower))
         ))

@@ -22,14 +22,12 @@ import {
   makeWikiAdminStories,
 } from "../../mocks/data/wiki"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
 
 test("independent catalog editing preserves the story workspace @mobile", async ({
   page,
   api,
 }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: { dept: "editor", adminRole: null },
   })
@@ -201,7 +199,6 @@ test("create chooses agency-specific columns and retains drafts through two-stag
 }, testInfo) => {
   if (testInfo.project.name === "chromium-mobile")
     await page.setViewportSize({ width: 320, height: 568 })
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: { dept: "editor", adminRole: null },
   })
@@ -416,7 +413,6 @@ test("create recovers catalog loading errors, prefills context and cancels witho
   page,
   api,
 }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: { dept: "editor", adminRole: null },
   })

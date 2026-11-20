@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures/test"
-import { installBrowserIconMock } from "./fixtures/homepage"
 import { installMapGuideScene } from "./fixtures/map-guide"
 
 test.describe("exchange Web search geometry", () => {
@@ -25,7 +24,6 @@ test.describe("exchange Web search geometry", () => {
       await page.addInitScript(() =>
         localStorage.setItem("imsweb.language", "zh-CN")
       )
-      await installBrowserIconMock(api)
       await api.mockRoute(
         "/api/community/exchange/series",
         (route) => route.fulfill({ json: { items: [] } }),

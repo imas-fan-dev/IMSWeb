@@ -23,7 +23,7 @@ const coverAsset = {
 
 test.beforeEach(async ({ page, api }, testInfo) => {
   const adminAssetPage = testInfo.title.startsWith("full-image shared covers")
-  installEmptyWikiCatalogMock(api)
+  if (!adminAssetPage) installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: {
       username: "story-cover-qa",

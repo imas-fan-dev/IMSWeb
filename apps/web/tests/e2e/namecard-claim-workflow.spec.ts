@@ -794,7 +794,6 @@ test.describe("namecard claim workflow", () => {
     page,
     api,
   }, testInfo) => {
-    installEmptyWikiCatalogMock(api)
     await installAdminAuthMock(page, api, {
       csrfToken: "claim-admin-csrf",
       user: {

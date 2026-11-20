@@ -158,6 +158,44 @@ test.describe('frontend routing', () => {
         await assertFileResponse('/index.html', frontendIndex);
     });
 
+    test('public Web documents announce their favicon and canonical URL', async () => {
+        const home = await request('/');
+        const homeHtml = await home.text();
+        assert.match(homeHtml, /<link rel="icon" href="\/icon\/agencies\/1\.webp"/);
+        const canonical = homeHtml.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
+        assert.ok(canonical);
+        const origin = new URL(canonical).origin;
+        assert.equal(canonical, `${origin}/`);
+        assert.equal(home.headers.get('X-Robots-Tag'), null);
+
+        const alias = await request('/wiki/modern/?utm_source=test');
+        assert.ok((await alias.text()).includes(`<link rel="canonical" href="${origin}/wiki"`));
+        const fallback = await request('/events/36');
+        assert.doesNotMatch(await fallback.text(), /rel="canonical"/);
+
+        for (const route of ['/account/login', '/account/me/profile', '/admin/login']) {
+            const response = await request(route);
+            assert.equal(response.status, 200, route);
+            assert.equal(response.headers.get('X-Robots-Tag'), 'noindex', route);
+        }
+
+        const robots = await request('/robots.txt');
+        assert.equal(robots.status, 200);
+        assert.match(robots.headers.get('Content-Type') ?? '', /^text\/plain/);
+        assert.ok((await robots.text()).includes(`Sitemap: ${origin}/sitemap.xml`));
+        const sitemap = await request('/sitemap.xml');
+        assert.equal(sitemap.status, 200);
+        assert.match(sitemap.headers.get('Content-Type') ?? '', /^application\/xml/);
+        const urls = [...(await sitemap.text()).matchAll(/<loc>([^<]+)<\/loc>/g)]
+            .map((entry) => new URL(entry[1]));
+        assert.ok(urls.some((url) => url.href === canonical));
+        assert.ok(urls.some((url) => url.pathname === '/wiki'));
+        assert.ok(urls.every((url) => url.origin === origin));
+        assert.ok(urls.every((url) => !/^\/(?:admin|account)(?:\/|$)/.test(url.pathname)));
+        assert.ok(urls.every((url) => !['/wiki/modern', '/story/modern'].includes(url.pathname)));
+        assert.equal(new Set(urls.map((url) => url.href)).size, urls.length);
+    });
+
     test('[FRT-02] real prerendered documents and selective SPA routes use build/client', async () => {
         assert.equal(FRONTEND_PRERENDERED_ROUTES.length, 30);
         for (const [route, asset] of FRONTEND_PRERENDERED_ROUTES) {

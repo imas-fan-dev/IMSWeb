@@ -67,7 +67,6 @@ describe("asset ownership", () => {
   it("keeps checked-in brand, map, and favicon assets in the bundle", () => {
     expect(isWebBundleOwnedPath("/brand/imsweb-logo.webp")).toBe(true)
     expect(isWebBundleOwnedPath("/maps/china-provinces.json")).toBe(true)
-    expect(isWebBundleOwnedPath("/favicon.ico")).toBe(true)
     expect(isPublicSiteOwnedPath("/brand/imsweb-logo.webp")).toBe(false)
   })
 
@@ -182,7 +181,6 @@ describe("routeBundleOwnedRequest", () => {
     "/maps/china-boundary-dashes.json",
     "/maps/exchange-style.json",
     "/brand/imsweb-logo.webp",
-    "/favicon.ico",
   ])("clears the API baseURL for %s", async (url) => {
     const { bundle } = await loadApi("http://127.0.0.1:3010")
     const request = { baseURL: "http://127.0.0.1:3010", url }

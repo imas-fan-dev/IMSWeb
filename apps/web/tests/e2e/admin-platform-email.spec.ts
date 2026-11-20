@@ -2,7 +2,6 @@ import AxeBuilder from "@axe-core/playwright"
 
 import { expect, test } from "./fixtures/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const settings = {
   success: true,
@@ -25,7 +24,6 @@ test.beforeEach(async ({ page, api }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: {
       username: "super-operator",

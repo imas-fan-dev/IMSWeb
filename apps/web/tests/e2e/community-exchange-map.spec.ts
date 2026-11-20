@@ -1,13 +1,11 @@
 import AxeBuilder from "@axe-core/playwright"
 import { api, expect, test } from "./fixtures/test"
 
-import { installBrowserIconMock } from "./fixtures/homepage"
 import {
   installPlatformOAuthProvidersMock,
   installPlatformSessionMock,
   platformOAuthProviderFixtures,
 } from "./fixtures/platform-auth"
-
 
 const series = {
   items: [
@@ -108,7 +106,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       !["127.0.0.1", "localhost"].includes(url.hostname),
     (route) => route.abort("blockedbyclient")
   )
-  await installBrowserIconMock(api)
   await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
