@@ -249,6 +249,17 @@ describe("ScanExchangeDialog", () => {
     )
   })
 
+  it("closes the overlay on a right swipe", async () => {
+    scannerMocks.scan.mockReturnValue(new Promise(() => {}))
+    const { onOpenChange } = renderDialog()
+
+    const overlay = await screen.findByRole("dialog", { name: "扫码" })
+    fireEvent.pointerDown(overlay, { clientX: 40 })
+    fireEvent.pointerUp(overlay, { clientX: 160 })
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
   it("does not open a camera on desktop and points at the phone app", async () => {
     setUserAgent(WINDOWS_UA)
     renderDialog()

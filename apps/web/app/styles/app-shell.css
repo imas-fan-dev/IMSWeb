@@ -98,3 +98,26 @@ html[data-camera-scan] body {
 html[data-camera-scan] body > :not([data-scan-overlay]) {
   visibility: hidden;
 }
+
+/* 扫码取景框里的下扫亮线：只表达「正在扫描」，减少动态效果时保持静止。 */
+@keyframes scan-sweep {
+  0%,
+  100% {
+    transform: translateY(-3.5rem);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(3.5rem);
+    opacity: 1;
+  }
+}
+
+.scan-sweep {
+  animation: scan-sweep 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-sweep {
+    animation: none;
+  }
+}
