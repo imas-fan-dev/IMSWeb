@@ -97,6 +97,8 @@ import {
     NAMECARD_COMPAT_ORIGIN,
     NAMECARD_PUBLIC_ORIGIN
 } from '@/infra/db/repositories/namecard-origins';
+import { SqlNamecardTagRepository } from '@/infra/db/repositories/namecard-tag-repository';
+import { normalizeTagKey } from '@/utils/namecard-tags';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
 
@@ -813,11 +815,14 @@ function toNamecardReviewStatus(
 
 export class SqlCoreRepository implements NamecardRepository {
     private initialized?: Promise<void>;
+    private readonly tagRepository: SqlNamecardTagRepository;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
         private readonly schema: SqlSchemaStrategy
-    ) {}
+    ) {
+        this.tagRepository = new SqlNamecardTagRepository(database);
+    }
 
     initialize(): Promise<void> {
         this.initialized ??= this.schema.initializeCore(this.database);
@@ -993,9 +998,12 @@ export class SqlCoreRepository implements NamecardRepository {
         content: 'live' | 'submission' = 'submission'
     ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
         const ids = rows.map((row) => row.internal_id);
-        const characters = await this.listNamecardFavorites(database, ids);
-        const series = await this.listNamecardSeries(database, ids);
-        const credits = await this.listNamecardCredits(database, ids);
+        const [characters, series, credits, tags] = await Promise.all([
+            this.listNamecardFavorites(database, ids),
+            this.listNamecardSeries(database, ids),
+            this.listNamecardCredits(database, ids),
+            this.tagRepository.listForCards(ids)
+        ]);
         return rows.map((row) => {
             const favoriteCharacters = characters.get(row.internal_id) ?? [];
             const record = this.namecardRecordFromRow(row, content);
@@ -1012,6 +1020,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 seriesCode: seriesCodes[0] ?? record.series_code ?? null,
                 series_codes: seriesCodes,
                 credits: credits.get(row.internal_id) ?? [],
+                tags: tags.get(row.internal_id) ?? [],
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
@@ -1209,6 +1218,30 @@ export class SqlCoreRepository implements NamecardRepository {
     async listApprovedCardsPage(
         input: NamecardWallQueryRecord
     ): Promise<{ rows: NamecardPublicRecord[]; total: number }> {
+        // 标签筛选在 SQL 里完成：每个词一个 EXISTS，词之间 OR；归一化口径与
+        // 标签写入一致（NFKC + 小写 + 空白折叠）。
+        const tagTerms = (input.tags ?? [])
+            .map((tag) => normalizeTagKey(tag))
+            .filter((tag) => tag !== "");
+        const tagFilter = tagTerms.length
+            ? ` AND (${tagTerms
+                  .map(
+                      () => `EXISTS (
+                          SELECT 1
+                            FROM namecard_tags tag
+                            LEFT JOIN namecard_tag_presets preset
+                              ON preset.id = tag.preset_id
+                            LEFT JOIN namecard_tag_aliases alias
+                              ON alias.preset_id = preset.id
+                           WHERE tag.card_id = fudaba_cards.id
+                             AND (tag.normalized LIKE '%' || ? || '%'
+                                  OR preset.normalized = ?
+                                  OR alias.normalized = ?)
+                      )`
+                  )
+                  .join(" OR ")})`
+            : "";
+        const tagValues = tagTerms.flatMap((tag) => [tag, tag, tag]);
         const rows = await queryAll<NamecardWallCardRow>(
             this.database,
             `SELECT ${NAMECARD_COLUMNS}, sort_name_key, sort_name_bucket
@@ -1216,9 +1249,9 @@ export class SqlCoreRepository implements NamecardRepository {
               WHERE publication_status='published'
                 AND visible=TRUE
                 AND ${NAMECARD_PUBLIC_ORIGIN}
-                AND deleted_at IS NULL
+                AND deleted_at IS NULL${tagFilter}
               ORDER BY card_number DESC`,
-            []
+            tagValues
         );
         const cards = (await this.attachNamecardFavorites(
             this.database,
@@ -1509,10 +1542,11 @@ export class SqlCoreRepository implements NamecardRepository {
         );
         if (!row) return null;
         const cardId = row.internal_id;
-        const [favorites, series, credits] = await Promise.all([
+        const [favorites, series, credits, tags] = await Promise.all([
             this.listNamecardFavorites(this.database, [cardId]),
             this.listNamecardSeries(this.database, [cardId]),
-            this.listNamecardCredits(this.database, [cardId])
+            this.listNamecardCredits(this.database, [cardId]),
+            this.tagRepository.listForCards([cardId])
         ]);
         const live: NamecardDiffSide = {
             producerName: row.producer_name ?? null,
@@ -1550,7 +1584,8 @@ export class SqlCoreRepository implements NamecardRepository {
             lockReason: row.lock_reason ?? null,
             reviewReason: row.review_reason ?? null,
             live,
-            pending: payload ? await this.pendingDiffSide(row, payload) : null
+            pending: payload ? await this.pendingDiffSide(row, payload) : null,
+            tags: tags.get(cardId) ?? []
         };
     }
 

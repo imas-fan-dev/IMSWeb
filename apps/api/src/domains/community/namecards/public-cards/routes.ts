@@ -6,6 +6,8 @@ import { handleGetWallInsights } from "@/domains/community/namecards/public-card
 import { handleListNamecards } from "@/domains/community/namecards/public-cards/handlers/list-namecards";
 import { handleListNamecardContributors } from '@/domains/community/namecards/public-cards/handlers/list-contributors';
 import { handleServePlatformAccountIcon } from "@/domains/community/namecards/public-cards/handlers/serve-platform-account-icon";
+import { handleSuggestNamecardTags } from "@/domains/community/namecards/public-cards/handlers/suggest-tags";
+import { handleValidateNamecardTags } from "@/domains/community/namecards/public-cards/handlers/validate-tags";
 import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
 import { handleServePublicCardMedia } from "@/domains/community/namecards/public-cards/handlers/serve-card-media";
 import {
@@ -21,9 +23,15 @@ import {
     namecardListQuerySchema,
     namecardContributorsQuerySchema,
     namecardMediaParamsSchema,
+    namecardTagSuggestQuerySchema,
+    namecardTagValidateRequestSchema,
 } from "@imsweb/contracts/namecards";
 import { optionalPlatformAuth } from "@/middleware/hono-auth";
-import { paramSchemaValidator, querySchemaValidator } from "@/middleware/request-validation";
+import {
+    jsonSchemaValidator,
+    paramSchemaValidator,
+    querySchemaValidator,
+} from "@/middleware/request-validation";
 import {
     createCapabilityRouter,
     type ImsCapabilityRouter,
@@ -58,6 +66,25 @@ export function namecardPublicCardRoutes(): ImsCapabilityRouter {
             validateNamecardContributorsQuery,
         ),
         handleListNamecardContributors,
+    );
+    // 标签候选：只回预设（名称/别名包含，前缀优先）；自由标签由原文直接创建。
+    routes.get(
+        '/cards/tags/suggest',
+        optionalPlatformAuth,
+        querySchemaValidator(
+            namecardTagSuggestQuerySchema,
+            { invalidMessage: '标签候选参数无效' },
+        ),
+        handleSuggestNamecardTags,
+    handleValidateNamecardTags,
+    );
+    // 提交前自检：命中屏蔽词时编辑器即时提示并丢弃该草稿标签。
+    routes.post(
+        '/cards/tags/validate',
+        jsonSchemaValidator(namecardTagValidateRequestSchema, {
+            invalidMessage: '标签自检参数无效',
+        }),
+        handleValidateNamecardTags,
     );
     // 平台图标走站内路由，对象存储的公开地址对这类小图并不可靠。
     routes.get(

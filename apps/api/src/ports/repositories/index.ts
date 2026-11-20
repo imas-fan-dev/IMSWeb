@@ -9,6 +9,7 @@ import type {
     NamecardRepository,
     ReactionRepository,
 } from "@/ports/repositories/namecards";
+import type { NamecardTagRepository } from "@/ports/repositories/namecard-tags";
 import type {
     EditorialRepository,
     EventRepository,
@@ -33,6 +34,7 @@ export interface RepositoryServices {
     events: EventRepository;
     editorial: EditorialRepository;
     namecards: NamecardRepository;
+    namecardTags: NamecardTagRepository;
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;
     sitePackages: SitePackageRepository;
@@ -46,6 +48,7 @@ export * from "@/ports/repositories/admin";
 export * from "@/ports/repositories/platform";
 export * from "@/ports/repositories/fudaba";
 export * from "@/ports/repositories/namecards";
+export * from "@/ports/repositories/namecard-tags";
 export * from "@/ports/repositories/content";
 export * from "@/ports/repositories/site-packages";
 export * from "@/ports/repositories/namecard-characters";

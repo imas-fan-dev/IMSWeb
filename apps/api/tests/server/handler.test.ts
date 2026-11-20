@@ -182,8 +182,10 @@ import { test } from 'vitest';
             'handleListExchanges',
             'handlePutCardLayout',
             'handlePutQuickSettings',
+            'handleReplaceNamecardTags',
             'handleRequestCard',
-            'handleSetCollectionVisibility'
+            'handleSetCollectionVisibility',
+            'handleSuggestNamecardTags'
         ],
         news: [
             'handleCreateNews',
@@ -524,7 +526,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 177);
+            assert.equal(Object.values(actual).flat().length, 179);
         });
 
 
@@ -2161,6 +2163,7 @@ import { test } from 'vitest';
                         ownerDisplayName: null,
                         lockReason: null,
                         reviewReason: null,
+                        tags: [],
                         live: {
                             producerName: '天海春香',
                             producerReading: null,
@@ -2290,6 +2293,7 @@ import { test } from 'vitest';
                         ownerDisplayName: null,
                         lockReason: null,
                         reviewReason: null,
+                        tags: [],
                         live: {
                             producerName: '天海春香',
                             producerReading: null,

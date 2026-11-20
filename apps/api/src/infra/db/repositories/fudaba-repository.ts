@@ -16,6 +16,7 @@ import {
 } from "@/utils/storage/business-object-keys";
 import { namecardSortKey } from "@/utils/sorting/namecard-sort-key";
 import { syncNamecardPages } from "@/infra/db/repositories/namecard-page-sync";
+import { SqlNamecardTagRepository } from "@/infra/db/repositories/namecard-tag-repository";
 import type {
     AuditLogInput,
     CardFavoriteSelectionRecord,
@@ -657,6 +658,7 @@ function cardRecord(row: FudabaCardRow): FudabaCardRecord {
         pending_pages: [],
         middle_object_keys: [],
         credits: [],
+        tags: [],
         legacy_card_id:
             row.legacy_card_id === null ? null : Number(row.legacy_card_id),
         review_submitted_at: nullableTimestampValue(row.review_submitted_at),
@@ -1004,11 +1006,14 @@ const CONTRIBUTION_LEADER_SQL = `SELECT event.account_id AS account_id,
 export class SqlFudabaRepository implements FudabaRepository {
     private initialized?: Promise<void>;
     private writeTail: Promise<void> = Promise.resolve();
+    private readonly tagRepository: SqlNamecardTagRepository;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
         private readonly schema: SqlSchemaStrategy,
-    ) {}
+    ) {
+        this.tagRepository = new SqlNamecardTagRepository(database);
+    }
 
     initialize(): Promise<void> {
         this.initialized ??= this.schema.initializeFudaba(this.database);
@@ -1298,12 +1303,13 @@ export class SqlFudabaRepository implements FudabaRepository {
         },
     >(database: SqlDatabase, records: readonly Record[]): Promise<Record[]> {
         const ids = records.map((record) => record.id);
-        const [characters, pagesByCard, credits, seriesCodes] =
+        const [characters, pagesByCard, credits, seriesCodes, tags] =
             await Promise.all([
                 this.listCardFavoritesFrom(database, ids),
                 this.listCardPagesFrom(database, ids),
                 this.listCardCreditsFrom(database, ids),
                 this.listCardSeriesFrom(database, ids),
+                this.tagRepository.listForCards(ids),
             ]);
         return records.map((record) => {
             const pages = pagesByCard.get(record.id) ?? {
@@ -1327,6 +1333,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                     ),
                 credits: credits.get(record.id) ?? [],
                 series_codes: seriesCodes.get(record.id) ?? [],
+                tags: tags.get(record.id) ?? [],
             } as Record;
         });
     }

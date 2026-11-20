@@ -65,6 +65,7 @@ export function fudabaOwnerCardView(
         madeWithAi: card.made_with_ai,
         visible: card.visible,
         credits: card.credits,
+        tags: card.tags,
         publicationStatus: card.publication_status,
         reviewStatus: card.review_status,
         reviewReason: card.review_reason,

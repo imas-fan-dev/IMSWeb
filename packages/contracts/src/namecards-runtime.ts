@@ -10,6 +10,15 @@
 /** 单次交换的名片数量上限：快速列表、发起与扫码出示同受此限。 */
 export const NAMECARD_EXCHANGE_CARD_LIMIT = 20
 
+/** 每张名片最多保存的标签数（归一去重后计）。 */
+export const NAMECARD_TAG_LIMIT = 20
+
+/** 单个标签的最大长度（修剪后计）。 */
+export const NAMECARD_TAG_MAX_LENGTH = 64
+
+/** 名片墙一次筛选最多接受的标签词数。 */
+export const NAMECARD_TAG_FILTER_LIMIT = 5
+
 /** 属主清单里最多能建多少个分组（不含默认分组）。 */
 export const NAMECARD_PROFILE_GROUP_LIMIT = 20
 

@@ -3,7 +3,7 @@ import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView, validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
 import { ownerCardArtwork } from '@/domains/community/fudaba/cards/artwork-view';
 import { parseFudabaCardUpdate } from '@/domains/community/fudaba/cards/request';
-import { fudabaRepository } from '@/middleware/hono-context';
+import { fudabaRepository, namecardTagRepository } from '@/middleware/hono-context';
 import type { ValidatedRequestContext } from '@/middleware/request-validation';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
@@ -23,10 +23,11 @@ export async function handleUpdateFudabaCard(
             return c.json({ success: false, code: 'FUDABA_CARD_NOT_FOUND' }, 404);
         }
         const update = parseFudabaCardUpdate(c.req.valid('json'));
+        const { tags, ...cardFields } = update;
         const result = await fudabaRepository(c).updateCardMetadataForOwner({
             cardId,
             ownerAccountId: c.get('platformUser')!.id,
-            ...update,
+            ...cardFields,
             updatedAt: new Date().toISOString()
         });
         if (result.status === 'unavailable') {
@@ -38,6 +39,13 @@ export async function handleUpdateFudabaCard(
                 code: 'FUDABA_CARD_CONFLICT',
                 revision: result.revision
             }, 409);
+        }
+        // 标签即时生效；内容保存成功后整组替换，失败时保留原标签。
+        if (tags !== undefined) {
+            result.card.tags = await namecardTagRepository(c).replace({
+                cardId,
+                names: tags,
+            });
         }
         const pages = await fudabaRepository(c).listCardPages(cardId);
         const artwork = ownerCardArtwork(result.card, pages);

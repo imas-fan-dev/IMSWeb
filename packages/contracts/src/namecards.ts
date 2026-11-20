@@ -8,6 +8,10 @@ import {
 import { z } from "zod"
 import { cardPageSchema } from "./fudaba/index.js"
 import {
+  namecardTagFilterNamesSchema,
+  namecardTagListSchema,
+} from "./namecard-tags.js"
+import {
   backofficeProtectedHttpErrorSchema,
   exactJsonError,
   exactJsonResponse,
@@ -75,6 +79,10 @@ export const namecardPublicDetailSchema = {
   canEdit: z.boolean(),
   /** False keeps the claim/complete actions visible on the detail dialog. */
   hasOwner: z.boolean(),
+  /**
+   * 标签即时生效、不进审核载荷；旧客户端不读这个字段，所以先 optional。
+   */
+  tags: namecardTagListSchema.optional(),
 }
 
 /**
@@ -133,6 +141,10 @@ export const adminNamecardDiffSchema = exactJsonResponse({
   live: namecardDiffSideSchema,
   /** The revision waiting for review; null when nothing is queued. */
   pending: namecardDiffSideSchema.nullable(),
+  /**
+   * 标签不进 live/pending 对比（即时生效），管理窗需要单独展示当前标签。
+   */
+  tags: namecardTagListSchema.optional(),
 })
 
 export const namecardSchema = exactJsonResponse({
@@ -1043,6 +1055,8 @@ export const namecardListQuerySchema = legacyStripRequestObject({
   q: queryText(64),
   series: repeatableQueryTextList(16, 40),
   group: queryText(64),
+  /** 标签筛选：重复参数即多选，词之间 OR（最多 5 个）。 */
+  tags: namecardTagFilterNamesSchema,
   /** 担当角色目录 id；重复出现即多选。 */
   character: repeatableQueryTextList(64, 18)
     .pipe(z.array(z.string().regex(/^[1-9]\d{0,17}$/)))
@@ -1429,3 +1443,9 @@ export type PlatformAccountKind = z.infer<typeof platformAccountKindSchema>
 export type PlatformAccountKindList = z.infer<typeof platformAccountKindListSchema>
 export type PlatformAccountEntry = z.infer<typeof platformAccountEntrySchema>
 export type MyPlatformAccounts = z.infer<typeof myPlatformAccountsSchema>
+
+/**
+ * Tag contracts live in their own module (they are imported by the Fudaba card
+ * schemas too), but consumers keep reading them from `@imsweb/contracts/namecards`.
+ */
+export * from "./namecard-tags.js"

@@ -14,7 +14,7 @@ import { parseCardSupplementPayload, parseLegacyCardClaim, parseLegacyCardId } f
 import { fudabaCardSupplementView } from '@/domains/community/fudaba/claims/response';
 import { fudabaCardClaimView } from '@/domains/community/fudaba/contracts/claim';
 import { validFudabaCardId } from '@/domains/community/fudaba/contracts/card';
-import { fudabaRepository } from '@/middleware/hono-context';
+import { fudabaRepository, namecardTagRepository } from '@/middleware/hono-context';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 
 async function jsonBody(c: Context<AppEnvironment>): Promise<unknown> {
@@ -55,13 +55,13 @@ export async function handleCreateFudabaCardSupplement(
                 404
             );
         }
-        const payload = parseCardSupplementPayload(await jsonBody(c));
+        const parsed = parseCardSupplementPayload(await jsonBody(c));
         const now = new Date().toISOString();
         const result = await fudabaRepository(c).createCardSupplementForOwner({
             id: crypto.randomUUID(),
             cardId,
             submitterAccountId: c.get('platformUser')!.id,
-            payload,
+            payload: parsed.payload,
             createdAt: now,
             updatedAt: now
         });
@@ -91,6 +91,13 @@ export async function handleCreateFudabaCardSupplement(
                 } satisfies FudabaCardClaimError,
                 409
             );
+        }
+        // 标签即时生效：补充记录写入成功后再整组替换，不进审核载荷。
+        if (parsed.tags !== undefined) {
+            await namecardTagRepository(c).replace({
+                cardId,
+                names: parsed.tags,
+            });
         }
         return c.json(
             {
@@ -158,6 +165,13 @@ export async function handleCreateFudabaLegacyCardClaim(
                 claimId: result.claimId,
                 state: result.state
             }, 409);
+        }
+        // 标签即时生效：认领记录写入成功后按墙卡编号替换，不进审核载荷。
+        if (input.tags !== undefined) {
+            await namecardTagRepository(c).replace({
+                cardNumber: legacyCardId,
+                names: input.tags,
+            });
         }
         return c.json({
             success: true,
