@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { commitScanSession, isApiError } from "~/lib/api"
+import {
+  commitCardShare,
+  commitQuickExchange,
+  commitScanSession,
+  isApiError,
+} from "~/lib/api"
 import { notifyNamecardDataChanged } from "~/lib/namecards/data-refresh"
 import {
   isRetryableScanExchangeFailure,
@@ -8,7 +13,7 @@ import {
 } from "~/lib/namecards/scan-exchange-queue"
 import {
   cancelExchangeScan,
-  exchangeTokenFromText,
+  exchangeTargetFromText,
   isMobileScanRuntime,
   ScanCancelledError,
   ScanInvalidCodeError,
@@ -16,8 +21,9 @@ import {
   SCAN_FAILED_MESSAGE,
   SCAN_INVALID_CODE_MESSAGE,
   SCAN_PERMISSION_MESSAGE,
-  scanExchangeToken,
+  scanExchangeCode,
 } from "~/lib/scan/mobile-scan"
+import type { ScannedExchangeTarget } from "~/lib/scan/mobile-scan"
 import { decodeQrFromImage } from "~/lib/scan/qr-image"
 
 import {
@@ -82,21 +88,33 @@ export function useScanExchange({
     onFailure: (failure) => isRetryableScanExchangeFailure(failure),
   })
 
-  const commitToken = useCallback(
-    async (token: string) => {
+  const commitTarget = useCallback(
+    async (target: ScannedExchangeTarget) => {
       setPhase("committing")
       let cause: unknown = null
       // 幂等锚点由提交钩子生成；入队要沿用同一把，重放才是同一次交换。
       const exchange: { clientExchangeId: string | null } = {
         clientExchangeId: null,
       }
+      const giveCardNumbers = [...cardNumbers]
       const result = await submit(async (clientExchangeId) => {
         exchange.clientExchangeId = clientExchangeId
         try {
-          return await commitScanSession(token, {
-            clientExchangeId,
-            giveCardNumbers: [...cardNumbers],
-          })
+          // 三类二维码走各自的提交：一次性令牌 / 单卡分享 / 快速清单。
+          return target.kind === "token"
+            ? await commitScanSession(target.token, {
+                clientExchangeId,
+                giveCardNumbers,
+              })
+            : target.kind === "card-share"
+              ? await commitCardShare(target.slug, {
+                  clientExchangeId,
+                  giveCardNumbers,
+                })
+              : await commitQuickExchange(target.handle, {
+                  clientExchangeId,
+                  giveCardNumbers,
+                })
         } catch (failure) {
           cause = failure
           throw failure
@@ -109,9 +127,14 @@ export function useScanExchange({
         return
       }
 
-      if (exchange.clientExchangeId && isRetryableScanExchangeFailure(cause)) {
+      // 离线队列按令牌录入；分享二维码没有令牌可重放，失败直接给回执。
+      if (
+        target.kind === "token" &&
+        exchange.clientExchangeId &&
+        isRetryableScanExchangeFailure(cause)
+      ) {
         const queued = await scanExchangeQueue.enqueue({
-          token,
+          token: target.token,
           clientExchangeId: exchange.clientExchangeId,
           giveCardNumbers: cardNumbers,
         })
@@ -145,9 +168,9 @@ export function useScanExchange({
     let active = true
 
     const run = async () => {
-      let token: string
+      let target: ScannedExchangeTarget
       try {
-        token = await scanExchangeToken()
+        target = await scanExchangeCode()
       } catch (failure) {
         if (!active || !aliveRef.current) return
         if (failure instanceof ScanCancelledError) {
@@ -167,14 +190,14 @@ export function useScanExchange({
         return
       }
       if (!active) return
-      await commitToken(token)
+      await commitTarget(target)
     }
 
     void run()
     return () => {
       active = false
     }
-  }, [attempt, commitToken])
+  }, [attempt, commitTarget])
 
   const retry = useCallback(() => {
     handoffRef.current = false
@@ -190,15 +213,15 @@ export function useScanExchange({
       await cancelExchangeScan()
       const text = await decodeQrFromImage(file).catch(() => null)
       if (!aliveRef.current) return
-      const token = exchangeTokenFromText(text)
-      if (!token) {
+      const target = exchangeTargetFromText(text)
+      if (!target) {
         setPhase("error")
         setErrorMessage(SCAN_INVALID_CODE_MESSAGE)
         return
       }
-      await commitToken(token)
+      await commitTarget(target)
     },
-    [commitToken]
+    [commitTarget]
   )
 
   return { phase, errorMessage, retry, submitImage }

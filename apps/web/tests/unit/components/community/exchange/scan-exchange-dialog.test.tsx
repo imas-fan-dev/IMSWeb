@@ -34,6 +34,8 @@ vi.mock("@tauri-apps/plugin-barcode-scanner", () => ({
 
 const apiMocks = vi.hoisted(() => ({
   commitScanSession: vi.fn(),
+  commitCardShare: vi.fn(),
+  commitQuickExchange: vi.fn(),
 }))
 
 vi.mock("~/lib/api", async (importOriginal) => {
@@ -41,6 +43,8 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     commitScanSession: apiMocks.commitScanSession,
+    commitCardShare: apiMocks.commitCardShare,
+    commitQuickExchange: apiMocks.commitQuickExchange,
   }
 })
 
@@ -185,6 +189,40 @@ describe("ScanExchangeDialog", () => {
       await screen.findByText("不是有效的名片交换二维码")
     ).toBeVisible()
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
+  })
+
+  it("treats a share-link QR as the exchange target", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: `${window.location.origin}/exchange/zheizhei`,
+      format: "QR_CODE",
+    })
+    apiMocks.commitQuickExchange.mockResolvedValue(COMPLETED_RESULT)
+    renderDialog()
+
+    await waitFor(() =>
+      expect(apiMocks.commitQuickExchange).toHaveBeenCalledWith("zheizhei", {
+        clientExchangeId: expect.any(String),
+        giveCardNumbers: [3, 5],
+      })
+    )
+    expect(await screen.findByText("交换完成，名片已放进你的名片册")).toBeVisible()
+    expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
+  })
+
+  it("submits a single-card share QR through its own endpoint", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: `${window.location.origin}/exchange/card/abcdef123456`,
+      format: "QR_CODE",
+    })
+    apiMocks.commitCardShare.mockResolvedValue(COMPLETED_RESULT)
+    renderDialog()
+
+    await waitFor(() =>
+      expect(apiMocks.commitCardShare).toHaveBeenCalledWith("abcdef123456", {
+        clientExchangeId: expect.any(String),
+        giveCardNumbers: [3, 5],
+      })
+    )
   })
 
   it("does not open a camera on desktop and points at the phone app", async () => {

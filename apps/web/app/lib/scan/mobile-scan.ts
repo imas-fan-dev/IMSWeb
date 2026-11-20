@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core"
 
+import { PUBLIC_SITE_ORIGIN } from "~/lib/api/origin"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import {
   isAndroidRuntimeIdentity,
@@ -65,6 +66,59 @@ function isCancellation(error: unknown): boolean {
 
 /** 扫码令牌是 32 字节随机数的十六进制形态（服务端 `newScanToken`）。 */
 const SCAN_TOKEN_PATTERN = /^[0-9a-f]{64}$/i
+/** 单卡分享短链（`namecard_exchange_links.slug`）。 */
+const CARD_SHARE_SLUG_PATTERN = /^[a-z0-9]{12}$/
+/** 快速清单的 handle：uid、公开主页地址或账号 id，都不带斜杠。 */
+const QUICK_HANDLE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+
+/**
+ * 扫到的东西分三类：扫码交换的一次性令牌、单卡分享页、快速清单分享页。
+ * 分享页的二维码内容是**本站绝对链接**（分享弹窗里就是这么画的）。
+ */
+export type ScannedExchangeTarget =
+  | { kind: "token"; token: string }
+  | { kind: "card-share"; slug: string }
+  | { kind: "quick"; handle: string }
+
+function shareSiteOrigin(): string {
+  if (PUBLIC_SITE_ORIGIN) return PUBLIC_SITE_ORIGIN
+  return typeof window === "undefined" ? "" : window.location.origin
+}
+
+/**
+ * 把扫描/相册得到的文本归一成交换目标；不是本站二维码时返回 null。
+ * 只接受站点根下的 `/exchange/card/<slug>` 与 `/exchange/<handle>`，其它路径一律不认。
+ */
+export function parseScannedExchangeContent(
+  value: string | null
+): ScannedExchangeTarget | null {
+  const content = (value ?? "").trim()
+  if (SCAN_TOKEN_PATTERN.test(content)) return { kind: "token", token: content }
+  if (!content) return null
+
+  let url: URL
+  try {
+    url = new URL(content)
+  } catch {
+    return null
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null
+  const site = shareSiteOrigin().replace(/\/+$/u, "")
+  if (!site || url.origin !== site) return null
+  const segments = url.pathname.split("/").filter(Boolean)
+  if (segments[0] !== "exchange" || segments.length > 3) return null
+  if (segments.length === 3) {
+    const [, scope, slug] = segments
+    return scope === "card" && CARD_SHARE_SLUG_PATTERN.test(slug)
+      ? { kind: "card-share", slug }
+      : null
+  }
+  if (segments.length === 2) {
+    const handle = segments[1]
+    return QUICK_HANDLE_PATTERN.test(handle) ? { kind: "quick", handle } : null
+  }
+  return null
+}
 
 /**
  * 正在取景的插件模块。取消要在**同一个**模块实例上调用：另起一次 `import()`
@@ -82,11 +136,13 @@ let cancelRequested = false
  * 垫在后面，页面自己画取景框/关闭/相册。首次使用先要相机权限；拒绝权限与取消
  * 失败分开，前者给可操作的提示，后者由调用方静默收场。
  *
+ * 返回的不只是令牌：单卡/快速清单分享二维码也能扫，见 `parseScannedExchangeContent`。
+ *
  * **不要传 `formats`**：2.5.x 的 Android 实现把 `[QR_CODE]` 映射成 `[0]` 再交给
  * MLKit，扫描器创建失败，表现为「相机开着但永远不解码」。不传时走全格式分支，
  * 返回后再在这里过滤。
  */
-export async function scanExchangeToken(): Promise<string> {
+export async function scanExchangeCode(): Promise<ScannedExchangeTarget> {
   cancelRequested = false
   // 动态导入：插件只在手机 App 运行时有原生实现，静态导入会把它拉进
   // 网页与桌面 App 的初始包；同 `~/lib/geolocation` 的平台模块处理方式一致。
@@ -109,9 +165,9 @@ export async function scanExchangeToken(): Promise<string> {
     if (result.format && result.format !== "QR_CODE") {
       throw new ScanInvalidCodeError()
     }
-    const content = result.content.trim()
-    if (!SCAN_TOKEN_PATTERN.test(content)) throw new ScanInvalidCodeError()
-    return content
+    const target = parseScannedExchangeContent(result.content)
+    if (!target) throw new ScanInvalidCodeError()
+    return target
   } catch (error) {
     if (error instanceof ScanInvalidCodeError) throw error
     if (isCancellation(error)) throw new ScanCancelledError()
@@ -131,8 +187,9 @@ export async function cancelExchangeScan(): Promise<void> {
   }
 }
 
-/** 相册图片里的二维码文本；识别不到或不是交换令牌时返回 null。 */
-export function exchangeTokenFromText(value: string | null): string | null {
-  const content = (value ?? "").trim()
-  return SCAN_TOKEN_PATTERN.test(content) ? content : null
+/** 相册图片里的二维码文本；不是本站交换二维码时返回 null。 */
+export function exchangeTargetFromText(
+  value: string | null
+): ScannedExchangeTarget | null {
+  return parseScannedExchangeContent(value)
 }
