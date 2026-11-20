@@ -21,7 +21,12 @@ test.describe("namecard pagination", () => {
       installEmptyWikiCatalogMock(api)
       await installAdminAuthMock(page, api)
       const cards = Array.from({ length: 12 }, (_, index) =>
-        makeNamecard({ id: index + 1, cardId: `card-${index + 1}` })
+        makeNamecard({
+          id: index + 1,
+          cardId: `card-${index + 1}`,
+          // 墙上的可访问名跟随公开卡号；默认值会让 12 张卡都叫「1」。
+          cardNumber: index + 1,
+        })
       )
       api.expect({
         method: "GET",
