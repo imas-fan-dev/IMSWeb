@@ -10,10 +10,10 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2024"
-rust-version = "1.90"
+edition = "2021"
+rust-version = "1.77.2"
 name = "tauri-plugin-barcode-scanner"
-version = "2.5.3"
+version = "2.4.6"
 authors = ["Tauri Programme within The Commons Conservancy"]
 build = "build.rs"
 links = "tauri-plugin-barcode-scanner"
@@ -72,17 +72,17 @@ features = ["derive"]
 version = "1"
 
 [dependencies.tauri]
-version = "2.12"
+version = "2.10"
 default-features = false
 
 [dependencies.thiserror]
 version = "2"
 
 [build-dependencies.tauri-plugin]
-version = "2.7.1"
+version = "2.5"
 features = ["build"]
 
 [target.'cfg(target_os = "ios")'.dependencies.tauri]
-version = "2.12"
+version = "2.10"
 features = ["wry"]
 default-features = false
