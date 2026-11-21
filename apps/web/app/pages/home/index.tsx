@@ -1,4 +1,5 @@
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { siteSeoOrigin } from "~/lib/site-seo"
 import { ActivityHighlights } from "./components/activity-highlights"
 import { AppHomeLinksFooter } from "./components/app-home-links-footer"
 import { BirthdayCalendar } from "./components/birthday-calendar"
@@ -18,13 +19,25 @@ export function meta() {
       name: "description",
       content: "偶像大师中文资料、活动日程、制作人社区与共同创作入口。",
     },
+    ...(IS_APP_TARGET
+      ? []
+      : [
+          {
+            tagName: "link" as const,
+            rel: "canonical",
+            href: new URL(
+              "/",
+              siteSeoOrigin(import.meta.env.VITE_IMS_PUBLIC_SITE_ORIGIN)
+            ).href,
+          },
+        ]),
   ]
 }
 
 export function HomePortal() {
   return (
     <main id="main-content" className="relative isolate overflow-clip">
-      <HomeBrowserBrand />
+      {IS_APP_TARGET ? <HomeBrowserBrand /> : null}
       <HomepageLinksProvider>
         <HomeBirthdaysProvider>
           <div className="relative z-10">

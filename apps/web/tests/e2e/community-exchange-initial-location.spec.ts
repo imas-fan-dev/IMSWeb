@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures/test"
-import { installBrowserIconMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 
 for (const outcome of [
@@ -38,7 +37,6 @@ for (const outcome of [
         outcome === "denied" ? 1 : outcome === "unavailable" ? 2 : 3
       )
     }
-    await installBrowserIconMock(api)
     installSeededPublicApis(api, [
       { path: "/api/community/exchange/series", times: 1 },
       { path: "/api/community/exchange/offices", times: 1 },

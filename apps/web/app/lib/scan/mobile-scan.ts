@@ -120,47 +120,89 @@ export function parseScannedExchangeContent(
   return null
 }
 
-/**
- * 正在取景的插件模块。取消要在**同一个**模块实例上调用：另起一次 `import()`
- * 在测试替身与打包环境里可能落到不同实例，取消就丢了。
- */
-let activeScanner: typeof import("@tauri-apps/plugin-barcode-scanner") | null =
-  null
-/** 取景还没真正开始（权限对话框期间）就收到取消请求。 */
-let cancelRequested = false
+type Scanner = typeof import("@tauri-apps/plugin-barcode-scanner")
 
-/**
- * 打开系统相机扫一次性二维码，返回令牌文本。
- *
- * 相机由 Tauri 条码插件持有；`windowed: true` 让插件把 WebView 背景透明、相机画面
- * 垫在后面，页面自己画取景框/关闭/相册。首次使用先要相机权限；拒绝权限与取消
- * 失败分开，前者给可操作的提示，后者由调用方静默收场。
- *
- * 返回的不只是令牌：单卡/快速清单分享二维码也能扫，见 `parseScannedExchangeContent`。
- */
-export async function scanExchangeCode(): Promise<ScannedExchangeTarget> {
-  cancelRequested = false
-  // 动态导入：插件只在手机 App 运行时有原生实现，静态导入会把它拉进
-  // 网页与桌面 App 的初始包；同 `~/lib/geolocation` 的平台模块处理方式一致。
-  const scanner = await import("@tauri-apps/plugin-barcode-scanner")
+let scannerModule: Promise<Scanner> | undefined
 
-  let permission = await scanner.checkPermissions()
-  if (permission !== "granted") {
-    permission = await scanner.requestPermissions()
+function loadScanner(): Promise<Scanner> {
+  // 共享正在加载的模块；导入失败后允许用户重试。
+  return (scannerModule ??= import("@tauri-apps/plugin-barcode-scanner").catch(
+    (error) => {
+      scannerModule = undefined
+      throw error
+    }
+  ))
+}
+
+// 原生插件只有一个扫码回调。下一轮要等当前取景结束或 cancel 确认，
+// 不能用旧 scan() 是否返回作判断（有的平台取消后不会回调旧请求）。
+let cameraReleased: Promise<void> | null = null
+
+async function captureQr(scanner: Scanner, signal?: AbortSignal) {
+  let releaseCamera!: () => void
+  cameraReleased = new Promise<void>((resolve) => {
+    releaseCamera = () => {
+      cameraReleased = null
+      resolve()
+    }
+  })
+
+  let cancellation: Promise<void> | undefined
+  let rejectOnAbort!: (error: ScanCancelledError) => void
+  const aborted = new Promise<never>((_, reject) => {
+    rejectOnAbort = reject
+  })
+  const onAbort = () => {
+    cancellation = scanner.cancel()
+    rejectOnAbort(new ScanCancelledError())
   }
-  if (permission !== "granted") throw new ScanPermissionError()
-  // 权限弹窗期间可能已经切到相册 / 关窗：不要再把相机打开。
-  if (cancelRequested) {
-    cancelRequested = false
-    throw new ScanCancelledError()
-  }
+  signal?.addEventListener("abort", onAbort, { once: true })
 
-  activeScanner = scanner
   try {
-    const result = await scanner.scan({
-      windowed: true,
-      formats: [scanner.Format.QRCode],
-    })
+    return await Promise.race([
+      scanner.scan({ windowed: true, formats: [scanner.Format.QRCode] }),
+      aborted,
+    ])
+  } finally {
+    signal?.removeEventListener("abort", onAbort)
+    // 取消由 cancel 的回调释放相机；迟到的 scan 结果不会影响下一轮。
+    if (cancellation) void cancellation.then(releaseCamera, releaseCamera)
+    else releaseCamera()
+  }
+}
+
+/**
+ * 打开系统相机扫一次二维码，返回交换目标。
+ * windowed 模式下原生负责取景，页面负责取景框、关闭和相册。
+ * 取消只影响传入该 signal 的这一轮，包括仍在等权限的轮次。
+ */
+export async function scanExchangeCode(
+  signal?: AbortSignal
+): Promise<ScannedExchangeTarget> {
+  const ensureActive = () => {
+    if (signal?.aborted) throw new ScanCancelledError()
+  }
+
+  // 动态导入：只有手机 App 有原生实现，不将插件拉入其它平台的初始包。
+  try {
+    ensureActive()
+    const scanner = await loadScanner()
+    ensureActive()
+    let permission = await scanner.checkPermissions()
+    ensureActive()
+    if (permission !== "granted") {
+      permission = await scanner.requestPermissions()
+      ensureActive()
+    }
+    if (permission !== "granted") throw new ScanPermissionError()
+
+    while (cameraReleased) {
+      await cameraReleased
+      ensureActive()
+    }
+
+    const result = await captureQr(scanner, signal)
+    ensureActive()
     if (result.format && result.format !== "QR_CODE") {
       throw new ScanInvalidCodeError()
     }
@@ -168,21 +210,8 @@ export async function scanExchangeCode(): Promise<ScannedExchangeTarget> {
     if (!target) throw new ScanInvalidCodeError()
     return target
   } catch (error) {
-    if (error instanceof ScanInvalidCodeError) throw error
-    if (isCancellation(error)) throw new ScanCancelledError()
+    if (signal?.aborted || isCancellation(error)) throw new ScanCancelledError()
     throw error
-  } finally {
-    activeScanner = null
-  }
-}
-
-/** 关闭原生取景；没有在扫时插件会抛错，这里一并吞掉。 */
-export async function cancelExchangeScan(): Promise<void> {
-  cancelRequested = true
-  try {
-    await activeScanner?.cancel()
-  } catch {
-    // 已经结束或平台不支持：调用方只关心「别再取景」。
   }
 }
 

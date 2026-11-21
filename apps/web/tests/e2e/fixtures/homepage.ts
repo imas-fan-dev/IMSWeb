@@ -3,10 +3,7 @@ import {
   type HomepageLinks,
 } from "@imsweb/contracts/homepage-links"
 import { apiPath, wikiPath } from "@imsweb/contracts/paths"
-import {
-  wikiPublicCatalogSchema,
-  type WikiPublicCatalog,
-} from "@imsweb/contracts/wiki"
+import { wikiPublicCatalogSchema } from "@imsweb/contracts/wiki"
 
 import type { ApiDispatcher, ApiTimes } from "./api-dispatcher"
 import { catalogBirthdaysSchema } from "@imsweb/contracts/catalog"
@@ -21,11 +18,6 @@ export function installBirthdaysMock(api: ApiDispatcher, times: ApiTimes = 1) {
     handle: () => ({ json: createCatalogBirthdays() }),
   })
 }
-
-export const browserIconUrls = [
-  "/brand/series/wall/765pro.webp",
-  "/brand/series/wall/cinderella-girls.webp",
-] as const
 
 const homepageLinks = {
   sections: {
@@ -138,29 +130,6 @@ const homepageLinks = {
   },
 } satisfies HomepageLinks
 
-const wikiCatalog = {
-  status: "success",
-  agencies: browserIconUrls.map((iconUrl, index) => ({
-    id: index + 1,
-    code: index === 0 ? "765" : "cg",
-    name: index === 0 ? "765PRO" : "灰姑娘女孩",
-    color: index === 0 ? "#f34e6c" : "#2581c7",
-    bannerTitle: index === 0 ? "765PRO" : "CINDERELLA GIRLS",
-    iconUrl,
-    idolCount: 0,
-    entryCount: 0,
-    imageTransform: {
-      fit: "cover" as const,
-      focalX: 0.5,
-      focalY: 0.5,
-      zoom: 1,
-      rotation: 0 as const,
-    },
-  })),
-  searchEntries: [],
-  selection: null,
-} satisfies WikiPublicCatalog
-
 export function installHomepageLinksMock(
   api: ApiDispatcher,
   times: ApiTimes = 1
@@ -234,14 +203,5 @@ export function installEmptyWikiCatalogMock(
         selection: null,
       },
     }),
-  })
-}
-
-export function installBrowserIconMock(api: ApiDispatcher) {
-  api.expect({
-    method: "GET",
-    path: wikiPath("/catalog"),
-    responses: { 200: wikiPublicCatalogSchema },
-    handle: () => ({ status: 200, json: wikiCatalog }),
   })
 }

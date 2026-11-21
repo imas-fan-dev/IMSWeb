@@ -26,11 +26,7 @@ export const API_PROXY_PATH_PREFIXES = [
   PUBLIC_UPLOADS_PATH_PREFIX,
 ] as const
 
-const WEB_BUNDLE_ROOTS = new Set([
-  "brand",
-  MAPS_PATH_PREFIX.slice(1),
-  "favicon.ico",
-])
+const WEB_BUNDLE_ROOTS = new Set(["brand", MAPS_PATH_PREFIX.slice(1)])
 
 /** Root-relative routes forwarded to the hosted public website in development. */
 export const PUBLIC_SITE_PROXY_PATH_PREFIXES = ["/brand/about"] as const

@@ -582,6 +582,11 @@ test.describe("app navigation", () => {
       await page.goto("/community")
       await page.locator('a[href="/community/cards"]').first().click()
       await expect(page).toHaveURL(/\/community\/cards/)
+      // 反应读取由名片挂载后的 effect 触发；等墙面渲染出来再离开，
+      // 否则冷启动的 shard 可能在请求发出前就切走了。
+      await expect(
+        page.getByRole("button", { name: /查看制作人名片/ }).first()
+      ).toBeVisible()
       const afterDetail = await page.evaluate(() => history.length)
       // Reselecting the active tab returns to the root that is already in this
       // tab instead of appending a second root above the detail page.

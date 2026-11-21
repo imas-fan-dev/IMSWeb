@@ -5,7 +5,6 @@ import type {
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import {
   installAdminEditorialMock,
   type AdminSpotlightSelection,
@@ -87,7 +86,6 @@ test.beforeEach(() => {
 
 test.describe("admin information order", () => {
   test("admin reorders homepage spotlight entries", async ({ page, api }) => {
-    installEmptyWikiCatalogMock(api)
     await installAdminAuthMock(page, api, {
       csrfToken: "information-order-e2e",
       user: {

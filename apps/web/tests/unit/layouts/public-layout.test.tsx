@@ -12,11 +12,7 @@ vi.mock("~/components/community/namecard-create-entry", () => ({
 }))
 
 vi.mock("~/components/shared/admin-return-shortcut", () => ({
-  AdminReturnShortcut: () => (
-    <a href="/admin" data-testid="admin-return-shortcut">
-      返回管理工作台
-    </a>
-  ),
+  AdminReturnShortcut: () => <a href="/admin">返回管理工作台</a>,
 }))
 
 vi.mock("~/components/shared/back-to-top", () => ({
@@ -36,7 +32,9 @@ vi.mock("~/components/shared/site-footer", () => ({
 }))
 
 vi.mock("~/components/shared/site-header", () => ({
-  SiteHeader: () => <header>站点导航</header>,
+  SiteHeader: ({ actions }: { actions?: ReactNode }) => (
+    <header>站点导航{actions}</header>
+  ),
 }))
 
 vi.mock("~/components/platform/platform-session-provider", () => ({
@@ -91,9 +89,13 @@ describe("PublicLayout", () => {
         </I18nextProvider>
       )
 
-      const uploadAction = screen.getByRole("button", { name: "新建名片" })
-      expect(uploadAction).toBeVisible()
-      expect(uploadAction.parentElement).toHaveClass("fixed", "right-4")
+      const createAction = screen.getByRole("button", { name: "新建名片" })
+      const backToTop = screen.getByRole("button", { name: "返回顶部" })
+      const adminShortcut = screen.getByRole("link", { name: "返回管理工作台" })
+      expect(createAction).toBeVisible()
+      expect(createAction.parentElement).toHaveClass("fixed", "right-4")
+      expect(backToTop.nextElementSibling).toBe(createAction)
+      expect(screen.getByRole("banner")).toContainElement(adminShortcut)
     }
   )
 
@@ -158,6 +160,9 @@ describe("PublicLayout", () => {
       ).not.toBeInTheDocument()
       expect(screen.queryByText("站点页脚")).not.toBeInTheDocument()
       expect(screen.getByText("交换地图内容")).toBeVisible()
+      expect(
+        screen.queryByRole("link", { name: "返回管理工作台" })
+      ).not.toBeInTheDocument()
     }
   )
 
@@ -213,7 +218,7 @@ describe("PublicLayout", () => {
     }
   )
 
-  it("removes the floating admin shortcut on event detail routes", () => {
+  it("omits the header admin shortcut on event detail routes", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <MemoryRouter initialEntries={["/events/42"]}>
@@ -231,11 +236,11 @@ describe("PublicLayout", () => {
 
     expect(screen.getByText("活动详情内容")).toBeVisible()
     expect(
-      screen.queryByTestId("admin-return-shortcut")
+      screen.queryByRole("link", { name: "返回管理工作台" })
     ).not.toBeInTheDocument()
   })
 
-  it("keeps the floating admin shortcut on other public routes", () => {
+  it("places the admin shortcut in the header on other public routes", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <MemoryRouter initialEntries={["/events"]}>
@@ -248,6 +253,8 @@ describe("PublicLayout", () => {
       </I18nextProvider>
     )
 
-    expect(screen.getByTestId("admin-return-shortcut")).toBeVisible()
+    expect(screen.getByRole("banner")).toContainElement(
+      screen.getByRole("link", { name: "返回管理工作台" })
+    )
   })
 })

@@ -99,8 +99,8 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 
 ### 系列墙与随机 icon
 
-以下六张 585 × 500 WebP 图片仅服务于首页/作品页系列墙。页面漂浮 motif 和浏览器标签页
-随机 icon 均使用 Wiki 公开目录返回的企划 icon，不复用这些企划介绍图。它们是 public 中唯一
+以下六张 585 × 500 WebP 图片仅服务于首页/作品页系列墙。页面漂浮 motif 和 App WebView 内的随机
+icon 均使用 Wiki 公开目录返回的企划 icon，不复用这些企划介绍图。它们是 public 中唯一
 保留的系列墙视觉素材；独立系列 logo PNG 和未压缩墙面 PNG 均不再单独交付，避免同一素材维护多份副本。
 
 | Web 路径                                         | Legacy 来源路径                                       | SHA-256                                                            |
@@ -113,12 +113,12 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 | `public/brand/series/wall/gakuen.webp`           | `public/assets/images/Production/Gakuenintro.png`     | `81c8e42a8592e7ee382e99740c9e640d51dfe7f24adc0175b0ef089c64a0220f` |
 
 文件由源图转换为 WebP，未改变构图；系列商标和人物图像的权利仍归各自权利人。
-系列墙从 `seriesWallItems` 读取这些路径；浏览器随机 icon 由
+系列墙从 `seriesWallItems` 读取这些路径；App WebView 的随机 icon 由
 `app/components/shared/series-browser-icon.tsx` 从 Wiki catalog 的 `agency.iconUrl` 选择，
 不得另建静态 icon 清单或改用系列墙图片。
 
-`public/favicon.ico` 是站点默认 fallback。未来替换时必须补充作者、原始来源、许可证或书面
-授权、使用范围、修改情况和 SHA-256。
+Web 标签页固定使用 Wiki 公开企划图标 `/icon/agencies/1.webp`（765PRO），直接引用现有
+资源，不复制或修改图像。App WebView 的静态 fallback 使用上方记录的 `public/brand/imsweb-app-icon.png`。
 
 ## Wiki 视图切换图标
 

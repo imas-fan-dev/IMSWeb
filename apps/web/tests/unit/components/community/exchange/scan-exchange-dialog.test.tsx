@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
 import { EXCHANGE_COMPLETED_MESSAGE } from "~/components/community/exchange/use-exchange-submit"
 import { ApiError } from "~/lib/api"
+import {
+  isNativeTabBarInteractionBlocked,
+  isNativeTabBarSuppressed,
+  NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+  nativeTabBarSuppressed,
+} from "~/lib/native-tab-bar-suppression"
 
 const runtime = vi.hoisted(() => ({ app: true, tauri: true }))
 
@@ -119,11 +126,36 @@ beforeEach(() => {
   scannerMocks.checkPermissions.mockResolvedValue("granted")
   scannerMocks.requestPermissions.mockResolvedValue("granted")
   scannerMocks.scan.mockResolvedValue({ content: TOKEN, format: "QR_CODE" })
+  scannerMocks.cancel.mockResolvedValue(undefined)
   apiMocks.commitScanSession.mockResolvedValue(COMPLETED_RESULT)
   queueMocks.enqueue.mockResolvedValue({ id: "queued-1" })
 })
 
 describe("ScanExchangeDialog", () => {
+  it("keeps native navigation hidden and inert until the scanner closes", async () => {
+    const camera = Promise.withResolvers<{ content: string; format: string }>()
+    scannerMocks.scan.mockReturnValue(camera.promise)
+    const dispatch = vi.spyOn(window, "dispatchEvent")
+    const { unmount } = renderDialog()
+    const visibilityChanges = () =>
+      dispatch.mock.calls
+        .map(([event]) => event)
+        .filter((event) => event.type === NATIVE_TAB_BAR_SUPPRESSION_EVENT)
+        .map(nativeTabBarSuppressed)
+
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    expect(isNativeTabBarInteractionBlocked()).toBe(true)
+
+    camera.resolve({ content: TOKEN, format: "QR_CODE" })
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(visibilityChanges()).toEqual([true])
+
+    unmount()
+    expect(visibilityChanges()).toEqual([true, false])
+    expect(isNativeTabBarInteractionBlocked()).toBe(false)
+  })
+
   it("scans a QR token and commits the cards picked for this exchange", async () => {
     renderDialog()
 
@@ -147,6 +179,64 @@ describe("ScanExchangeDialog", () => {
     )
     expect(refreshMocks.notify).toHaveBeenCalledTimes(1)
     expect(screen.getByText("交换完成，名片已放进你的名片册")).toBeVisible()
+  })
+
+  it("opens one camera and submits its result after the scan effect reruns", async () => {
+    const camera = Promise.withResolvers<{ content: string; format: string }>()
+    scannerMocks.scan.mockReturnValue(camera.promise)
+
+    render(
+      <StrictMode>
+        <ScanExchangeDialog open onOpenChange={vi.fn()} cardNumbers={[3, 5]} />
+      </StrictMode>
+    )
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+    camera.resolve({ content: TOKEN, format: "QR_CODE" })
+
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(scannerMocks.scan).toHaveBeenCalledTimes(1)
+    expect(apiMocks.commitScanSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not let an old permission response start a second scan", async () => {
+    const permission = Promise.withResolvers<string>()
+    const camera = Promise.withResolvers<{ content: string; format: string }>()
+    scannerMocks.checkPermissions.mockReturnValueOnce(permission.promise)
+    scannerMocks.scan.mockReturnValue(camera.promise)
+    const first = renderDialog()
+    await waitFor(() =>
+      expect(scannerMocks.checkPermissions).toHaveBeenCalledTimes(1)
+    )
+
+    first.unmount()
+    renderDialog()
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+    await act(async () => permission.resolve("granted"))
+    expect(scannerMocks.scan).toHaveBeenCalledTimes(1)
+    expect(scannerMocks.cancel).not.toHaveBeenCalled()
+
+    camera.resolve({ content: TOKEN, format: "QR_CODE" })
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(apiMocks.commitScanSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("waits for cancellation before opening the camera again", async () => {
+    const stopping = Promise.withResolvers<void>()
+    scannerMocks.cancel.mockReturnValueOnce(stopping.promise)
+    scannerMocks.scan.mockReturnValueOnce(new Promise(() => {}))
+    const first = renderDialog()
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+
+    first.unmount()
+    renderDialog()
+    await act(async () => {})
+    expect(scannerMocks.cancel).toHaveBeenCalledTimes(1)
+    expect(scannerMocks.scan).toHaveBeenCalledTimes(1)
+
+    stopping.resolve()
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(scannerMocks.scan).toHaveBeenCalledTimes(2)
+    expect(apiMocks.commitScanSession).toHaveBeenCalledTimes(1)
   })
 
   it("treats a cancelled scan as a quiet exit and commits nothing", async () => {
@@ -174,7 +264,39 @@ describe("ScanExchangeDialog", () => {
         giveCardNumbers: [3, 5],
       })
     )
-    expect(await screen.findByText("交换完成，名片已放进你的名片册")).toBeVisible()
+    expect(
+      await screen.findByText("交换完成，名片已放进你的名片册")
+    ).toBeVisible()
+  })
+
+  it("ignores a late camera result after handing off to the album", async () => {
+    const camera = Promise.withResolvers<{ content: string; format: string }>()
+    const album = Promise.withResolvers<string>()
+    const albumToken = "c".repeat(64)
+    scannerMocks.scan.mockReturnValue(camera.promise)
+    qrMocks.decode.mockReturnValue(album.promise)
+    renderDialog()
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: {
+        files: [new File(["fake"], "code.png", { type: "image/png" })],
+      },
+    })
+    expect(screen.getByText("正在识别图片…")).toBeVisible()
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    await act(async () => camera.resolve({ content: TOKEN, format: "QR_CODE" }))
+    expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
+
+    album.resolve(albumToken)
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(apiMocks.commitScanSession).toHaveBeenCalledExactlyOnceWith(
+      albumToken,
+      {
+        clientExchangeId: expect.any(String),
+        giveCardNumbers: [3, 5],
+      }
+    )
   })
 
   it("rejects an album image without a valid exchange code", async () => {
@@ -187,9 +309,7 @@ describe("ScanExchangeDialog", () => {
       target: { files: [new File(["fake"], "x.png", { type: "image/png" })] },
     })
 
-    expect(
-      await screen.findByText("不是有效的名片交换二维码")
-    ).toBeVisible()
+    expect(await screen.findByText("不是有效的名片交换二维码")).toBeVisible()
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
   })
 
@@ -207,7 +327,9 @@ describe("ScanExchangeDialog", () => {
         giveCardNumbers: [3, 5],
       })
     )
-    expect(await screen.findByText("交换完成，名片已放进你的名片册")).toBeVisible()
+    expect(
+      await screen.findByText("交换完成，名片已放进你的名片册")
+    ).toBeVisible()
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
   })
 

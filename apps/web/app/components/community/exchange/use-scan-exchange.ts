@@ -12,7 +12,6 @@ import {
   scanExchangeQueue,
 } from "~/lib/namecards/scan-exchange-queue"
 import {
-  cancelExchangeScan,
   exchangeTargetFromText,
   isMobileScanRuntime,
   ScanCancelledError,
@@ -75,8 +74,7 @@ export function useScanExchange({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const cancelRef = useRef(onCancel)
   const aliveRef = useRef(true)
-  /** 相册提交会主动取消取景；这次取消不能当成用户返回。 */
-  const handoffRef = useRef(false)
+  const cameraRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     cancelRef.current = onCancel
@@ -149,29 +147,26 @@ export function useScanExchange({
     [cardNumbers, submit]
   )
 
-  // 卸载即收相机：原生取景不能留在 WebView 后面。
   useEffect(() => {
     aliveRef.current = true
     return () => {
       aliveRef.current = false
-      void cancelExchangeScan()
     }
   }, [])
 
   useEffect(() => {
     if (!isMobileScanRuntime()) return
 
-    let active = true
+    const camera = new AbortController()
+    cameraRef.current = camera
 
     const run = async () => {
       let target: ScannedExchangeTarget
       try {
-        target = await scanExchangeCode()
+        target = await scanExchangeCode(camera.signal)
       } catch (failure) {
-        if (!active || !aliveRef.current) return
+        if (camera.signal.aborted) return
         if (failure instanceof ScanCancelledError) {
-          // 相册提交先取消取景再解码：这不是用户返回。
-          if (handoffRef.current) return
           cancelRef.current()
           return
         }
@@ -185,18 +180,18 @@ export function useScanExchange({
         )
         return
       }
-      if (!active) return
+      if (camera.signal.aborted) return
       await commitTarget(target)
     }
 
     void run()
     return () => {
-      active = false
+      camera.abort()
+      cameraRef.current = null
     }
   }, [attempt, commitTarget])
 
   const retry = useCallback(() => {
-    handoffRef.current = false
     setErrorMessage(null)
     setPhase(isMobileScanRuntime() ? "scanning" : "unsupported")
     setAttempt((current) => current + 1)
@@ -204,9 +199,9 @@ export function useScanExchange({
 
   const submitImage = useCallback(
     async (file: File) => {
-      handoffRef.current = true
+      // 切到相册后，不再接收这一轮相机的结果或取消通知。
+      cameraRef.current?.abort()
       setPhase("decoding")
-      await cancelExchangeScan()
       const text = await decodeQrFromImage(file).catch(() => null)
       if (!aliveRef.current) return
       const target = exchangeTargetFromText(text)

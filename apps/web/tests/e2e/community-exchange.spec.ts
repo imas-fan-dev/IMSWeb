@@ -82,13 +82,13 @@ const card = {
 }
 
 test.beforeEach(async ({ page, api }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
   const discoveryTest = testInfo.title.startsWith(
     "discovers an exchange office"
   )
+  if (discoveryTest) installEmptyWikiCatalogMock(api)
   await api.mockRoute(
     "**/api/community/exchange/series",
     async (route) => {
