@@ -4,9 +4,11 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 import { buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
+import { documentOutline } from "~/components/wiki/wiki-document-model"
 import type { WikiPublicStories, WikiPublicStoryCategory } from "~/lib/api"
 import { webOnly } from "~/lib/navigation/navigation-target"
 import { cn } from "~/lib/utils"
+import { storyCategoryAnchorId } from "~/pages/wiki/wiki-model"
 
 export function StoryNavigationPanel({
   stories,
@@ -25,6 +27,17 @@ export function StoryNavigationPanel({
   const classicHref =
     `/story/classic?agency=${encodeURIComponent(stories.agency.name)}` +
     `&idol=${encodeURIComponent(stories.idol.name)}`
+  // A hybrid document interleaves Markdown headings and embedded structured
+  // pools, so the outline is the document order rather than two stacked lists.
+  const outline = stories.document
+    ? documentOutline(stories.document, categories)
+    : categories.map((category) => ({
+        kind: "category" as const,
+        id: storyCategoryAnchorId(category.name),
+        name: category.name,
+        count: category.cards.length,
+      }))
+  const hasHeadings = outline.some((entry) => entry.kind === "heading")
 
   return (
     <div className="space-y-4">
@@ -77,37 +90,38 @@ export function StoryNavigationPanel({
       </label>
 
       <nav aria-label="剧情分类" className="grid gap-1">
-        {stories.document?.headings.length ? (
+        {hasHeadings ? (
           <p className="px-3 pt-2 text-xs font-semibold text-muted-foreground">
             文档目录
           </p>
         ) : null}
-        {stories.document?.headings.map((heading) => (
-          <a
-            key={heading.id}
-            href={`#${heading.id}`}
-            onClick={onNavigate}
-            className={cn(
-              "flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-              heading.level === 3 && "pl-6 text-muted-foreground"
-            )}
-          >
-            <span className="min-w-0 truncate">{heading.text}</span>
-          </a>
-        ))}
-        {categories.map((category, index) => (
-          <a
-            key={category.name}
-            href={`#story-category-${index}`}
-            onClick={onNavigate}
-            className="flex min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <span className="min-w-0 truncate">{category.name}</span>
-            <span className="shrink-0 text-xs font-normal text-muted-foreground">
-              {category.cards.length}
-            </span>
-          </a>
-        ))}
+        {outline.map((entry) =>
+          entry.kind === "heading" ? (
+            <a
+              key={`heading-${entry.id}`}
+              href={`#${entry.id}`}
+              onClick={onNavigate}
+              className={cn(
+                "flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                entry.level === 3 && "pl-6 text-muted-foreground"
+              )}
+            >
+              <span className="min-w-0 truncate">{entry.text}</span>
+            </a>
+          ) : (
+            <a
+              key={`category-${entry.id}`}
+              href={`#${entry.id}`}
+              onClick={onNavigate}
+              className="flex min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <span className="min-w-0 truncate">{entry.name}</span>
+              <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                {entry.count}
+              </span>
+            </a>
+          )
+        )}
       </nav>
     </div>
   )

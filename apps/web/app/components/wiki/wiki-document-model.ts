@@ -3,7 +3,10 @@ import type {
   WikiDocumentCard,
   WikiDocumentInline,
   WikiDocumentSourceLink,
+  WikiPublicStoryCategory,
+  WikiPublicStoryDocument,
 } from "~/lib/api"
+import { storyCategoryAnchorId } from "~/pages/wiki/wiki-model"
 
 /**
  * Keyword and tag facet filtering for a compiled document.
@@ -15,6 +18,110 @@ import type {
 export interface WikiDocumentFilter {
   query: string
   tags: readonly string[]
+  /**
+   * Embedded structured categories the page's own filter currently hides
+   * (empty card lists after search/cast filtering). `undefined` keeps them.
+   */
+  hiddenCategories?: readonly string[]
+}
+
+/** One table-of-contents entry of a hybrid document page. */
+export type WikiDocumentOutlineEntry =
+  | { kind: "heading"; id: string; level: 2 | 3; text: string }
+  | { kind: "category"; id: string; name: string; count: number }
+
+/**
+ * Merges document headings and embedded categories in document order.
+ *
+ * A hybrid page must jump from a Markdown heading into the structured pool the
+ * author embedded next, then on to the following heading. `document.headings`
+ * stays the source of truth for the heading entries (it is what the compiler
+ * extracted for the TOC), while the block tree decides where each heading and
+ * category sits; headings the block tree no longer carries are appended so the
+ * outline never loses an entry.
+ */
+export function documentOutline(
+  document: WikiPublicStoryDocument,
+  categories: readonly WikiPublicStoryCategory[]
+): WikiDocumentOutlineEntry[] {
+  const byName = new Map(
+    categories.map((category) => [category.name, category])
+  )
+  const headings = document.headings.map((heading, index) => ({
+    heading,
+    index,
+  }))
+  const emittedHeadings = new Set<number>()
+  const outline: WikiDocumentOutlineEntry[] = []
+  const pushHeading = (entry: {
+    id: string
+    level: 2 | 3
+    text: string
+  }): void => {
+    outline.push({
+      kind: "heading",
+      id: entry.id,
+      level: entry.level,
+      text: entry.text,
+    })
+  }
+  const pushCategory = (category: WikiPublicStoryCategory): void => {
+    outline.push({
+      kind: "category",
+      id: storyCategoryAnchorId(category.name),
+      name: category.name,
+      count: category.cards.length,
+    })
+  }
+  const visit = (blocks: readonly WikiDocumentBlock[]): void => {
+    for (const block of blocks) {
+      switch (block.type) {
+        case "heading": {
+          const known = headings.find(
+            ({ heading, index }) =>
+              !emittedHeadings.has(index) && heading.id === block.id
+          )
+          if (known) emittedHeadings.add(known.index)
+          pushHeading(
+            known
+              ? known.heading
+              : {
+                  id: block.id,
+                  level: block.level,
+                  text: inlineText(block.children),
+                }
+          )
+          break
+        }
+        case "storyCategory":
+          if (block.categoryName === null) {
+            categories.forEach(pushCategory)
+          } else {
+            const category = byName.get(block.categoryName)
+            if (category) pushCategory(category)
+          }
+          break
+        case "tabs":
+          for (const tab of block.items) visit(tab.children)
+          break
+        case "blockquote":
+        case "callout":
+        case "details":
+          visit(block.children)
+          break
+        case "list":
+          for (const item of block.items) visit(item.children)
+          break
+        default:
+          break
+      }
+    }
+  }
+  visit(document.blocks)
+  for (const { heading, index } of headings) {
+    if (!emittedHeadings.has(index)) pushHeading(heading)
+  }
+  return outline
 }
 
 export function hasActiveDocumentFilter(filter: WikiDocumentFilter): boolean {
@@ -27,7 +134,12 @@ export function filterDocumentBlocks(
 ): WikiDocumentBlock[] {
   const query = normalizeQuery(filter.query)
   if (!query && filter.tags.length === 0) return [...blocks]
-  return filterBlockList(blocks, query, filter.tags)
+  return filterBlockList(
+    blocks,
+    query,
+    filter.tags,
+    filter.hiddenCategories ?? []
+  )
 }
 
 function normalizeQuery(value: string): string {
@@ -69,6 +181,8 @@ function blockTexts(block: WikiDocumentBlock): string[] {
     case "heading":
     case "paragraph":
       return [inlineText(block.children)]
+    case "media":
+      return [block.caption]
     case "table":
       return [block.header, ...block.rows].map((row) =>
         row.map((cell) => inlineText(cell)).join(" ")
@@ -100,14 +214,15 @@ function cardMatchesTags(card: WikiDocumentCard, tags: readonly string[]) {
 function filterBlockList(
   blocks: readonly WikiDocumentBlock[],
   query: string,
-  tags: readonly string[]
+  tags: readonly string[],
+  hidden: readonly string[]
 ): WikiDocumentBlock[] {
   const output: WikiDocumentBlock[] = []
   let index = 0
   while (index < blocks.length) {
     const block = blocks[index]
     if (block.type !== "heading") {
-      const filtered = filterBlock(block, query, tags)
+      const filtered = filterBlock(block, query, tags, hidden)
       if (filtered) output.push(filtered)
       index += 1
       continue
@@ -118,7 +233,12 @@ function filterBlockList(
       if (candidate.type === "heading" && candidate.level <= block.level) break
       end += 1
     }
-    const section = filterBlockList(blocks.slice(index + 1, end), query, tags)
+    const section = filterBlockList(
+      blocks.slice(index + 1, end),
+      query,
+      tags,
+      hidden
+    )
     if (section.length || !query || matches(blockTexts(block), query)) {
       output.push(block, ...section)
     }
@@ -130,7 +250,8 @@ function filterBlockList(
 function filterBlock(
   block: WikiDocumentBlock,
   query: string,
-  tags: readonly string[]
+  tags: readonly string[],
+  hidden: readonly string[]
 ): WikiDocumentBlock | null {
   switch (block.type) {
     case "links": {
@@ -159,7 +280,8 @@ function filterBlock(
         const children = filterBlockList(
           tab.children,
           tabTitleMatches ? "" : query,
-          tags
+          tags,
+          hidden
         )
         return children.length ? [{ ...tab, children }] : []
       })
@@ -170,12 +292,12 @@ function filterBlock(
     case "blockquote":
     case "callout":
     case "details": {
-      const children = filterBlockList(block.children, query, tags)
+      const children = filterBlockList(block.children, query, tags, hidden)
       return children.length ? { ...block, children } : null
     }
     case "list": {
       const items = block.items.flatMap((item) => {
-        const children = filterBlockList(item.children, query, tags)
+        const children = filterBlockList(item.children, query, tags, hidden)
         return children.length ? [{ ...item, children }] : []
       })
       return items.length ? { ...block, items } : null
@@ -184,6 +306,12 @@ function filterBlock(
       return query ? null : block
     case "heading":
       return block
+    // An embedded category disappears while the page filter hides it (`null`
+    // means "every category", which the renderer narrows per category itself).
+    case "storyCategory":
+      return block.categoryName && hidden.includes(block.categoryName)
+        ? null
+        : block
     default:
       if (!query) return block
       return matches(blockTexts(block), query) ? block : null

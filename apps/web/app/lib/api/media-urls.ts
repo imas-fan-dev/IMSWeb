@@ -89,6 +89,7 @@ import type {
 import type {
   WikiAdminCatalog,
   WikiAdminStories,
+  WikiDocumentBlock,
   WikiPublicCatalog,
   WikiPublicStories,
   WikiRandomBackground,
@@ -172,6 +173,12 @@ export function normalizeWikiPublicStories(
   return {
     ...stories,
     idol: publicIdol(stories.idol),
+    document: stories.document
+      ? {
+          ...stories.document,
+          blocks: normalizeDocumentBlocks(stories.document.blocks),
+        }
+      : null,
     categories: stories.categories.map((category) => ({
       ...category,
       // `links[].url` stays untouched: those are external video pages the API
@@ -182,6 +189,57 @@ export function normalizeWikiPublicStories(
       })),
     })),
   }
+}
+
+/**
+ * Rewrites API-origin document image URLs for the current delivery origin.
+ *
+ * Document `imageUrl`s are either the storage public URL (absolute) or the
+ * app-served `/api/wiki/document-media/<id>.webp` fallback, which still needs
+ * the API origin in a split-origin deployment.
+ */
+function normalizeDocumentBlocks(
+  blocks: readonly WikiDocumentBlock[]
+): WikiDocumentBlock[] {
+  return blocks.map((block) => {
+    switch (block.type) {
+      case "media":
+        return { ...block, imageUrl: nullableMediaUrl(block.imageUrl) }
+      case "cardGrid":
+        return {
+          ...block,
+          cards: block.cards.map((card) => ({
+            ...card,
+            imageUrl: nullableMediaUrl(card.imageUrl),
+          })),
+        }
+      case "tabs":
+        return {
+          ...block,
+          items: block.items.map((tab) => ({
+            ...tab,
+            children: normalizeDocumentBlocks(tab.children),
+          })),
+        }
+      case "blockquote":
+      case "callout":
+      case "details":
+        return {
+          ...block,
+          children: normalizeDocumentBlocks(block.children),
+        }
+      case "list":
+        return {
+          ...block,
+          items: block.items.map((item) => ({
+            ...item,
+            children: normalizeDocumentBlocks(item.children),
+          })),
+        }
+      default:
+        return block
+    }
+  })
 }
 
 export function normalizeWikiRandomIdol(

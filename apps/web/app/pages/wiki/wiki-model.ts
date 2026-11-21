@@ -193,3 +193,14 @@ export function storyCardMatches(
     ]),
   ].some((value) => value.toLocaleLowerCase("zh-CN").includes(normalized))
 }
+
+/**
+ * Anchor id of one structured category section.
+ *
+ * Shared by the modern inline renderer, the classic inline renderer, and the
+ * table of contents so `#story-category-<name>` deep links keep resolving no
+ * matter how many categories a page currently shows.
+ */
+export function storyCategoryAnchorId(name: string): string {
+  return `story-category-${name}`
+}

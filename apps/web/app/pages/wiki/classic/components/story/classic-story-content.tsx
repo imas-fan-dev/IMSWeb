@@ -4,6 +4,7 @@ import { type CSSProperties } from "react"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiDocumentRenderer } from "~/components/wiki/wiki-document-renderer"
 import type {
+  WikiImageTransform,
   WikiPublicStories,
   WikiPublicStoryCard,
   WikiPublicStoryCategory,
@@ -52,6 +53,16 @@ export function ClassicStoryContent({
           <WikiDocumentRenderer
             document={stories.document}
             highlightedCardId={highlightedCardId}
+            categories={categories}
+            renderStoryCategory={({ category, categoryId }) => (
+              <ClassicStoryCategorySection
+                category={category}
+                categoryId={categoryId}
+                fallbackImage={stories.idol.imageUrl}
+                fallbackTransform={stories.idol.imageTransform}
+                onSelectCard={onSelectCard}
+              />
+            )}
           />
         </article>
       ) : null}
@@ -89,81 +100,114 @@ export function ClassicStoryContent({
         </div>
       )}
 
-      <div className="wiki-classic-story-categories">
-        {categories.map((category) => (
-          <section
-            key={category.name}
-            className="wiki-classic-story-category"
-            aria-labelledby={`classic-story-${category.name}`}
-          >
-            <header>
-              <h2 id={`classic-story-${category.name}`}>
-                <span>📂</span> ({category.name})
-              </h2>
-              <small>{category.cards.length} 张卡片</small>
-            </header>
-            {category.cards.length ? (
-              <div
-                className="wiki-classic-story-grid"
-                style={
-                  {
-                    "--classic-story-grid-columns": storyCardColumns(
-                      category.name
-                    ),
-                    "--classic-story-grid-gap": storyCardGap(category.name),
-                  } as CSSProperties
+      {stories.document ? null : (
+        <div className="wiki-classic-story-categories">
+          {categories.map((category) => (
+            <ClassicStoryCategorySection
+              key={category.name}
+              category={category}
+              categoryId={`classic-story-${category.name}`}
+              fallbackImage={stories.idol.imageUrl}
+              fallbackTransform={stories.idol.imageTransform}
+              onSelectCard={onSelectCard}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/**
+ * One structured category pool in classic styling.
+ *
+ * Used both by the standalone list of `structured` entries and inline wherever a
+ * `document` embeds `::story-category`, so one pool looks identical in both
+ * modes.
+ */
+export function ClassicStoryCategorySection({
+  category,
+  categoryId,
+  fallbackImage,
+  fallbackTransform,
+  onSelectCard,
+}: {
+  category: WikiPublicStoryCategory
+  categoryId: string
+  fallbackImage: string
+  fallbackTransform: WikiImageTransform
+  onSelectCard: (
+    category: WikiPublicStoryCategory,
+    card: WikiPublicStoryCard
+  ) => void
+}) {
+  return (
+    <section
+      id={categoryId}
+      className="wiki-classic-story-category"
+      aria-labelledby={`${categoryId}-title`}
+    >
+      <header>
+        <h2 id={`${categoryId}-title`}>
+          <span>📂</span> ({category.name})
+        </h2>
+        <small>{category.cards.length} 张卡片</small>
+      </header>
+      {category.cards.length ? (
+        <div
+          className="wiki-classic-story-grid"
+          style={
+            {
+              "--classic-story-grid-columns": storyCardColumns(category.name),
+              "--classic-story-grid-gap": storyCardGap(category.name),
+            } as CSSProperties
+          }
+        >
+          {category.cards.map((card) => {
+            const textOnly = !card.img
+            const hasStory = hasStorySource(card.links)
+            return (
+              <button
+                key={`${category.name}\u0000${card.name}`}
+                type="button"
+                className={cn(
+                  "wiki-classic-story-card",
+                  textOnly && "is-text-only"
+                )}
+                data-story-state={hasStory ? "available" : "unavailable"}
+                aria-label={
+                  !hasStory ? `${card.name}，暂无剧情来源` : undefined
                 }
+                onClick={() => onSelectCard(category, card)}
               >
-                {category.cards.map((card) => {
-                  const textOnly = !card.img
-                  const hasStory = hasStorySource(card.links)
-                  return (
-                    <button
-                      key={`${category.name}\u0000${card.name}`}
-                      type="button"
-                      className={cn(
-                        "wiki-classic-story-card",
-                        textOnly && "is-text-only"
-                      )}
-                      data-story-state={hasStory ? "available" : "unavailable"}
-                      aria-label={
-                        !hasStory ? `${card.name}，暂无剧情来源` : undefined
-                      }
-                      onClick={() => onSelectCard(category, card)}
-                    >
-                      {!textOnly ? (
-                        <span
-                          className="wiki-classic-story-card-image"
-                          style={{
-                            aspectRatio: storyCardAspectRatio(category.name),
-                          }}
-                        >
-                          <WikiTransformedImage
-                            src={card.img || stories.idol.imageUrl}
-                            alt=""
-                            transform={card.imageTransform}
-                            fallbackSrc={stories.idol.imageUrl}
-                            fallbackTransform={stories.idol.imageTransform}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </span>
-                      ) : null}
-                      <span className="wiki-classic-story-card-body">
-                        <strong>{card.name}</strong>
-                        {card.subtitle ? <small>{card.subtitle}</small> : null}
-                        <span>{card.links.length} 个来源</span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="wiki-classic-story-empty">此分类下暂无剧情</p>
-            )}
-          </section>
-        ))}
-      </div>
+                {!textOnly ? (
+                  <span
+                    className="wiki-classic-story-card-image"
+                    style={{ aspectRatio: storyCardAspectRatio(category.name) }}
+                  >
+                    <WikiTransformedImage
+                      src={card.img || fallbackImage}
+                      alt=""
+                      transform={card.imageTransform}
+                      fallbackSrc={fallbackImage}
+                      fallbackTransform={fallbackTransform}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                ) : null}
+                <span className="wiki-classic-story-card-body">
+                  <strong>{card.name}</strong>
+                  {card.subtitle ? <small>{card.subtitle}</small> : null}
+                  <span>{card.links.length} 个来源</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="wiki-classic-story-empty">此分类下暂无剧情</p>
+      )}
     </section>
   )
 }

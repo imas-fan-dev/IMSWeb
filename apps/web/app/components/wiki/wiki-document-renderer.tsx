@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react"
-import { useState } from "react"
+import { Fragment, useState } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Badge } from "~/components/ui/badge"
@@ -22,11 +22,18 @@ import type {
   WikiDocumentCard,
   WikiDocumentCardGridBlock,
   WikiDocumentInline,
+  WikiDocumentMediaBlock,
+  WikiDocumentStoryCategoryBlock,
   WikiDocumentTab,
+  WikiPublicStoryCategory,
   WikiPublicStoryDocument,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { hasStorySource, storyCardChrome } from "~/pages/wiki/wiki-model"
+import {
+  hasStorySource,
+  storyCardChrome,
+  storyCategoryAnchorId,
+} from "~/pages/wiki/wiki-model"
 
 const CALLOUT_LABELS: Record<string, string> = {
   tip: "提示",
@@ -40,6 +47,14 @@ const CALLOUT_TONES: Record<string, string> = {
   info: "border-sky-500/60 bg-sky-500/5",
   warning: "border-amber-500/60 bg-amber-500/5",
   spoiler: "border-violet-500/60 bg-violet-500/5",
+}
+
+/** `contain` (policy or author choice) never crops the artwork. */
+function documentImageFit(
+  fit: "cover" | "contain",
+  policy: "inherit" | "contain"
+): "cover" | "contain" {
+  return policy === "contain" || fit === "contain" ? "contain" : "cover"
 }
 
 const CARD_GRID_LAYOUT_CLASS: Record<
@@ -59,6 +74,13 @@ const CARD_GRID_LAYOUT_CLASS: Record<
 interface DocumentRenderContext {
   highlightedCardId: number | null
   onOpenCard: (card: WikiDocumentCard, groupTitle: string) => void
+  /** Embedded structured categories the page currently shows, in page order. */
+  categories: readonly WikiPublicStoryCategory[]
+  /** Page-owned renderer so both views style the embedded pool natively. */
+  renderStoryCategory?: (input: {
+    category: WikiPublicStoryCategory
+    categoryId: string
+  }) => ReactNode
 }
 
 function inlineNodes(
@@ -167,10 +189,12 @@ function DocumentTabs({
 function DocumentCardButton({
   card,
   groupTitle,
+  ratio,
   context,
 }: {
   card: WikiDocumentCard
   groupTitle: string
+  ratio: WikiDocumentCardGridBlock["ratio"]
   context: DocumentRenderContext
 }) {
   const chrome = storyCardChrome(
@@ -192,6 +216,24 @@ function DocumentCardButton({
       )}
       onClick={() => context.onOpenCard(card, groupTitle)}
     >
+      {card.imageUrl ? (
+        <span
+          data-card-media=""
+          className="block w-full overflow-hidden rounded-md bg-muted"
+          style={ratio ? { aspectRatio: ratio } : undefined}
+        >
+          <img
+            src={card.imageUrl}
+            alt=""
+            className="size-full"
+            style={{
+              objectFit: documentImageFit(card.fit, card.presentationPolicy),
+            }}
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+      ) : null}
       <span className="text-sm font-bold wrap-break-word">{card.title}</span>
       {card.subtitle ? (
         <span className="text-xs wrap-break-word text-muted-foreground">
@@ -257,10 +299,108 @@ function DocumentCardGrid({
             key={`${keyPrefix}-card-${index}`}
             card={card}
             groupTitle={block.title}
+            ratio={block.ratio}
             context={context}
           />
         ))}
       </div>
+    </details>
+  )
+}
+
+/**
+ * One `::media{asset=...}` figure.
+ *
+ * `imageUrl` arrives resolved by the API (uploads and shared covers are served
+ * by different routes), so this only decides how to fit the artwork and whether
+ * to show a caption. An unresolved reference renders its caption text alone,
+ * which is what the author sees after deleting the referenced asset.
+ */
+function DocumentMedia({
+  block,
+  keyPrefix,
+}: {
+  block: WikiDocumentMediaBlock
+  keyPrefix: string
+}) {
+  const fit = documentImageFit(block.fit, block.presentationPolicy)
+  return (
+    <figure key={keyPrefix} className="mt-4">
+      {block.imageUrl ? (
+        <img
+          src={block.imageUrl}
+          alt={block.caption}
+          data-media-fit={fit}
+          className={cn(
+            "w-full rounded-lg border bg-muted",
+            fit === "contain" ? "object-contain" : "object-cover"
+          )}
+          style={{ objectFit: fit }}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : null}
+      {block.caption ? (
+        <figcaption className="mt-2 text-center text-xs text-muted-foreground">
+          {block.caption}
+        </figcaption>
+      ) : null}
+    </figure>
+  )
+}
+
+/**
+ * `::story-category{name="..."}` / `::story-categories`.
+ *
+ * The structured card pool is mounted right where the author placed it, through
+ * the page-owned renderer, so Modern and Classic keep their own card styling.
+ * A category the page's filter emptied is dropped instead of leaving a header
+ * with no cards; `collapsed` wraps the pool in a closed `<details>`.
+ */
+function DocumentStoryCategory({
+  block,
+  keyPrefix,
+  context,
+}: {
+  block: WikiDocumentStoryCategoryBlock
+  keyPrefix: string
+  context: DocumentRenderContext
+}) {
+  const render = context.renderStoryCategory
+  const names =
+    block.categoryName === null
+      ? context.categories.map((category) => category.name)
+      : [block.categoryName]
+  const matched = context.categories.filter((category) =>
+    names.includes(category.name)
+  )
+  if (!render || !matched.length) return null
+  const sections = matched.map((category) => (
+    <Fragment key={`${keyPrefix}-${category.name}`}>
+      {render({ category, categoryId: storyCategoryAnchorId(category.name) })}
+    </Fragment>
+  ))
+  if (!block.collapsed) {
+    return (
+      <div key={keyPrefix} data-story-category-embed="" className="mt-8">
+        {sections}
+      </div>
+    )
+  }
+  return (
+    <details
+      key={keyPrefix}
+      data-story-category-embed=""
+      className="mt-6 rounded-lg border px-4 py-3"
+    >
+      <summary className="cursor-pointer text-sm font-semibold marker:text-muted-foreground">
+        {block.categoryName ?? "全部结构化分类"}
+        <span className="ml-2 text-xs font-normal text-muted-foreground">
+          {matched.reduce((sum, category) => sum + category.cards.length, 0)}{" "}
+          张卡片
+        </span>
+      </summary>
+      <div className="mt-3 space-y-8">{sections}</div>
     </details>
   )
 }
@@ -445,6 +585,17 @@ function blockNodes(
             context={context}
           />
         )
+      case "media":
+        return <DocumentMedia key={key} block={block} keyPrefix={key} />
+      case "storyCategory":
+        return (
+          <DocumentStoryCategory
+            key={key}
+            block={block}
+            keyPrefix={key}
+            context={context}
+          />
+        )
       default:
         return null
     }
@@ -468,12 +619,24 @@ export function WikiDocumentRenderer({
   className,
   query = "",
   highlightedCardId = null,
+  categories = [],
+  hiddenCategories = [],
+  renderStoryCategory,
 }: {
   document: WikiPublicStoryDocument
   className?: string
   /** Page keyword search; filters cards, source links, and sections. */
   query?: string
   highlightedCardId?: number | null
+  /** Embedded category card pools the page currently shows. */
+  categories?: readonly WikiPublicStoryCategory[]
+  /** Embedded categories the page's own filter emptied out. */
+  hiddenCategories?: readonly string[]
+  /** Page-owned renderer for `::story-category` blocks. */
+  renderStoryCategory?: (input: {
+    category: WikiPublicStoryCategory
+    categoryId: string
+  }) => ReactNode
 }) {
   const [tagState, setTagState] = useState<{
     document: WikiPublicStoryDocument
@@ -484,12 +647,14 @@ export function WikiDocumentRenderer({
   )
   // A new document payload (another entry) starts from an unfiltered page.
   const activeTags = tagState.document === document ? tagState.tags : []
-  const filter = { query, tags: activeTags }
+  const filter = { query, tags: activeTags, hiddenCategories }
   const visibleBlocks = filterDocumentBlocks(document.blocks, filter)
   const context: DocumentRenderContext = {
     highlightedCardId,
     onOpenCard: (card, groupTitle) =>
       setSelectedCard(documentCardSelection(groupTitle, card)),
+    categories,
+    renderStoryCategory,
   }
   const updateTags = (next: (current: string[]) => string[]) =>
     setTagState((current) => ({

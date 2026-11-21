@@ -36,7 +36,11 @@ import { SCardCastFilter } from "~/pages/wiki/modern/components/s-card-cast-filt
 import { StoryCategorySection } from "~/pages/wiki/modern/components/story-category-section"
 import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
 import { useStoryCardTarget } from "~/pages/wiki/hooks/use-story-card-target"
-import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
+import {
+  safeWikiColor,
+  storyCardMatches,
+  storyCategoryAnchorId,
+} from "~/pages/wiki/wiki-model"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type { WikiPublicStories } from "~/lib/api"
@@ -123,6 +127,13 @@ export function StoryPage() {
       return cards.length ? [{ ...category, cards }] : []
     })
   }, [deferredQuery, selectedCast, showsCastFilter, stories])
+  const hiddenCategoryNames = useMemo(() => {
+    if (!stories?.document) return []
+    const visible = new Set(visibleCategories.map((category) => category.name))
+    return stories.categories
+      .map((category) => category.name)
+      .filter((name) => !visible.has(name))
+  }, [stories, visibleCategories])
   const hasActiveFilters = Boolean(
     query || (showsCastFilter && selectedCast !== GAKUMAS_S_CARD_ALL_CAST)
   )
@@ -305,10 +316,10 @@ export function StoryPage() {
                 aria-label="剧情分类"
                 className="hidden min-w-0 flex-1 gap-2 overflow-x-auto lg:flex"
               >
-                {visibleCategories.map((category, index) => (
+                {visibleCategories.map((category) => (
                   <a
                     key={category.name}
-                    href={`#story-category-${index}`}
+                    href={`#${storyCategoryAnchorId(category.name)}`}
                     className="shrink-0 rounded-md border px-2.5 py-2 text-xs font-medium hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   >
                     {category.name}
@@ -325,22 +336,33 @@ export function StoryPage() {
                   document={stories.document}
                   query={deferredQuery}
                   highlightedCardId={highlightedCardId}
+                  categories={visibleCategories}
+                  hiddenCategories={hiddenCategoryNames}
+                  renderStoryCategory={({ category, categoryId }) => (
+                    <StoryCategorySection
+                      category={category}
+                      categoryId={categoryId}
+                      fallbackImage={stories.idol.imageUrl}
+                      fallbackTransform={stories.idol.imageTransform}
+                      accentColor={stories.idol.color ?? stories.agency.color}
+                      highlightedCardId={highlightedCardId}
+                    />
+                  )}
                   className="rounded-lg border bg-card px-5 py-6 sm:px-8"
                 />
-              ) : null}
-              {visibleCategories.length ? (
-                visibleCategories.map((category, index) => (
+              ) : visibleCategories.length ? (
+                visibleCategories.map((category) => (
                   <StoryCategorySection
                     key={category.name}
                     category={category}
-                    categoryId={`story-category-${index}`}
+                    categoryId={storyCategoryAnchorId(category.name)}
                     fallbackImage={stories.idol.imageUrl}
                     fallbackTransform={stories.idol.imageTransform}
                     accentColor={stories.idol.color ?? stories.agency.color}
                     highlightedCardId={highlightedCardId}
                   />
                 ))
-              ) : stories.document ? null : (
+              ) : (
                 <div className="rounded-lg border border-dashed px-6 py-16 text-center">
                   <Link2Icon className="mx-auto size-7 text-muted-foreground" />
                   <p className="mt-4 font-medium">
