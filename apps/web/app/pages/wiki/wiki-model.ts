@@ -135,7 +135,12 @@ export function safeExternalStoryUrl(value: string) {
   }
 }
 
-export function hasStorySource(links: WikiPublicStoryCard["links"]) {
+/**
+ * A card is only linkable when at least one source is a `剧情` source. The
+ * check reads just `contentType`, so structured cards and document-authored
+ * `:::card` blocks share the same dimming rule.
+ */
+export function hasStorySource(links: readonly { contentType: string }[]) {
   return links.some(
     (link) => link.contentType.normalize("NFKC").trim() === "剧情"
   )

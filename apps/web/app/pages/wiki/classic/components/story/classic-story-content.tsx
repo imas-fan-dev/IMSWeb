@@ -26,6 +26,7 @@ interface ClassicStoryContentProps {
   categories: WikiPublicStoryCategory[]
   selectedCategory: string
   cardCount: number
+  highlightedCardId: number | null
   castFilter: ClassicSCardCastFilterProps | null
   onSelectCategory: (category: string) => void
   onSelectCard: (
@@ -39,6 +40,7 @@ export function ClassicStoryContent({
   categories,
   selectedCategory,
   cardCount,
+  highlightedCardId,
   castFilter,
   onSelectCategory,
   onSelectCard,
@@ -47,7 +49,10 @@ export function ClassicStoryContent({
     <section className="wiki-classic-story-content">
       {stories.document ? (
         <article className="wiki-classic-story-document">
-          <WikiDocumentRenderer document={stories.document} />
+          <WikiDocumentRenderer
+            document={stories.document}
+            highlightedCardId={highlightedCardId}
+          />
         </article>
       ) : null}
       {castFilter ? (

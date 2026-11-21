@@ -35,14 +35,13 @@ import {
 import { SCardCastFilter } from "~/pages/wiki/modern/components/s-card-cast-filter"
 import { StoryCategorySection } from "~/pages/wiki/modern/components/story-category-section"
 import { StoryNavigationPanel } from "~/pages/wiki/modern/components/story-navigation-panel"
+import { useStoryCardTarget } from "~/pages/wiki/hooks/use-story-card-target"
 import { safeWikiColor, storyCardMatches } from "~/pages/wiki/wiki-model"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type { WikiPublicStories } from "~/lib/api"
 import { webOnly } from "~/lib/navigation/navigation-target"
 import { cn } from "~/lib/utils"
-
-const TARGET_CARD_HIGHLIGHT_MS = 1800
 
 function errorMessage(error: unknown) {
   return isApiError(error) ? error.message : "剧情内容暂时无法加载"
@@ -76,9 +75,6 @@ export function StoryPage() {
     expanded: boolean
   }>({ key: "", selectedCast: GAKUMAS_S_CARD_ALL_CAST, expanded: true })
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
-  const [highlightedCardId, setHighlightedCardId] = useState<number | null>(
-    null
-  )
   const deferredQuery = useDeferredValue(query)
   const storyTargetKey = `${agencyName}\u0000${idolName}`
   const requestKey = `${agencyName}\u0000${idolName}\u0000${refreshVersion}`
@@ -89,9 +85,6 @@ export function StoryPage() {
   const castFilterExpanded = castFilterIsCurrent
     ? castFilterState.expanded
     : true
-  const targetCardIdMatch = /^#story-card-(\d+)$/.exec(location.hash)
-  const targetCardId = targetCardIdMatch ? Number(targetCardIdMatch[1]) : null
-
   useEffect(() => {
     if (!agencyName || !idolName) return
     let active = true
@@ -108,48 +101,17 @@ export function StoryPage() {
     }
   }, [agencyName, idolName, requestKey])
 
-  useEffect(() => {
-    let highlightTimer: number | undefined
-    const activationTimer = window.setTimeout(() => {
-      if (
-        storyRequest.key !== requestKey ||
-        !storyRequest.data ||
-        !targetCardId
-      ) {
-        setHighlightedCardId(null)
-        return
-      }
-      const targetCard = document.getElementById(`story-card-${targetCardId}`)
-      if (!targetCard) {
-        setHighlightedCardId(null)
-        return
-      }
-      targetCard.focus({ preventScroll: true })
-      targetCard.scrollIntoView({
-        block: "start",
-        inline: "nearest",
-        behavior: "auto",
-      })
-      setHighlightedCardId(targetCardId)
-      highlightTimer = window.setTimeout(() => {
-        if (document.activeElement === targetCard) targetCard.blur()
-        setHighlightedCardId((current) =>
-          current === targetCardId ? null : current
-        )
-      }, TARGET_CARD_HIGHLIGHT_MS)
-    }, 0)
-    return () => {
-      window.clearTimeout(activationTimer)
-      if (highlightTimer !== undefined) window.clearTimeout(highlightTimer)
-    }
-  }, [requestKey, storyRequest, targetCardId])
-
   const hasTarget = Boolean(agencyName && idolName)
   const requestIsCurrent = storyRequest.key === requestKey
   const stories = requestIsCurrent ? storyRequest.data : null
   const storiesError = requestIsCurrent ? storyRequest.error : null
   const loading = hasTarget && !requestIsCurrent
   const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
+  const highlightedCardId = useStoryCardTarget({
+    hash: location.hash,
+    ready: Boolean(stories),
+    documentKey: requestKey,
+  })
   const visibleCategories = useMemo(() => {
     if (!stories) return []
     return stories.categories.flatMap((category) => {
@@ -361,6 +323,8 @@ export function StoryPage() {
               {stories.document ? (
                 <WikiDocumentRenderer
                   document={stories.document}
+                  query={deferredQuery}
+                  highlightedCardId={highlightedCardId}
                   className="rounded-lg border bg-card px-5 py-6 sm:px-8"
                 />
               ) : null}

@@ -1,6 +1,6 @@
 import { AlertCircleIcon, Layers3Icon } from "lucide-react"
 import { type CSSProperties, useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "react-router"
+import { useLocation, useSearchParams } from "react-router"
 
 import { BackToTop } from "~/components/shared/back-to-top"
 import { getWikiStories, isApiError } from "~/lib/api"
@@ -9,6 +9,7 @@ import type {
   WikiPublicStoryCard,
   WikiPublicStoryCategory,
 } from "~/lib/api"
+import { useStoryCardTarget } from "~/pages/wiki/hooks/use-story-card-target"
 import {
   contrastingWikiText,
   readableWikiAccent,
@@ -47,6 +48,7 @@ export function meta() {
 }
 
 export function ClassicStoryPage() {
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const agencyName = searchParams.get("agency")?.trim() ?? ""
   const idolName = searchParams.get("idol")?.trim() ?? ""
@@ -97,6 +99,11 @@ export function ClassicStoryPage() {
   const storiesError = requestIsCurrent ? storyRequest.error : null
   const loading = hasTarget && !requestIsCurrent
   const accent = safeWikiColor(stories?.idol.color ?? stories?.agency.color)
+  const highlightedCardId = useStoryCardTarget({
+    hash: location.hash,
+    ready: Boolean(stories),
+    documentKey: requestKey,
+  })
   const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
   const categories = useMemo(() => {
     if (!stories) return []
@@ -188,6 +195,7 @@ export function ClassicStoryPage() {
             categories={categories}
             selectedCategory={selectedCategory}
             cardCount={cardCount}
+            highlightedCardId={highlightedCardId}
             castFilter={
               showsCastFilter
                 ? {
