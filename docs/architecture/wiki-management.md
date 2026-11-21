@@ -123,6 +123,22 @@ Soft-deletion migration 为内容页、剧情卡片和剧情来源增加 `delete
 共享素材引用均保留，避免一次操作物理移除大量关联数据。删除使用页面图片媒体版本作为乐观锁，
 并递增企划布局版本。目前不开放恢复入口，但数据结构保留了后续恢复能力。
 
+### 增强 Markdown 文档模式
+
+内容页有 `structured`（默认）与 `document` 两种 `content_mode`。切换模式不删除任何一侧数据：
+`wiki_story_cards`、`wiki_story_links` 与 `wiki_entry_documents` 同时保留，公开读取按模式选择渲染源。
+
+- `wiki_entry_documents` 每内容页一行，保存 Markdown 原文、服务端编译的版本化 AST
+  （`{"version":1,"headings":[],"availableTags":[],"blocks":[]}`）、派生纯文本、`revision` 与更新时间。
+- `wiki_entry_document_revisions` 按 `(entry_id, revision)` 唯一保存历史快照；每次保存后只保留
+  该内容页最新 30 条。
+- 编译在 API 端完成（`unified` + `remark-parse` + `remark-gfm` + `remark-directive`）：原生 HTML
+  一律剥离并产生带行号的告警，链接只接受 `http(s)://` 或站点相对路径，`javascript:`、`data:` 与
+  协议相对 `//` 会被移除。公开 Web / App 不打包 Markdown 解析器，也不使用
+  `dangerouslySetInnerHTML`，只渲染受控 AST。
+- `PUT` 保存在同一事务内校验 `expectedRevision`：不匹配返回 `409` 且当前 `revision`，不写入任何行；
+  通过后同时更新 `content_mode`、AST、纯文本与快照。
+
 ## 图片与构图
 
 `0013_wiki_image_transforms` 为企划图标、栏目图标、内容页图片和剧情卡片图片增加统一构图字段：
@@ -171,6 +187,21 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 公开 catalog 的 `entryCount` 按内容页 ID 去重；`idolCount`、`groups`、`idols` 和
 `ungroupedIdols` 作为兼容字段继续返回。同一内容页可在多个栏目分支中展示，但不重复计数；没有
 任何栏目关系的内容页通过 `ungroupedIdols` 返回，并在全部栏目之后展示。
+
+`GET /api/wiki/stories` 始终返回 `contentMode` 与 `document`：`structured` 内容页的
+`categories` 与改造前完全一致且 `document` 为 `null`；`document` 内容页返回编译 AST
+（含 `headings` 供页面目录使用）并保留该内容页既有的结构化分类。
+
+### 增强 Markdown 文档写入
+
+| 方法与路径                                              | 当前行为                                              |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| `GET /api/admin/wiki/entries/:entryId/document`         | 读取模式、Markdown 原文、当前 `revision` 与编译 AST   |
+| `PUT /api/admin/wiki/entries/:entryId/document`         | 编译并保存；`expectedRevision` 过期返回 `409`         |
+| `POST /api/admin/wiki/entries/:entryId/document/preview` | 只编译不落库，返回 AST 与行号告警                    |
+
+保存拒绝未知请求字段；成功时在同一事务内写文档行、切换 `content_mode`、追加 revision 快照并裁剪
+到最新 30 条。
 
 ### 企划、栏目与内容页写入
 
@@ -263,6 +294,8 @@ Wiki 实例选择关联资料或独立维护。绑定名称和图片在目录编
 - 完整布局写入必须覆盖全部现存栏目；没有出现在成员列表中的内容页保持未归档状态。
 - 同一企划内的实体名称、代码或目录标识按数据库约束保持唯一。
 - 剧情层级只写规范化卡片/来源表；历史表只用于对账。
+- 内容页在 `structured` 与 `document` 之间切换不删除另一侧数据；公开读取按 `content_mode` 选择渲染源。
+- 文档保存的 `expectedRevision` 与 `wiki_entry_documents.revision` 原子比较；冲突返回 `409` 且不写任何行。
 - 共享封面只允许同企划卡片引用，并与卡片独立图片互斥；引用计数非零时删除返回 `409`。
 - 分类重命名携带当前名称，卡片追加来源以及栏目、来源删除携带当前媒体版本；过期写入返回 `409`，
   不覆盖其他管理员的修改。

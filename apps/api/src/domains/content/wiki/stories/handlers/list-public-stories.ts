@@ -47,6 +47,7 @@ export function createHandleListPublicWikiStories<E extends Env>(
       services.story!.listStoryCards(agency.code, idolRecord.id),
       services.story!.listWikiCategories(agency.id, idolRecord.id),
     ]);
+    const content = await services.story!.findWikiEntryContent(idolRecord.id);
     const idol = toWikiIdolFromRecord(agency, idolRecord);
     const categories = aggregateStories(
       storyRows,
@@ -107,6 +108,8 @@ export function createHandleListPublicWikiStories<E extends Env>(
         entryKind: idol.entryKind,
         entrySubtype: idol.entrySubtype,
       },
+      contentMode: content.contentMode,
+      document: content.contentMode === "document" ? content.document : null,
       categories: publicCategories,
     });
   };

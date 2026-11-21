@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "df8afb4a4981e6a0bb37945b25fb7ccfba433c7f6a74babf178919d3c5e8203f",
+    "semanticDigest": "a91705014344fe646324febb85f28092582b31097997ecc25b85a7f6aee9987e",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,13 +16,13 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 425,
-    "mountedMethodPaths": 325,
+    "mountedRegistrations": 428,
+    "mountedMethodPaths": 328,
     "noInputRoutes": 100,
-    "requestCarriers": 427,
+    "requestCarriers": 432,
     "policies": {
-      "reject": 107,
-      "accept-and-project": 219,
+      "reject": 109,
+      "accept-and-project": 222,
       "passthrough": 17,
       "non-object-applicable": 84
     },
@@ -397,11 +397,61 @@
         "carriers": 1,
         "policy": "reject",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryIdParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/admin/wiki/entries/:entryId/document",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryIdParamsSchema",
+        "kind": "param",
+        "method": "PUT",
+        "path": "/api/admin/wiki/entries/:entryId/document",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiSaveEntryDocumentRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/wiki/entries/:entryId/document",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryIdParamsSchema",
+        "kind": "param",
+        "method": "POST",
+        "path": "/api/admin/wiki/entries/:entryId/document/preview",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiPreviewEntryDocumentRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/wiki/entries/:entryId/document/preview",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 192,
+      "/api/admin": 195,
       "/api/birthdays": 1,
       "/api/cards": 8,
       "/api/check": 1,
@@ -4188,6 +4238,31 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:01b6d45ee50aca14:fb7f85e2:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/wiki/stories",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
@@ -7039,7 +7114,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:62259497daa0d82a:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:bdbfe50fcceedfd5:75c9f5f2:0",
       "carriers": [
         {
           "kind": "query",
@@ -12339,6 +12414,45 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/preview",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:7e536f1e219ed5ad:5af3956d:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiPreviewEntryDocumentRequestSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/wiki/story-content-types",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
@@ -15962,6 +16076,45 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/wiki/entries/:entryId/document",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiSaveEntryDocumentRequestSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/wiki/groups/:groupId/icon",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
@@ -18331,6 +18484,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:01b6d45ee50aca14:fb7f85e2:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/wiki/stories",
       "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-admin-stories.ts#anonymous:1d0517047a6d8cb1:c65d7135:0",
       "kind": "query",
@@ -19454,7 +19624,7 @@
     {
       "method": "GET",
       "path": "/api/wiki/stories",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:62259497daa0d82a:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:bdbfe50fcceedfd5:75c9f5f2:0",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -22121,6 +22291,40 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/preview",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:7e536f1e219ed5ad:5af3956d:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/preview",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:7e536f1e219ed5ad:5af3956d:0",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiPreviewEntryDocumentRequestSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/wiki/story-content-types",
       "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/manage-story-source-catalog.ts#anonymous:401e7a153c987c05:ccca0b1a:0",
       "kind": "json",
@@ -23648,6 +23852,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/wiki/entries/:entryId/document",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/wiki/entries/:entryId/document",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiSaveEntryDocumentRequestSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "PUT",

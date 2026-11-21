@@ -48,6 +48,11 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "PUT", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiSaveEntryDocumentRequestSchema", kind: "json", method: "PUT", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",

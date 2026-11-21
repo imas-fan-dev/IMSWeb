@@ -4,6 +4,7 @@ import {
   errorResponseSchema,
   exactJsonResponse,
   legacyStripRequestObject,
+  strictRequestObject,
 } from "./common.js"
 
 export const wikiImageTransformSchema = exactJsonResponse({
@@ -433,16 +434,231 @@ export const wikiPublicStoryCardSchema = exactJsonResponse({
   links: z.array(wikiPublicStoryLinkSchema),
 })
 
+/**
+ * Enhanced Markdown document AST shared by API, Web, and App.
+ *
+ * The API compiles Markdown into this typed tree; clients render it directly
+ * and never parse Markdown or inject HTML. `version` gates future AST changes.
+ */
+export const wikiContentModeSchema = z.enum(["structured", "document"])
+
+export type WikiDocumentInline =
+  | { type: "text"; value: string }
+  | { type: "strong"; children: WikiDocumentInline[] }
+  | { type: "emphasis"; children: WikiDocumentInline[] }
+  | { type: "delete"; children: WikiDocumentInline[] }
+  | { type: "inlineCode"; value: string }
+  | { type: "link"; url: string; children: WikiDocumentInline[] }
+  | { type: "break" }
+
+export interface WikiDocumentListItem {
+  children: WikiDocumentBlock[]
+}
+
+export type WikiDocumentBlock =
+  | {
+      type: "heading"
+      level: 2 | 3
+      id: string
+      children: WikiDocumentInline[]
+    }
+  | { type: "paragraph"; children: WikiDocumentInline[] }
+  | { type: "blockquote"; children: WikiDocumentBlock[] }
+  | {
+      type: "list"
+      ordered: boolean
+      start: number | null
+      items: WikiDocumentListItem[]
+    }
+  | {
+      type: "table"
+      align: Array<"left" | "center" | "right" | null>
+      header: WikiDocumentInline[][]
+      rows: WikiDocumentInline[][][]
+    }
+  | { type: "thematicBreak" }
+  | {
+      type: "callout"
+      tone: "tip" | "info" | "warning" | "spoiler"
+      title: string
+      children: WikiDocumentBlock[]
+    }
+  | {
+      type: "details"
+      title: string
+      open: boolean
+      children: WikiDocumentBlock[]
+    }
+
+export interface WikiDocumentHeading {
+  id: string
+  level: 2 | 3
+  text: string
+}
+
+export interface WikiDocumentWarning {
+  line: number
+  code: string
+  message: string
+}
+
+export interface WikiPublicStoryDocument {
+  version: 1
+  headings: WikiDocumentHeading[]
+  availableTags: string[]
+  blocks: WikiDocumentBlock[]
+}
+
+export const wikiDocumentInlineSchema: z.ZodType<WikiDocumentInline> = z.lazy(
+  () =>
+    z.discriminatedUnion("type", [
+      exactJsonResponse({ type: z.literal("text"), value: z.string() }),
+      exactJsonResponse({
+        type: z.literal("strong"),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("emphasis"),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("delete"),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({ type: z.literal("inlineCode"), value: z.string() }),
+      exactJsonResponse({
+        type: z.literal("link"),
+        url: z.string(),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({ type: z.literal("break") }),
+    ])
+)
+
+export const wikiDocumentBlockSchema: z.ZodType<WikiDocumentBlock> = z.lazy(
+  () =>
+    z.discriminatedUnion("type", [
+      exactJsonResponse({
+        type: z.literal("heading"),
+        level: z.union([z.literal(2), z.literal(3)]),
+        id: z.string(),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("paragraph"),
+        children: z.array(wikiDocumentInlineSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("blockquote"),
+        children: z.array(wikiDocumentBlockSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("list"),
+        ordered: z.boolean(),
+        start: z.number().int().nullable(),
+        items: z.array(
+          exactJsonResponse({
+            children: z.array(wikiDocumentBlockSchema),
+          })
+        ),
+      }),
+      exactJsonResponse({
+        type: z.literal("table"),
+        align: z.array(z.enum(["left", "center", "right"]).nullable()),
+        header: z.array(z.array(wikiDocumentInlineSchema)),
+        rows: z.array(z.array(z.array(wikiDocumentInlineSchema))),
+      }),
+      exactJsonResponse({ type: z.literal("thematicBreak") }),
+      exactJsonResponse({
+        type: z.literal("callout"),
+        tone: z.enum(["tip", "info", "warning", "spoiler"]),
+        title: z.string(),
+        children: z.array(wikiDocumentBlockSchema),
+      }),
+      exactJsonResponse({
+        type: z.literal("details"),
+        title: z.string(),
+        open: z.boolean(),
+        children: z.array(wikiDocumentBlockSchema),
+      }),
+    ])
+)
+
+export const wikiDocumentHeadingSchema: z.ZodType<WikiDocumentHeading> =
+  exactJsonResponse({
+    id: z.string(),
+    level: z.union([z.literal(2), z.literal(3)]),
+    text: z.string(),
+  })
+
+export const wikiDocumentWarningSchema: z.ZodType<WikiDocumentWarning> =
+  exactJsonResponse({
+    line: z.number().int().nonnegative(),
+    code: z.string(),
+    message: z.string(),
+  })
+
+export const wikiPublicStoryDocumentSchema: z.ZodType<WikiPublicStoryDocument> =
+  exactJsonResponse({
+    version: z.literal(1),
+    headings: z.array(wikiDocumentHeadingSchema),
+    availableTags: z.array(z.string()),
+    blocks: z.array(wikiDocumentBlockSchema),
+  })
+
 export const wikiPublicStoriesSchema = exactJsonResponse({
   status: z.literal("success"),
   agency: wikiAgencySummarySchema,
   idol: wikiPublicIdolSchema,
+  contentMode: wikiContentModeSchema,
+  document: wikiPublicStoryDocumentSchema.nullable(),
   categories: z.array(
     exactJsonResponse({
       name: z.string(),
       cards: z.array(wikiPublicStoryCardSchema),
     })
   ),
+})
+
+/**
+ * Admin document endpoints (Ticket 01 scope: read, save, preview).
+ *
+ * `revision` is the optimistic lock for `PUT`; a stale `expectedRevision`
+ * returns `409` with the current value in `wikiRevisionConflictResponseSchema`.
+ * Media and revision-summary fields arrive with the tickets that own them.
+ */
+export const adminWikiEntryDocumentEntrySchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  projectId: z.number().int().positive(),
+  projectCode: z.string(),
+  projectName: z.string(),
+  name: z.string(),
+  folderName: z.string(),
+  entryKind: wikiEntryKindSchema,
+})
+
+export const adminWikiEntryDocumentSchema = exactJsonResponse({
+  status: z.literal("success"),
+  entry: adminWikiEntryDocumentEntrySchema,
+  contentMode: wikiContentModeSchema,
+  sourceMarkdown: z.string(),
+  revision: z.number().int().nonnegative(),
+  document: wikiPublicStoryDocumentSchema,
+  warnings: z.array(wikiDocumentWarningSchema),
+})
+
+export const adminWikiEntryDocumentSaveSchema = exactJsonResponse({
+  status: z.literal("success"),
+  contentMode: wikiContentModeSchema,
+  revision: z.number().int().nonnegative(),
+  document: wikiPublicStoryDocumentSchema,
+  warnings: z.array(wikiDocumentWarningSchema),
+})
+
+export const adminWikiEntryDocumentPreviewSchema = exactJsonResponse({
+  status: z.literal("success"),
+  document: wikiPublicStoryDocumentSchema,
+  warnings: z.array(wikiDocumentWarningSchema),
 })
 
 export const wikiRandomBackgroundSchema = exactJsonResponse({
@@ -679,6 +895,20 @@ export const wikiStoryLinkDeleteBodySchema = legacyStripRequestObject({
   expectedRevision: z.union([wikiRevision, z.string()]).optional(),
 })
 
+// Enhanced Markdown document boundaries are new, so they reject unknown keys.
+export const adminWikiEntryIdParamsSchema = strictRequestObject({
+  entryId: z.coerce.number().int().positive(),
+})
+export const adminWikiSaveEntryDocumentRequestSchema = strictRequestObject({
+  contentMode: wikiContentModeSchema,
+  sourceMarkdown: z.string(),
+  expectedRevision: wikiRevision,
+  summary: z.string().optional(),
+})
+export const adminWikiPreviewEntryDocumentRequestSchema = strictRequestObject({
+  sourceMarkdown: z.string(),
+})
+
 export type CreateWikiAgencyRequest = z.infer<typeof createWikiAgencyRequestSchema>
 export type UpdateWikiAgencyRequest = z.infer<typeof updateWikiAgencyRequestSchema>
 export type CreateWikiGroupRequest = z.infer<typeof createWikiGroupRequestSchema>
@@ -702,3 +932,17 @@ export type WikiStoriesQuery = { agency: string; idol: string }
 export type WikiCatalogQuery = { agency: string }
 export type WikiStoryLinkQuery = { agency: string; idol: string; expectedRevision?: string }
 export type DeleteWikiStoryLinkRequest = { agency: string; idol: string; expectedRevision: number }
+export type WikiContentMode = z.infer<typeof wikiContentModeSchema>
+export type WikiAdminEntryDocument = z.infer<typeof adminWikiEntryDocumentSchema>
+export type WikiAdminEntryDocumentSave = z.infer<
+  typeof adminWikiEntryDocumentSaveSchema
+>
+export type WikiAdminEntryDocumentPreview = z.infer<
+  typeof adminWikiEntryDocumentPreviewSchema
+>
+export type WikiAdminSaveEntryDocumentRequest = z.infer<
+  typeof adminWikiSaveEntryDocumentRequestSchema
+>
+export type WikiAdminPreviewEntryDocumentRequest = z.infer<
+  typeof adminWikiPreviewEntryDocumentRequestSchema
+>

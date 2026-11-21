@@ -141,13 +141,13 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 425,
-      mountedMethodPaths: 325,
+      mountedRegistrations: 428,
+      mountedMethodPaths: 328,
       noInputRoutes: 100,
-      requestCarriers: 427,
+      requestCarriers: 432,
       policies: {
-        reject: 107,
-        "accept-and-project": 219,
+        reject: 109,
+        "accept-and-project": 222,
         passthrough: 17,
         "non-object-applicable": 84,
       },
@@ -189,6 +189,11 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "PUT", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiSaveEntryDocumentRequestSchema", kind: "json", method: "PUT", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

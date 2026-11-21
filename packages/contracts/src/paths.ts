@@ -189,6 +189,20 @@ export function adminWikiPath(suffix = ""): string {
   return appendPath(ADMIN_WIKI_PATH_PREFIX, suffix)
 }
 
+/**
+ * One Wiki entry's Enhanced Markdown document; `suffix` addresses a document
+ * sub-action such as `preview` or `revisions/<revision>`.
+ */
+export function adminWikiEntryDocumentPath(
+  entryId: string | number,
+  suffix = ""
+): string {
+  const action = suffix.replace(/^\/+/, "")
+  return adminWikiPath(
+    `entries/${encodeURIComponent(String(entryId))}/document${action ? `/${action}` : ""}`
+  )
+}
+
 export function eventChroniclePath(suffix = ""): string {
   return appendPath(EVENT_CHRONICLE_PATH_PREFIX, suffix)
 }

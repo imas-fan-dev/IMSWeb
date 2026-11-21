@@ -77,8 +77,12 @@
         "pinyin-pro": "^3.29.5",
         "postcss": "8.5.26",
         "redis": "6.2.1",
+        "remark-directive": "^4.0.0",
+        "remark-gfm": "^4.0.1",
+        "remark-parse": "^11.0.0",
         "sanitize-html": "^2.17.7",
         "sharp": "^0.35.3",
+        "unified": "^11.0.5",
         "yauzl": "^3.4.0"
     },
     "devDependencies": {

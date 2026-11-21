@@ -9,7 +9,7 @@ Wiki 负责企划目录、栏目与内容页、剧情卡片和来源、来源目
 
 ```text
 wiki/
-  routes.ts             # 只注册 /api/admin/wiki/* 鉴权中间件并组合三个 capability
+  routes.ts             # 只注册 /api/admin/wiki/* 鉴权中间件并组合四个 capability
   request.ts            # 跨能力共享的请求校验器（validateWiki*）
   response.ts           # 跨能力共享的响应投影
   models.ts             # Wiki 领域模型类型
@@ -25,11 +25,17 @@ wiki/
   media/
     routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
     handlers/           # 11 个 action
+  documents/
+    routes.ts           # 增强 Markdown 文档的读取、保存与预览（/api/admin/wiki/entries/:id/document）
+    enhanced-markdown-compiler.ts  # 纯函数：Markdown -> 版本化 AST + plainText + 行号告警
+    document-request.ts            # 该 capability 的请求模型
+    handlers/           # 3 个 action：读取、保存、预览
 ```
 
 按实际承载内容归并：剧情目录选项（content-types/source-platforms）与 B 站来源解析
 始终服务剧情编辑，归入 `stories`；实体图标、偶像媒体、封面素材与 `/icon/*`、`/css/*`
-退役资源拒绝同属媒体服务面，归入 `media`；随机背景/偶像读取目录数据，归入 `catalog`。
+退役资源拒绝同属媒体服务面，归入 `media`；随机背景/偶像读取目录数据，归入 `catalog`；
+增强 Markdown 文档是独立的编辑与编译生命周期，归入 `documents`。
 
 根 `routes.ts` 是泛型 registrar 组合：每个 capability 导出
 `registerWiki<Capability>Routes<E extends Env>(app, resolveServices)`，根只注册共享的

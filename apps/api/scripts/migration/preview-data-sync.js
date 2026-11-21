@@ -69,10 +69,15 @@ const PRESERVABLE_MEDIA_KEYS = new Set([
     'editorial/about/config.json'
 ]);
 
-function decision(baseline, incoming, current) {
+function decision(baseline, incoming, current, compatible = false) {
     if (baseline !== null && incoming === baseline) return 'unchanged';
     if (incoming === current) return 'adopt';
     if (baseline !== null && current === baseline) return 'update';
+    // Additive columns did not exist when an older baseline was recorded, so the
+    // baseline cannot describe them. When every column the baseline does know
+    // about still matches the preview row, the row is unmodified and the source
+    // may write the new columns instead of reporting a conflict.
+    if (compatible === true && baseline !== null) return 'update';
     if (baseline === null && current === null) return 'insert';
     return 'conflict';
 }
@@ -276,6 +281,12 @@ async function mergeTable(source, target, table, options) {
     const baselines = await compatibleBaselines(target,table,managed,options);
     const keys = columns.filter((column) => column.primary_key).map((column) => column.name);
     const projection = `to_jsonb(t) - $1::text[]`;
+    // Intersection projection: the payload restricted to the columns a stored
+    // baseline already knows about, so an additive column cannot masquerade as a
+    // local preview edit.
+    const knownProjection = (expression, known) =>
+        `(SELECT COALESCE(jsonb_object_agg(e.key,e.value),'{}'::jsonb) FROM jsonb_each(${expression}) e
+            WHERE e.key IN (SELECT jsonb_object_keys(${known})))::text`;
     const keyExpression = `jsonb_build_object(${keys.map((key) => `'${key}',t.${quote(key)}`).join(',')})`;
     const predicate = keys.map((key) => `t.${quote(key)}=(jsonb_populate_record(NULL::${relation(table)},$2::jsonb)).${quote(key)}`).join(' AND ');
     const foreignKeys = await source.query(`SELECT c.confrelid::regclass::text AS parent,
@@ -321,10 +332,16 @@ async function mergeTable(source, target, table, options) {
     for (const row of rows.rows) {
         seen.add(row.key);
         const ownershipGuard = table === 'fudaba_cards' ? ', (t.owner_account_id IS NOT NULL OR t.pending_payload IS NOT NULL) AS locally_owned' : '';
-        const current = await target.query(`SELECT (${projection})::text AS payload${ownershipGuard}
-            FROM ${relation(table)} t WHERE ${predicate}${options.apply ? ' FOR UPDATE' : ''}`, [ignored, row.key]);
         const baseline = baselines.get(row.key) ?? null;
-        let action = decision(baseline, row.payload, current.rows[0]?.payload ?? null);
+        const current = await target.query(`SELECT (${projection})::text AS payload${ownershipGuard}
+            ${baseline === null ? '' : `, ${knownProjection(projection, '$3::jsonb')} AS current_known,
+            ${knownProjection('$3::jsonb', projection)} AS baseline_known`}
+            FROM ${relation(table)} t WHERE ${predicate}${options.apply ? ' FOR UPDATE' : ''}`,
+            baseline === null ? [ignored, row.key] : [ignored, row.key, baseline]);
+        const currentPayload = current.rows[0]?.payload ?? null;
+        const compatible = baseline !== null && currentPayload !== null &&
+            current.rows[0].current_known === current.rows[0].baseline_known;
+        let action = decision(baseline, row.payload, currentPayload, compatible);
         if (baseline === null && options.bootstrapKeys?.has(row.key) && action === 'conflict') action = 'update';
         const parentKeys = JSON.parse(row.parent_refs);
         if (dependencies.some((fk, index) => options.parentConflicts.get(fk.parent.replace(/^public\./, '')).has(parentKeys[index]))) action = 'conflict';

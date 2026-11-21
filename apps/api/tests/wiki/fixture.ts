@@ -1,4 +1,5 @@
 import { createHonoApp } from '@/app';
+import type { WikiContentMode } from '@imsweb/contracts/wiki';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
@@ -20,6 +21,7 @@ import type {
     NewStoryBatchInput,
     NewStoryInput,
     SaveWikiEntityMediaInput,
+    SaveWikiEntryDocumentInput,
     StoryCardRecord,
     StoryRecord,
     StoryRepository,
@@ -31,6 +33,10 @@ import type {
     UpdateWikiIdolInput,
     UpdateWikiStoryCoverAssetInput,
     WikiCategoryRecord,
+    WikiEntryContent,
+    WikiEntryDocumentRecord,
+    WikiEntryDocumentSaveResult,
+    WikiEntryDocumentTarget,
     WikiGroupMemberRecord,
     WikiGroupRecord,
     WikiImageTransform,
@@ -634,8 +640,53 @@ export class MemoryStoryRepository implements StoryRepository {
         agency.layout_revision += 1;
         return { status: 'saved' as const, revision: agency.layout_revision };
     }
-    async listStories(agencyCode: string, idolId: number) {
-        const agencyIds = new Set(this.agencies.filter((row) => row.code === agencyCode).map((row) => row.id));
+    documentModes = new Map<number, WikiContentMode>();
+    documents = new Map<number, WikiEntryDocumentRecord>();
+    async findWikiEntryDocumentTarget(entryId: number): Promise<WikiEntryDocumentTarget | null> {
+        const idol = this.idols.find((row) => row.id === entryId);
+        const agency = idol ? this.agencies.find((row) => row.id === idol.agency_id) : undefined;
+        if (!idol || !agency || this.deletedIdolIds.has(entryId)) return null;
+        return {
+            entryId,
+            projectId: agency.id,
+            projectCode: agency.code,
+            projectName: agency.name_cn,
+            name: idol.name_cn,
+            folderName: idol.folder_name,
+            entryKind: idol.entry_kind,
+            contentMode: this.documentModes.get(entryId) ?? 'structured'
+        };
+    }
+    async findWikiEntryDocument(entryId: number): Promise<WikiEntryDocumentRecord | null> {
+        const document = this.documents.get(entryId);
+        return document ? { ...document } : null;
+    }
+    async findWikiEntryContent(entryId: number): Promise<WikiEntryContent> {
+        return {
+            contentMode: this.documentModes.get(entryId) ?? 'structured',
+            document: this.documents.get(entryId)?.document ?? null
+        };
+    }
+    async saveWikiEntryDocument(input: SaveWikiEntryDocumentInput): Promise<WikiEntryDocumentSaveResult> {
+        if (!(await this.findWikiEntryDocumentTarget(input.entryId))) {
+            return { status: 'not-found' as const };
+        }
+        const currentRevision = this.documents.get(input.entryId)?.revision ?? 0;
+        if (currentRevision !== input.expectedRevision) {
+            return { status: 'conflict' as const, revision: currentRevision };
+        }
+        const revision = currentRevision + 1;
+        this.documents.set(input.entryId, {
+            entryId: input.entryId,
+            revision,
+            sourceMarkdown: input.sourceMarkdown,
+            document: input.document,
+            plainText: input.plainText
+        });
+        this.documentModes.set(input.entryId, input.contentMode);
+        return { status: 'saved' as const, revision };
+    }
+    async listStories(agencyCode: string, idolId: number) {        const agencyIds = new Set(this.agencies.filter((row) => row.code === agencyCode).map((row) => row.id));
         const idolIds = new Set(this.idols.filter((row) => agencyIds.has(row.agency_id)).map((row) => row.id));
         return this.stories.filter((row) =>
             row.idol_id === idolId && idolIds.has(row.idol_id) &&

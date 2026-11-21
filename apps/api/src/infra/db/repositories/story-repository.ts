@@ -19,6 +19,7 @@ import type {
     NewStoryBatchInput,
     NewStoryInput,
     SaveWikiEntityMediaInput,
+    SaveWikiEntryDocumentInput,
     StoryCardRecord,
     StoryRecord,
     StoryRepository,
@@ -31,6 +32,10 @@ import type {
     UpdateWikiStoryCoverAssetInput,
     WikiBackgroundRecord,
     WikiCategoryRecord,
+    WikiEntryContent,
+    WikiEntryDocumentRecord,
+    WikiEntryDocumentSaveResult,
+    WikiEntryDocumentTarget,
     WikiGroupMemberRecord,
     WikiGroupDeleteResult,
     WikiGroupRecord,
@@ -64,11 +69,13 @@ import {
 } from '@/infra/db/repositories/story-conflicts';
 import { SqlStoryCatalogRepository } from '@/infra/db/repositories/story-catalog-repository';
 import { SqlWikiEntityRepository } from '@/infra/db/repositories/wiki-entity-repository';
+import { SqlWikiDocumentRepository } from '@/infra/db/repositories/wiki-document-repository';
 
 export class SqlStoryRepository implements StoryRepository {
     private initialized?: Promise<void>;
     private readonly catalog: SqlStoryCatalogRepository;
     private readonly entities: SqlWikiEntityRepository;
+    private readonly documents: SqlWikiDocumentRepository;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
@@ -76,6 +83,7 @@ export class SqlStoryRepository implements StoryRepository {
     ) {
         this.catalog = new SqlStoryCatalogRepository(database);
         this.entities = new SqlWikiEntityRepository(database);
+        this.documents = new SqlWikiDocumentRepository(database);
     }
 
     initialize(): Promise<void> {
@@ -85,6 +93,28 @@ export class SqlStoryRepository implements StoryRepository {
 
     close(): Promise<void> {
         return this.database.close();
+    }
+
+    findWikiEntryDocumentTarget(
+        entryId: number
+    ): Promise<WikiEntryDocumentTarget | null> {
+        return this.documents.findWikiEntryDocumentTarget(entryId);
+    }
+
+    findWikiEntryDocument(
+        entryId: number
+    ): Promise<WikiEntryDocumentRecord | null> {
+        return this.documents.findWikiEntryDocument(entryId);
+    }
+
+    findWikiEntryContent(entryId: number): Promise<WikiEntryContent> {
+        return this.documents.findWikiEntryContent(entryId);
+    }
+
+    saveWikiEntryDocument(
+        input: SaveWikiEntryDocumentInput
+    ): Promise<WikiEntryDocumentSaveResult> {
+        return this.documents.saveWikiEntryDocument(input);
     }
 
     listThemeColors(): Promise<Record<string, string>> {

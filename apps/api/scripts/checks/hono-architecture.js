@@ -186,6 +186,7 @@ const databaseLayout = new Map([
             "story-catalog-repository.ts",
             "story-conflicts.ts",
             "story-rows.ts",
+            "wiki-document-repository.ts",
             "wiki-entity-repository.ts",
         ],
     ],

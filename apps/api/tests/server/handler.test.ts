@@ -232,6 +232,7 @@ import { test } from 'vitest';
             'createHandleDeleteWikiStoryCoverAsset',
             'createHandleDeleteWikiStoryLink',
             'createHandleEditWikiStory',
+            'createHandleGetWikiEntryDocument',
             'createHandleListAdminWikiCatalog',
             'createHandleListAdminWikiStories',
             'createHandleListPublicWikiCatalog',
@@ -240,9 +241,11 @@ import { test } from 'vitest';
             'createHandleListWikiStoryCoverAssets',
             'createHandleListWikiStorySourceCatalog',
             'createHandleParseBilibili',
+            'createHandlePreviewWikiEntryDocument',
             'createHandleRandomWikiBackground',
             'createHandleRandomWikiIdol',
             'createHandleSaveWikiEntityImage',
+            'createHandleSaveWikiEntryDocument',
             'createHandleSaveWikiLayout',
             'createHandleServeWikiEntityIcon',
             'createHandleServeWikiIdolImage',
@@ -527,7 +530,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 180);
+            assert.equal(Object.values(actual).flat().length, 183);
         });
 
 

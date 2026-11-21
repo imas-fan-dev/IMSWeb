@@ -2,6 +2,71 @@ import type {
     WikiStorySourcePlatformInput,
     WikiStorySourcePlatformRecord
 } from '@/ports/repositories/platform';
+import type {
+    WikiContentMode,
+    WikiPublicStoryDocument
+} from '@imsweb/contracts/wiki';
+
+export interface WikiEntryDocumentTarget {
+    entryId: number;
+    projectId: number;
+    projectCode: string;
+    projectName: string;
+    name: string;
+    folderName: string;
+    entryKind: WikiEntryKind;
+    contentMode: WikiContentMode;
+}
+
+export interface WikiEntryDocumentRecord {
+    entryId: number;
+    revision: number;
+    sourceMarkdown: string;
+    document: WikiPublicStoryDocument;
+    plainText: string;
+}
+
+export interface SaveWikiEntryDocumentInput {
+    entryId: number;
+    contentMode: WikiContentMode;
+    sourceMarkdown: string;
+    document: WikiPublicStoryDocument;
+    plainText: string;
+    expectedRevision: number;
+    summary: string;
+    updatedBy: string | null;
+}
+
+export type WikiEntryDocumentSaveResult =
+    | { status: 'saved'; revision: number }
+    | { status: 'conflict'; revision: number }
+    | { status: 'not-found' };
+
+export interface WikiEntryContent {
+    contentMode: WikiContentMode;
+    document: WikiPublicStoryDocument | null;
+}
+
+/**
+ * Enhanced Markdown document state for one Wiki entry.
+ *
+ * `saveWikiEntryDocument` owns the whole transaction: the optimistic lock
+ * check, the mode switch, the compiled snapshot, and the 30-revision retention
+ * window all commit or roll back together.
+ */
+export interface WikiDocumentRepository {
+    findWikiEntryDocumentTarget(
+        entryId: number
+    ): Promise<WikiEntryDocumentTarget | null>;
+    findWikiEntryDocument(
+        entryId: number
+    ): Promise<WikiEntryDocumentRecord | null>;
+    /** Public read projection: the mode plus the compiled AST in one query. */
+    findWikiEntryContent(entryId: number): Promise<WikiEntryContent>;
+    saveWikiEntryDocument(
+        input: SaveWikiEntryDocumentInput
+    ): Promise<WikiEntryDocumentSaveResult>;
+}
 
 export interface AgencyRecord {
     id: number;
@@ -462,7 +527,7 @@ export type WikiIdolDeleteResult =
       }
     | { status: "conflict"; revision: number };
 
-export interface StoryRepository {
+export interface StoryRepository extends WikiDocumentRepository {
     listThemeColors(): Promise<Record<string, string>>;
     listAgencies(): Promise<AgencyRecord[]>;
     listIdolsWithAgencies(): Promise<IdolWithAgencyRecord[]>;

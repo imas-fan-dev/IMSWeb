@@ -46,7 +46,7 @@ Domain、模块和 handler 清单由 `apps/api/scripts/checks/hono-architecture.
 | admin | `platform-users` | 平台用户账号管理 | handlers（平铺，未分 capability） | M |
 | admin | `audit` | 后台审计记录写入与查询 | write、read | 横切 |
 | admin | `catalog` | 人物与组合企划档案、媒体及 Wiki 绑定 | handlers（平铺） | S |
-| content | `wiki` | 企划、内容页、剧情与素材 | catalog、story-content、story-catalog、entity-media、story-assets、tools | L |
+| content | `wiki` | 企划、内容页、剧情与素材 | catalog、story-content、story-catalog、entity-media、story-assets、documents、tools | L |
 | content | `information` | 资讯公开阅读与后台编排 | public-content、admin-content、assets | M |
 | content | `news` | 新闻发布与公开列表 | news | S |
 | content | `events` | 活动生命周期与媒体 | events、media（增长后再拆） | S |
@@ -334,6 +334,14 @@ wiki/
     handlers/
       manage-story-cover-assets.ts
       serve-story-cover-asset.ts
+  documents/
+    routes.ts
+    enhanced-markdown-compiler.ts
+    document-request.ts
+    handlers/
+      get-entry-document.ts
+      save-entry-document.ts
+      preview-entry-document.ts
   tools/
     handlers/
       parse-bilibili.ts

@@ -80,6 +80,13 @@ test('merge policy preserves divergent preview changes and never resurrects dele
     assert.equal(decision('base', 'base', 'preview'), 'unchanged');
     assert.equal(decision('base', 'source', 'preview'), 'conflict');
     assert.equal(decision('base', 'source', null), 'conflict');
+    // A baseline recorded before an additive column existed cannot describe that
+    // column; the row is still unmodified when every known column matches.
+    assert.equal(decision('base', 'source', 'current', true), 'update');
+    assert.equal(decision('base', 'source', 'current', false), 'conflict');
+    assert.equal(decision(null, 'source', 'current', true), 'conflict');
+    assert.equal(decision('base', 'base', 'current', true), 'unchanged');
+    assert.equal(decision(null, 'source', null, true), 'insert');
 });
 
 test('configuration rejects source-target alias reuse and non-scratch database names', () => {

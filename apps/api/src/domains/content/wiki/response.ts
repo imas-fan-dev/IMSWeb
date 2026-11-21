@@ -40,6 +40,9 @@ import type {
     WikiPublicIdolContract,
     WikiPublicSearchEntryContract,
     WikiPublicStoriesContract,
+    WikiAdminEntryDocument,
+    WikiAdminEntryDocumentPreview,
+    WikiAdminEntryDocumentSave,
 } from '@imsweb/contracts/wiki';
 
 export type WikiRouteHandler<E extends Env, I extends Input = Input> = Handler<E, string, I>;
@@ -91,6 +94,9 @@ export type WikiAdminCatalogResponse = WikiAdminCatalogContract;
 export type WikiAdminStoryCardResponse = WikiAdminStoryCardContract;
 export type WikiAdminStorySourceResponse = WikiAdminStoryContract;
 export type WikiAdminStoriesResponse = WikiAdminStoriesContract;
+export type WikiAdminEntryDocumentResponse = WikiAdminEntryDocument;
+export type WikiAdminEntryDocumentSaveResponse = WikiAdminEntryDocumentSave;
+export type WikiAdminEntryDocumentPreviewResponse = WikiAdminEntryDocumentPreview;
 
 export type WikiJsonResponse =
     | WikiErrorResponse
@@ -117,5 +123,8 @@ export type WikiJsonResponse =
     | WikiPublicCatalogResponse
     | WikiAdminCatalogResponse
     | WikiAdminStoriesResponse
+    | WikiAdminEntryDocumentResponse
+    | WikiAdminEntryDocumentSaveResponse
+    | WikiAdminEntryDocumentPreviewResponse
     | WikiRandomBackground
     | WikiRandomIdol;

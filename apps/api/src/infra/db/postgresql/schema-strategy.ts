@@ -7,12 +7,16 @@ import type {
 // Catalog/profile maintenance requires the canonical catalog and Wiki bindings.
 // Fail at startup if deployment has not yet applied the additive migration.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20261105190000_character_profile_authority';
+    '20261121120000_wiki_entry_documents';
 // Parallel branches can introduce an earlier timestamp after the newest catalog
 // migration has already run. Checking only that newest row would miss this gap.
 const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     REQUIRED_POSTGRESQL_SCHEMA_VERSION,
     '20261105120000_platform_profile_slug_not_numeric',
+    // Wiki document mode writes/reads `content_mode`, `wiki_entry_documents`,
+    // and `wiki_entry_document_revisions`; skipping the additive migration
+    // would break both public story reads and document saves.
+    '20261121120000_wiki_entry_documents',
     // Tags write/read columns the wall and card editor rely on; a deployment
     // that skipped the additive migration would fail on first use.
     '20261120120000_namecard_tags',
