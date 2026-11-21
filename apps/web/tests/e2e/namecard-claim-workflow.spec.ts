@@ -162,6 +162,7 @@ test.describe("namecard claim workflow", () => {
     page,
   }, testInfo) => {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     const consoleErrors: string[] = []
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
@@ -373,6 +374,7 @@ test.describe("namecard claim workflow", () => {
   // keeps both in place and scrolls only the body.
   async function mockClaimSurface(page: Page) {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     await api.mockRoute(
       "**/api/community/exchange/me/series",
       async (route) => {

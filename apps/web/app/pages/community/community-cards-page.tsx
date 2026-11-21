@@ -301,7 +301,9 @@ export default function CommunityCardsPage() {
   const [reactionsByCard, setReactionsByCard] = useState<
     Record<number, NamecardReactionState>
   >({})
-  const reactionRequests = useRef(new Set<number>())
+  // Keep IDs after the request settles: the next effect can run before the
+  // corresponding reaction state has committed.
+  const requestedReactionCardIds = useRef(new Set<number>())
   const reactionVersions = useRef(new Map<number, number>())
   const reactionEmojiVersions = useRef(new Map<number, Map<string, number>>())
   const reactionMutations = useRef(new Set<number>())
@@ -554,12 +556,8 @@ export default function CommunityCardsPage() {
   useEffect(() => {
     if (!result) return
     for (const card of result.list) {
-      if (
-        reactionsByCard[card.id] !== undefined ||
-        reactionRequests.current.has(card.id)
-      )
-        continue
-      reactionRequests.current.add(card.id)
+      if (requestedReactionCardIds.current.has(card.id)) continue
+      requestedReactionCardIds.current.add(card.id)
       const version = reactionVersions.current.get(card.id) ?? 0
       void getNamecardReactions(card.id)
         .send()
@@ -588,9 +586,8 @@ export default function CommunityCardsPage() {
             },
           }))
         })
-        .finally(() => reactionRequests.current.delete(card.id))
     }
-  }, [result, reactionsByCard])
+  }, [result])
 
   function changePage(nextPage: number) {
     setTargetPage(String(nextPage))
