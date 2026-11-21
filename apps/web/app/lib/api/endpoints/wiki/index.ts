@@ -1,4 +1,5 @@
 import {
+  adminWikiEntryDocumentExportStructuredPath,
   adminWikiEntryDocumentMediaPath,
   adminWikiEntryDocumentPath,
   adminWikiEntryDocumentPreviewPath,
@@ -30,6 +31,7 @@ import {
 } from "../../media-urls"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 import {
+  adminWikiEntryDocumentExportStructuredSchema,
   adminWikiEntryDocumentMediaUploadSchema,
   adminWikiEntryDocumentPreviewSchema,
   adminWikiEntryDocumentSaveSchema,
@@ -62,6 +64,7 @@ import {
   wikiRevisionConflictResponseSchema,
   wikiStorySourceCatalogSchema,
   wikiStorySourcePlatformMutationSchema,
+  type WikiAdminExportStructuredEntryDocumentRequest,
   type WikiAdminParseBilibiliBatchRequest,
   type WikiAdminSaveEntryDocumentRequest,
   type WikiAdminStory,
@@ -124,6 +127,7 @@ export {
   type WikiAdminEntryDocumentMediaUpload,
   type WikiAdminEntryDocumentSave,
   type WikiAdminEntryDocumentPreview,
+  type WikiAdminEntryDocumentExportStructured,
   type WikiAdminBilibiliBatchItem,
   type WikiAdminParseBilibiliBatchResult,
   type WikiAdminSaveEntryDocumentRequest,
@@ -331,6 +335,34 @@ export function previewAdminWikiEntryDocument(input: {
       ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       select: normalizeWikiAdminEntryDocumentPreview,
+    })
+  )
+}
+
+/**
+ * Generates an Enhanced Markdown draft from the entry's structured cards.
+ *
+ * The API endpoint is strictly read-only: it never saves the document, the cards
+ * or the links, so the workbench dialog lets a maintainer review the draft and
+ * its data-hygiene `lintWarnings` before inserting or replacing the editor text.
+ */
+export function exportAdminWikiEntryDocumentStructured(input: {
+  entryId: number
+  stripBrackets?: boolean
+  collapseThreshold?: number
+}) {
+  const body: WikiAdminExportStructuredEntryDocumentRequest = {}
+  if (input.stripBrackets !== undefined)
+    body.stripBrackets = input.stripBrackets
+  if (input.collapseThreshold !== undefined) {
+    body.collapseThreshold = input.collapseThreshold
+  }
+  return adminApiClient.Post(
+    adminWikiEntryDocumentExportStructuredPath(input.entryId),
+    body,
+    parsed(adminWikiEntryDocumentExportStructuredSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeCsrf(),
     })
   )
 }

@@ -36,9 +36,11 @@ type Caret = { start: number; end: number }
  * string, so mode switches and reloads never lose unsaved text.
  */
 export function WikiDocumentEditor({
+  entryId,
   entryName,
   source,
   onSourceChange,
+  onReplaceSource,
   preview,
   categories,
   coverAssets,
@@ -49,9 +51,12 @@ export function WikiDocumentEditor({
   dirty,
   save,
 }: {
+  entryId: number
   entryName: string
   source: string
   onSourceChange: (next: string) => void
+  /** Replaces the whole draft, used by the structured export dialog. */
+  onReplaceSource: (next: string) => void
   preview: DocumentPreviewView
   categories: readonly DocumentCategoryOption[]
   coverAssets: readonly WikiStoryCoverAsset[]
@@ -165,12 +170,18 @@ export function WikiDocumentEditor({
       </header>
 
       <DocumentToolbar
+        entryId={entryId}
         categories={categories}
         coverAssets={coverAssets}
         contentTypes={contentTypes}
         focusReturnRef={textareaRef}
         uploading={uploading}
         onInsert={insertSnippet}
+        onReplace={(next) => {
+          onReplaceSource(next)
+          caretRef.current = { start: next.length, end: next.length }
+          requestCaret(caretRef.current)
+        }}
         onUpload={(file) => void uploadFile(file)}
       />
 

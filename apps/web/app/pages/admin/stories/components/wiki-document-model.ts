@@ -315,3 +315,34 @@ export function batchContentTypeOptions(
   }
   return names
 }
+
+/** The audit-calibrated fold point the structured export dialog starts from. */
+export const EXPORT_COLLAPSE_THRESHOLD = 24
+
+/** One-line description of what a generated draft covers. */
+export function structuredExportSummary(stats: {
+  categories: number
+  cards: number
+  links: number
+  collapsedCategories: number
+}) {
+  const parts = [
+    `${stats.categories} 个分类`,
+    `${stats.cards} 张卡片`,
+    `${stats.links} 条来源`,
+  ]
+  if (stats.collapsedCategories) {
+    parts.push(`${stats.collapsedCategories} 个分类默认折叠`)
+  }
+  return parts.join(" · ")
+}
+
+/**
+ * Draft text handed back to the editor.
+ *
+ * The API ends the document without a trailing newline; trimming keeps a
+ * replace from leaving a run of blank lines behind the last block.
+ */
+export function structuredExportDraft(markdown: string) {
+  return markdown.replace(/\s+$/u, "")
+}

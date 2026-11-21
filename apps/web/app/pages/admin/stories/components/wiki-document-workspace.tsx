@@ -315,9 +315,11 @@ export function WikiDocumentWorkspace({
       ) : mode === "document" && data ? (
         <WikiDocumentEditor
           key={entryId}
+          entryId={entryId}
           entryName={entryName}
           source={source}
           onSourceChange={setSource}
+          onReplaceSource={setSource}
           preview={preview}
           categories={categoryOptions}
           coverAssets={coverAssets}

@@ -1,4 +1,4 @@
-import { ImagePlusIcon, LoaderCircleIcon } from "lucide-react"
+import { FileDownIcon, ImagePlusIcon, LoaderCircleIcon } from "lucide-react"
 import { useRef, useState, type RefObject } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -20,6 +20,7 @@ import type {
   WikiStoryContentType,
 } from "~/lib/api"
 import { DocumentBatchLinksDialog } from "./wiki-document-batch-links-dialog"
+import { DocumentExportDialog } from "./wiki-document-export-dialog"
 import { errorMessage } from "./wiki-workbench-model"
 import {
   DOCUMENT_INSERT_TEMPLATES,
@@ -152,14 +153,18 @@ export function DocumentWarnings({
  * the picker unselected, so repeating the action never needs a "reset" step.
  */
 export function DocumentToolbar({
+  entryId,
   categories,
   coverAssets,
   contentTypes,
   focusReturnRef,
   uploading,
   onInsert,
+  onReplace,
   onUpload,
 }: {
+  /** Entry whose structured cards the export dialog converts. */
+  entryId: number
   categories: readonly DocumentCategoryOption[]
   coverAssets: readonly WikiStoryCoverAsset[]
   /** Active catalog content types the batch Bilibili macro can write. */
@@ -168,10 +173,13 @@ export function DocumentToolbar({
   focusReturnRef: RefObject<HTMLTextAreaElement | null>
   uploading: boolean
   onInsert: (snippet: string) => void
+  /** Replaces the whole editor draft with generated Markdown. */
+  onReplace: (source: string) => void
   onUpload: (file: File) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [batchLinksOpen, setBatchLinksOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   return (
     <div
       role="toolbar"
@@ -266,6 +274,31 @@ export function DocumentToolbar({
         onInsert={(snippet) => {
           onInsert(snippet)
           setBatchLinksOpen(false)
+        }}
+      />
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setExportOpen(true)}
+      >
+        <FileDownIcon data-icon="inline-start" />
+        从结构化卡片生成草稿
+      </Button>
+
+      <DocumentExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        entryId={entryId}
+        finalFocus={focusReturnRef}
+        onInsert={(markdown) => {
+          onInsert(markdown)
+          setExportOpen(false)
+        }}
+        onReplace={(markdown) => {
+          onReplace(markdown)
+          setExportOpen(false)
         }}
       />
 

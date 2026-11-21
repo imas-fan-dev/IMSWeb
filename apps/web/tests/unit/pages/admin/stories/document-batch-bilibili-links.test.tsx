@@ -130,9 +130,11 @@ function EditorHarness({
   const [source, setSource] = useState(initialSource)
   return (
     <WikiDocumentEditor
+      entryId={1}
       entryName="天海春香"
       source={source}
       onSourceChange={setSource}
+      onReplaceSource={setSource}
       preview={idlePreview}
       categories={[]}
       coverAssets={[]}
