@@ -442,6 +442,16 @@ export const wikiPublicStoryCardSchema = exactJsonResponse({
  */
 export const wikiContentModeSchema = z.enum(["structured", "document"])
 
+/**
+ * Renderable URLs in a compiled document: absolute `http(s)` links or a
+ * site-relative path starting with `/`. Protocol-relative (`//`), `data:`,
+ * `javascript:`, and bare-relative URLs never reach the wire, so clients render
+ * the AST without re-implementing this policy.
+ */
+export const wikiDocumentUrlSchema = z
+  .string()
+  .regex(/^(?:https?:\/\/|\/(?!\/))/i, { message: "unsafe document URL" })
+
 export type WikiDocumentInline =
   | { type: "text"; value: string }
   | { type: "strong"; children: WikiDocumentInline[] }
@@ -528,7 +538,7 @@ export const wikiDocumentInlineSchema: z.ZodType<WikiDocumentInline> = z.lazy(
       exactJsonResponse({ type: z.literal("inlineCode"), value: z.string() }),
       exactJsonResponse({
         type: z.literal("link"),
-        url: z.string(),
+        url: wikiDocumentUrlSchema,
         children: z.array(wikiDocumentInlineSchema),
       }),
       exactJsonResponse({ type: z.literal("break") }),

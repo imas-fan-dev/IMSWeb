@@ -422,4 +422,94 @@ describe('Enhanced Markdown compiler', () => {
         assert.equal(second.type === 'callout' ? second.tone : null, 'info');
         assert.equal(second.type === 'callout' ? second.title : null, '');
     });
+
+    test('normalizes h4 and deeper headings to h3 with a line-numbered warning', async () => {
+        const result = await compileEnhancedMarkdown(
+            [
+                '#### 四级标题',
+                '',
+                '正文。',
+                '',
+                '###### 六级标题',
+                ''
+            ].join('\n')
+        );
+
+        assert.deepEqual(result.warnings, [
+            {
+                line: 1,
+                code: 'heading-level-normalized',
+                message: '深层标题已归一为三级标题'
+            },
+            {
+                line: 5,
+                code: 'heading-level-normalized',
+                message: '深层标题已归一为三级标题'
+            }
+        ]);
+        assert.deepEqual(result.document.headings, [
+            { id: '四级标题', level: 3, text: '四级标题' },
+            { id: '六级标题', level: 3, text: '六级标题' }
+        ]);
+        assert.deepEqual(
+            result.document.blocks.map((block) =>
+                block.type === 'heading' ? block.level : block.type
+            ),
+            [3, 'paragraph', 3]
+        );
+    });
+
+    test('parses the details open attribute as an explicit boolean', async () => {
+        const result = await compileEnhancedMarkdown(
+            [
+                ':::details{title="显式关闭" open=false}',
+                '一。',
+                ':::',
+                '',
+                ':::details{title="数字真" open=1}',
+                '二。',
+                ':::',
+                '',
+                ':::details{title="噪声关闭" open="no"}',
+                '三。',
+                ':::',
+                '',
+                ':::details{title="非法值" open="maybe"}',
+                '四。',
+                ':::',
+                ''
+            ].join('\n')
+        );
+
+        assert.deepEqual(
+            result.document.blocks.map((block) =>
+                block.type === 'details' ? block.open : null
+            ),
+            [false, true, false, false]
+        );
+        assert.deepEqual(result.warnings, [
+            {
+                line: 13,
+                code: 'invalid-directive',
+                message: '不支持的 details.open 取值：maybe'
+            }
+        ]);
+    });
+
+    test('de-duplicates heading anchors against the final id set', async () => {
+        const result = await compileEnhancedMarkdown(
+            ['## A', '', '## A', '', '## A-2', '', '## A', ''].join('\n')
+        );
+
+        assert.deepEqual(
+            result.document.headings.map((heading) => heading.id),
+            ['a', 'a-2', 'a-3', 'a-4']
+        );
+        assert.deepEqual(
+            result.document.blocks.map((block) =>
+                block.type === 'heading' ? block.id : null
+            ),
+            ['a', 'a-2', 'a-3', 'a-4']
+        );
+    });
 });

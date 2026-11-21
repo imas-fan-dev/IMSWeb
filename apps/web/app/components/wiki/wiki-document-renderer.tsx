@@ -51,7 +51,9 @@ function inlineNodes(
           </code>
         )
       case "link": {
-        const external = /^https?:\/\//i.test(node.url)
+        // The API compiles and validates every URL into the AST contract
+        // (`@imsweb/contracts/wiki`), so this only decides how to navigate.
+        const external = !node.url.startsWith("/")
         return (
           <NavigationLink
             key={key}

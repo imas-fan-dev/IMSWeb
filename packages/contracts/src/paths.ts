@@ -190,17 +190,20 @@ export function adminWikiPath(suffix = ""): string {
 }
 
 /**
- * One Wiki entry's Enhanced Markdown document; `suffix` addresses a document
- * sub-action such as `preview` or `revisions/<revision>`.
+ * One Wiki entry's Enhanced Markdown document.
+ *
+ * Route registration passes the `:entryId` parameter token so the URL string
+ * exists once; callers pass the numeric entry id.
  */
-export function adminWikiEntryDocumentPath(
-  entryId: string | number,
-  suffix = ""
+export function adminWikiEntryDocumentPath(entryId: string | number): string {
+  return adminWikiPath(`entries/${entryId}/document`)
+}
+
+/** The compile-only preview sibling of `adminWikiEntryDocumentPath`. */
+export function adminWikiEntryDocumentPreviewPath(
+  entryId: string | number
 ): string {
-  const action = suffix.replace(/^\/+/, "")
-  return adminWikiPath(
-    `entries/${encodeURIComponent(String(entryId))}/document${action ? `/${action}` : ""}`
-  )
+  return adminWikiPath(`entries/${entryId}/document/preview`)
 }
 
 export function eventChroniclePath(suffix = ""): string {

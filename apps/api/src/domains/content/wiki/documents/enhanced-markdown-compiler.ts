@@ -87,7 +87,7 @@ function slugify(text: string): string {
 
 class CompileContext {
     readonly warnings: WikiDocumentWarning[] = [];
-    private readonly usedAnchors = new Map<string, number>();
+    private readonly usedAnchors = new Set<string>();
 
     warn(line: number, code: string, message: string): void {
         this.warnings.push({ line, code, message });
@@ -97,12 +97,37 @@ class CompileContext {
         this.warn(lineOf(node), code, message);
     }
 
+    /**
+     * Unique in-page anchor. Uniqueness is checked against the final id set, so
+     * a document containing `A`, `A` and `A-2` yields `a`, `a-2` and `a-3`
+     * instead of two `a-2` anchors.
+     */
     headingAnchor(text: string): string {
         const base = slugify(text);
-        const seen = this.usedAnchors.get(base) ?? 0;
-        this.usedAnchors.set(base, seen + 1);
-        return seen === 0 ? base : `${base}-${seen + 1}`;
+        if (!this.usedAnchors.has(base)) {
+            this.usedAnchors.add(base);
+            return base;
+        }
+        const family = base.replace(/-\d+$/, '');
+        let suffix = 2;
+        let candidate = `${family}-${suffix}`;
+        while (this.usedAnchors.has(candidate)) {
+            suffix += 1;
+            candidate = `${family}-${suffix}`;
+        }
+        this.usedAnchors.add(candidate);
+        return candidate;
     }
+}
+
+/** `:::details{open}` accepts only the documented boolean spellings. */
+function parseDetailsOpen(value: string | null | undefined): boolean | null {
+    if (value === undefined) return false;
+    if (value === null || value === '') return true;
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes'].includes(normalized)) return true;
+    if (['false', '0', 'no'].includes(normalized)) return false;
+    return null;
 }
 
 function pushText(nodes: WikiDocumentInline[], value: string): void {
@@ -291,15 +316,10 @@ function convertBlock(
             );
             if (name === 'callout') {
                 const requested = attributes.type;
-                const tone: CalloutTone =
+                const isKnownTone =
                     typeof requested === 'string' &&
-                    (CALLOUT_TONES as readonly string[]).includes(requested)
-                        ? (requested as CalloutTone)
-                        : 'info';
-                if (
-                    typeof requested === 'string' &&
-                    !(CALLOUT_TONES as readonly string[]).includes(requested)
-                ) {
+                    (CALLOUT_TONES as readonly string[]).includes(requested);
+                if (typeof requested === 'string' && !isKnownTone) {
                     context.warnAt(
                         node,
                         'invalid-directive',
@@ -309,20 +329,26 @@ function convertBlock(
                 return [
                     {
                         type: 'callout',
-                        tone,
+                        tone: isKnownTone ? (requested as CalloutTone) : 'info',
                         title: attributes.title ?? '',
                         children,
                     },
                 ];
             }
             if (name === 'details') {
+                const parsedOpen = parseDetailsOpen(attributes.open);
+                if (parsedOpen === null) {
+                    context.warnAt(
+                        node,
+                        'invalid-directive',
+                        `不支持的 details.open 取值：${attributes.open ?? ''}`,
+                    );
+                }
                 return [
                     {
                         type: 'details',
                         title: attributes.title ?? '',
-                        open:
-                            Object.hasOwn(attributes, 'open') &&
-                            attributes.open !== 'false',
+                        open: parsedOpen === true,
                         children,
                     },
                 ];

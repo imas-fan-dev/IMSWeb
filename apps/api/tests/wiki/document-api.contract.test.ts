@@ -76,9 +76,14 @@ async function revisionRows(
     database: Awaited<ReturnType<typeof createPostgresTestDatabase>>,
     entryId: number
 ) {
-    return queryAll<{ revision: number; summary: string; source_markdown: string }>(
+    return queryAll<{
+        revision: number;
+        summary: string;
+        source_markdown: string;
+        created_by: string | null;
+    }>(
         database,
-        `SELECT revision, summary, source_markdown
+        `SELECT revision, summary, source_markdown, created_by
            FROM wiki_entry_document_revisions
           WHERE entry_id=? ORDER BY revision`,
         [entryId]
@@ -193,16 +198,29 @@ describe('wiki entry document API', () => {
         assert.equal(reread.sourceMarkdown, '## 一\n\n正文。\n');
         assert.equal(reread.document.blocks.length, 2);
 
-        const stored = await queryOne<{ content_mode: string; plain_text: string }>(
+        const stored = await queryOne<{
+            content_mode: string;
+            plain_text: string;
+            updated_by: string | null;
+        }>(
             database,
-            `SELECT e.content_mode, d.plain_text
+            `SELECT e.content_mode, d.plain_text, d.updated_by
                FROM wiki_entries e JOIN wiki_entry_documents d ON d.entry_id=e.id
               WHERE e.id=?`,
             [entryId]
         );
-        assert.deepEqual(stored, { content_mode: 'document', plain_text: '一\n正文。' });
+        assert.deepEqual(stored, {
+            content_mode: 'document',
+            plain_text: '一\n正文。',
+            updated_by: 'operator',
+        });
         assert.deepEqual(await revisionRows(database, entryId), [
-            { revision: 1, summary: '首次保存', source_markdown: '## 一\n\n正文。\n' },
+            {
+                revision: 1,
+                summary: '首次保存',
+                source_markdown: '## 一\n\n正文。\n',
+                created_by: 'operator',
+            },
         ]);
     });
 

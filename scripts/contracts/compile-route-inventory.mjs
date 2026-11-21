@@ -61,6 +61,13 @@ const PATH_PREFIXES = {
   wikiPath: "/api/wiki", adminWikiPath: "/api/admin/wiki", eventChroniclePath: "/eventchronicle", publicUploadsPath: "/uploads",
   publicAssetsPath: "/assets", mapsPath: "/maps", siteContentPath: "/site-content", sitesPath: "/sites", imagePath: "/image", iconPath: "/icon", cssPath: "/css",
 };
+// Builders that inject one identifying segment before delegating to a prefix
+// builder. Route modules must register through them, so the inventory has to
+// resolve the same call shape instead of a hand-written literal.
+const PARAM_BUILDERS = {
+  adminWikiEntryDocumentPath: (entryId) => `entries/${entryId}/document`,
+  adminWikiEntryDocumentPreviewPath: (entryId) => `entries/${entryId}/document/preview`,
+};
 
 export class InventoryFailure extends Error {
   constructor(diagnostics) {
@@ -433,6 +440,10 @@ class Evaluator {
     }
     if (ts.isCallExpression(node)) {
       const pathBuilder = calledName(node);
+      if (pathBuilder && PARAM_BUILDERS[pathBuilder]) {
+        const identifiers = node.arguments[0] ? this.strings(node.arguments[0], environment, seen) : [""];
+        return identifiers.map((identifier) => join(PATH_PREFIXES.adminWikiPath, PARAM_BUILDERS[pathBuilder](identifier)));
+      }
       if (pathBuilder && PATH_PREFIXES[pathBuilder]) {
         const suffix = node.arguments[0] ? this.strings(node.arguments[0], environment, seen) : [""];
         return suffix.map((item) => join(PATH_PREFIXES[pathBuilder], item));

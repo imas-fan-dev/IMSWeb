@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "a91705014344fe646324febb85f28092582b31097997ecc25b85a7f6aee9987e",
+    "semanticDigest": "87a9ecb47d9dad9469fa898bfc2c20ee5092394ef032182aeda57f010561c4c2",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16080,7 +16080,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:999f330c299340f7:84e2ef0b:0",
       "carriers": [
         {
           "kind": "param",
@@ -23856,7 +23856,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:999f330c299340f7:84e2ef0b:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -23873,7 +23873,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:a93570bf5c94649c:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:999f330c299340f7:84e2ef0b:0",
       "kind": "json",
       "source": "validated",
       "location": {

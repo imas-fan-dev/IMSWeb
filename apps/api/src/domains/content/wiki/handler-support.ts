@@ -2,7 +2,9 @@ import type { Context, Env, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import type { ParsedUpload, UploadedFile } from "@/ports/http";
 import type { RuntimeServices } from "@/ports/runtime-services";
+import type { BackofficeJwtClaims } from "@/ports/security";
 import type { NewStoryLinkInput, StoryRepository } from "@/ports/repositories";
+import type { AppEnvironment } from "@/app";
 import { getRequestClientAddress } from "@/middleware/client-address";
 import {
     BACKOFFICE_ACCESS_TOKEN_COOKIE,
@@ -62,6 +64,28 @@ function wikiBackofficeAccessToken<E extends Env>(
     return legacy ? { source: "legacy", value: legacy } : undefined;
 }
 
+// The Wiki admin guard verifies the token once and stores the claims on the
+// request, so handlers that record an operator never re-verify the cookie.
+function rememberWikiBackofficeClaims<E extends Env>(
+    context: Context<E>,
+    claims: BackofficeJwtClaims,
+): void {
+    (context as unknown as Context<AppEnvironment>).set("backofficeUser", claims);
+}
+
+/**
+ * Username of the operator behind the current Wiki write, or an empty string
+ * when the request was not authenticated by the Wiki admin guard.
+ */
+export function wikiBackofficeOperator<E extends Env>(
+    context: Context<E>,
+): string {
+    const claims = (context as unknown as Context<AppEnvironment>).get(
+        "backofficeUser",
+    );
+    return typeof claims?.username === "string" ? claims.username : "";
+}
+
 export async function authorizeWikiRead<E extends Env>(
     context: Context<E>,
     services: RuntimeServices,
@@ -81,6 +105,7 @@ export async function authorizeWikiRead<E extends Env>(
         if (!["op", "editor"].includes(claims.dept)) {
             return wikiJson(wikiErrorBody("无权限执行此操作"), 403);
         }
+        rememberWikiBackofficeClaims(context, claims);
     } catch {
         return wikiJson(wikiErrorBody("未登录，请先登录"), 401);
     }
@@ -129,6 +154,7 @@ export async function authorizeWikiWrite<E extends Env>(
     ) {
         return wikiJson(wikiErrorBody("CSRF token 无效，请刷新页面重试"), 403);
     }
+    rememberWikiBackofficeClaims(context, claims);
     return null;
 }
 

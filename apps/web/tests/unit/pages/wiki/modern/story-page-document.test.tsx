@@ -39,6 +39,16 @@ const DOCUMENT: WikiPublicStoryDocument = {
       ],
     },
     {
+      type: "paragraph",
+      children: [
+        {
+          type: "link",
+          url: "/wiki?agency=sc",
+          children: [{ type: "text", value: "站内目录" }],
+        },
+      ],
+    },
+    {
       type: "callout",
       tone: "warning",
       title: "注意",
@@ -100,6 +110,9 @@ describe("StoryPage document mode", () => {
     expect(
       within(document).getByRole("link", { name: "官方指引" })
     ).toHaveAttribute("href", "https://example.com/guide")
+    expect(
+      within(document).getByRole("link", { name: "站内目录" })
+    ).toHaveAttribute("href", "/wiki?agency=sc")
     const callout = within(document).getByRole("note")
     expect(callout).toHaveAttribute("data-callout", "warning")
     expect(within(callout).getByText("注意：注意")).toBeVisible()

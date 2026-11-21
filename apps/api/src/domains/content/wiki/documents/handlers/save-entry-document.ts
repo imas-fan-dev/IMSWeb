@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import {
+    wikiBackofficeOperator,
     wikiErrorBody,
     wikiJson,
     writeWikiAudit,
@@ -41,7 +42,7 @@ export function createHandleSaveWikiEntryDocument<E extends Env>(
             plainText: compiled.plainText,
             expectedRevision,
             summary: summary ?? '',
-            updatedBy: null,
+            updatedBy: wikiBackofficeOperator(context) || null,
         });
         if (result.status === 'not-found')
             return wikiJson(wikiErrorBody('找不到该内容页'), 404);
