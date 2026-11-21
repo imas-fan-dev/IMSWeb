@@ -263,6 +263,8 @@ type WorkbenchRoutes = {
     expectedRevision: number
   }) => Response | Promise<Response>
   media?: (body: FormData) => Response | Promise<Response>
+  revisions?: (entryId: number) => Response | Promise<Response>
+  revision?: (entryId: number, revision: number) => Response | Promise<Response>
 }
 
 /** Mocks every request the workbench issues and records them for assertions. */
@@ -334,6 +336,33 @@ function installWorkbenchFetch(routes: WorkbenchRoutes = {}) {
     ) {
       return Promise.resolve(
         routes.media(body as Parameters<NonNullable<typeof routes.media>>[0])
+      )
+    }
+    const entryDocumentRevisions =
+      /^\/api\/admin\/wiki\/entries\/(\d+)\/document\/revisions$/.exec(
+        url.pathname
+      )
+    if (method === "GET" && entryDocumentRevisions) {
+      if (!routes.revisions) {
+        return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+      }
+      return Promise.resolve(
+        routes.revisions(Number(entryDocumentRevisions[1]))
+      )
+    }
+    const entryDocumentRevision =
+      /^\/api\/admin\/wiki\/entries\/(\d+)\/document\/revisions\/(\d+)$/.exec(
+        url.pathname
+      )
+    if (method === "GET" && entryDocumentRevision) {
+      if (!routes.revision) {
+        return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+      }
+      return Promise.resolve(
+        routes.revision(
+          Number(entryDocumentRevision[1]),
+          Number(entryDocumentRevision[2])
+        )
       )
     }
     return Promise.reject(new Error(`Unexpected request: ${request.url}`))
@@ -816,6 +845,127 @@ describe("Wiki document workbench", () => {
         "## 条目十一\n"
       )
     )
+  })
+
+  it("loads a historical revision as a forward-saving draft", async () => {
+    const saves: Array<{
+      contentMode: string
+      sourceMarkdown: string
+      expectedRevision: number
+    }> = []
+    const emptyDocument = {
+      version: 1,
+      headings: [],
+      availableTags: [],
+      blocks: [],
+    }
+    const newestCreatedAt = "2026-11-01T02:03:04.000Z"
+    const timestampLabel = new Intl.DateTimeFormat("zh-CN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(newestCreatedAt))
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 当前版本\n",
+            revision: 5,
+            revisionsSummary: {
+              count: 3,
+              latestRevision: 5,
+              latestCreatedAt: newestCreatedAt,
+            },
+          })
+        ),
+      revisions: () =>
+        jsonResponse({
+          status: "success",
+          revisions: [
+            {
+              revision: 5,
+              summary: "第五版",
+              createdBy: "operator",
+              createdAt: newestCreatedAt,
+            },
+            {
+              revision: 4,
+              summary: "第四版",
+              createdBy: "editor-b",
+              createdAt: "2026-10-31T02:03:04.000Z",
+            },
+            {
+              revision: 3,
+              summary: "第三版",
+              createdBy: "operator",
+              createdAt: "2026-10-30T02:03:04.000Z",
+            },
+          ],
+        }),
+      revision: (_entryId, revision) =>
+        jsonResponse({
+          status: "success",
+          revision,
+          summary: `第${revision}版`,
+          createdBy: "operator",
+          createdAt: "2026-10-30T02:03:04.000Z",
+          sourceMarkdown: `## 第${revision}版历史源码\n`,
+        }),
+      save: (body) => {
+        saves.push(body)
+        return jsonResponse({
+          status: "success",
+          contentMode: body.contentMode,
+          revision: 6,
+          document: emptyDocument,
+          warnings: [],
+        })
+      },
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    const source = await screen.findByRole("textbox", { name: "文档源码" })
+    expect(source).toHaveValue("## 当前版本\n")
+
+    await user.click(screen.getByRole("button", { name: "版本历史" }))
+    const drawer = await screen.findByRole("dialog", { name: "版本历史" })
+    const rows = within(
+      await within(drawer).findByRole("list", { name: "历史版本" })
+    ).getAllByRole("listitem")
+    // Newest first, with the operator and commit time of each save.
+    expect(rows.map((row) => row.textContent?.slice(0, 2))).toEqual([
+      "r5",
+      "r4",
+      "r3",
+    ])
+    expect(rows[0]).toHaveTextContent("第五版")
+    expect(rows[0]).toHaveTextContent("operator")
+    expect(rows[0]).toHaveTextContent(timestampLabel)
+
+    await user.click(within(rows[2]!).getByRole("button"))
+    await waitFor(() =>
+      expect(
+        within(drawer).getByLabelText("历史版本源码预览")
+      ).toHaveTextContent("## 第3版历史源码")
+    )
+
+    await user.click(
+      within(drawer).getByRole("button", { name: "载入到编辑器" })
+    )
+    await waitFor(() => expect(sourceValue()).toBe("## 第3版历史源码\n"))
+    expect(await screen.findByText("未保存改动")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "保存文档" }))
+    await waitFor(() => expect(saves).toHaveLength(1))
+    // Loading history is non-destructive: the draft still saves against the
+    // stored revision, so the server writes r6 instead of rewriting r3.
+    expect(saves[0]).toMatchObject({
+      contentMode: "document",
+      expectedRevision: 5,
+      sourceMarkdown: "## 第3版历史源码\n",
+    })
+    expect(await screen.findByText("已保存")).toBeVisible()
   })
 
   it("persists a switch back to structured mode", async () => {

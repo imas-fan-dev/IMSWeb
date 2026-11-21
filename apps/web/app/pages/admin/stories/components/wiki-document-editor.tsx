@@ -15,6 +15,7 @@ import {
   DocumentToolbar,
   DocumentWarnings,
 } from "./wiki-document-sections"
+import { DocumentRevisionsDrawer } from "./wiki-document-revisions-drawer"
 import { errorMessage } from "./wiki-workbench-model"
 import {
   documentMediaSnippet,
@@ -49,6 +50,7 @@ export function WikiDocumentEditor({
   uploadError,
   onUpload,
   dirty,
+  storedRevision,
   save,
 }: {
   entryId: number
@@ -65,9 +67,12 @@ export function WikiDocumentEditor({
   uploadError: unknown
   onUpload: (file: File) => Promise<{ id: number } | null>
   dirty: boolean
+  /** Server revision the next save compares against (`expectedRevision`). */
+  storedRevision: number
   save: { saving: boolean; saved: boolean; onSave: () => void }
 }) {
   const [pane, setPane] = useState<EditorPane>("source")
+  const [historyOpen, setHistoryOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const caretRef = useRef<Caret>({ start: 0, end: 0 })
   const [focusRequest, setFocusRequest] = useState<{
@@ -161,6 +166,14 @@ export function WikiDocumentEditor({
           <Button
             type="button"
             size="sm"
+            variant="outline"
+            onClick={() => setHistoryOpen(true)}
+          >
+            版本历史
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             disabled={save.saving}
             onClick={save.onSave}
           >
@@ -168,6 +181,20 @@ export function WikiDocumentEditor({
           </Button>
         </div>
       </header>
+
+      <DocumentRevisionsDrawer
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        entryId={entryId}
+        storedRevision={storedRevision}
+        onLoadRevision={(markdown) => {
+          // Non-destructive draft load: the workspace keeps `expectedRevision`,
+          // so saving after a restore appends a forward revision.
+          onReplaceSource(markdown)
+          caretRef.current = { start: markdown.length, end: markdown.length }
+          requestCaret(caretRef.current)
+        }}
+      />
 
       <DocumentToolbar
         entryId={entryId}

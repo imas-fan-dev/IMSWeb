@@ -328,6 +328,7 @@ export function WikiDocumentWorkspace({
           uploadError={upload.error}
           onUpload={uploadMedia}
           dirty={dirty}
+          storedRevision={data.revision}
           save={{
             saving: save.saving,
             saved: save.saved,

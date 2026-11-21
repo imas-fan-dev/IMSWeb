@@ -198,6 +198,34 @@ export function sortedDocumentWarnings(
   return [...warnings].sort((left, right) => left.line - right.line)
 }
 
+const revisionTimestampFormat = new Intl.DateTimeFormat("zh-CN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+})
+
+/**
+ * Commit time of one retained snapshot in the maintainer's locale.
+ *
+ * An unparsable value falls back to the raw string instead of "Invalid Date",
+ * so a wire regression stays visible in the history drawer.
+ */
+export function documentRevisionTimestamp(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.valueOf())
+    ? value
+    : revisionTimestampFormat.format(date)
+}
+
+/**
+ * What loading a snapshot does, stated next to the action.
+ *
+ * Restoring is non-destructive: the draft keeps the stored `expectedRevision`,
+ * so saving writes the next revision instead of rewriting the restored one.
+ */
+export function revisionLoadNote(storedRevision: number) {
+  return `载入的是草稿：保存会以服务器修订 r${storedRevision} 为基准，生成 r${storedRevision + 1} 的新版本，不会改写已有历史。`
+}
+
 export function documentDraftIsDirty(
   loaded: WikiAdminEntryDocument | null,
   source: string

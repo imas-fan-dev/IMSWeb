@@ -142,6 +142,7 @@ function EditorHarness({
       uploadError={null}
       onUpload={async () => null}
       dirty={false}
+      storedRevision={0}
       save={{ saving: false, saved: false, onSave: () => undefined }}
       contentTypes={types}
     />
