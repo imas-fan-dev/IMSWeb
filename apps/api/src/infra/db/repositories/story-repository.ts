@@ -36,6 +36,9 @@ import type {
     WikiEntryContent,
     WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
+    WikiEntryDocumentRevisionRecord,
+    WikiEntryDocumentRevisionSnapshot,
+    WikiEntryDocumentRevisionsSummary,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
     WikiGroupMemberRecord,
@@ -123,6 +126,25 @@ export class SqlStoryRepository implements StoryRepository {
         entryId: number
     ): Promise<WikiEntryDocumentMediaRecord[]> {
         return this.documents.listWikiEntryDocumentMedia(entryId);
+    }
+
+    listWikiEntryDocumentRevisions(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionRecord[]> {
+        return this.documents.listWikiEntryDocumentRevisions(entryId);
+    }
+
+    findWikiEntryDocumentRevision(
+        entryId: number,
+        revision: number
+    ): Promise<WikiEntryDocumentRevisionSnapshot | null> {
+        return this.documents.findWikiEntryDocumentRevision(entryId, revision);
+    }
+
+    findWikiEntryDocumentRevisionsSummary(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionsSummary> {
+        return this.documents.findWikiEntryDocumentRevisionsSummary(entryId);
     }
 
     findWikiEntryDocumentMediaById(

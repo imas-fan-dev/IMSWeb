@@ -1,4 +1,5 @@
 import type {
+    WikiAdminEntryDocumentRevisionParams,
     WikiAdminExportStructuredEntryDocumentRequest,
     WikiAdminPreviewEntryDocumentRequest,
     WikiAdminSaveEntryDocumentRequest,
@@ -8,6 +9,10 @@ import type {
 export interface WikiEntryDocumentParams {
     entryId: number;
 }
+
+/** One retained snapshot of an entry's document. */
+export type WikiEntryDocumentRevisionParams =
+    WikiAdminEntryDocumentRevisionParams;
 
 export type WikiEntryDocumentSaveRequest = WikiAdminSaveEntryDocumentRequest;
 export type WikiEntryDocumentPreviewRequest =

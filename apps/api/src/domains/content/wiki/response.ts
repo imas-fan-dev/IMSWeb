@@ -44,6 +44,8 @@ import type {
     WikiAdminEntryDocumentExportStructured,
     WikiAdminEntryDocumentMediaUpload,
     WikiAdminEntryDocumentPreview,
+    WikiAdminEntryDocumentRevision,
+    WikiAdminEntryDocumentRevisions,
     WikiAdminEntryDocumentSave,
     WikiAdminParseBilibiliBatchResult,
 } from '@imsweb/contracts/wiki';
@@ -102,6 +104,10 @@ export type WikiAdminEntryDocumentSaveResponse = WikiAdminEntryDocumentSave;
 export type WikiAdminEntryDocumentPreviewResponse = WikiAdminEntryDocumentPreview;
 export type WikiAdminEntryDocumentMediaUploadResponse =
     WikiAdminEntryDocumentMediaUpload;
+export type WikiAdminEntryDocumentRevisionsResponse =
+    WikiAdminEntryDocumentRevisions;
+export type WikiAdminEntryDocumentRevisionResponse =
+    WikiAdminEntryDocumentRevision;
 export type WikiAdminEntryDocumentExportStructuredResponse =
     WikiAdminEntryDocumentExportStructured;
 export type WikiAdminBilibiliBatchResponse =
@@ -136,6 +142,8 @@ export type WikiJsonResponse =
     | WikiAdminEntryDocumentSaveResponse
     | WikiAdminEntryDocumentPreviewResponse
     | WikiAdminEntryDocumentMediaUploadResponse
+    | WikiAdminEntryDocumentRevisionsResponse
+    | WikiAdminEntryDocumentRevisionResponse
     | WikiAdminEntryDocumentExportStructuredResponse
     | WikiAdminBilibiliBatchResponse
     | WikiRandomBackground

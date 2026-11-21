@@ -21,8 +21,9 @@ import type { WikiRouteHandler } from '@/domains/content/wiki/response';
  * Admin read of one entry document.
  *
  * The stored AST is re-resolved on every read so the workbench and public pages
- * share one image-URL policy, and `media` lists the entry's uploads for the
- * insert-media picker.
+ * share one image-URL policy, `media` lists the entry's uploads for the
+ * insert-media picker, and `revisionsSummary` reports how much restore-able
+ * history exists without paying for the thirty snapshots themselves.
  */
 export function createHandleGetWikiEntryDocument<E extends Env>(
     resolveServices: WikiServicesResolver<E>
@@ -34,9 +35,10 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
         const repository = services.story!;
         const entry = await repository.findWikiEntryDocumentTarget(entryId);
         if (!entry) return wikiJson(wikiErrorBody('找不到该内容页'), 404);
-        const [stored, mediaRecords] = await Promise.all([
+        const [stored, mediaRecords, revisionsSummary] = await Promise.all([
             repository.findWikiEntryDocument(entryId),
             repository.listWikiEntryDocumentMedia(entryId),
+            repository.findWikiEntryDocumentRevisionsSummary(entryId),
         ]);
         const document = stored
             ? stored.document
@@ -81,6 +83,7 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
                     altText: record.altText,
                 }))
             ),
+            revisionsSummary,
         });
     };
 }

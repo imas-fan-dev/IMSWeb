@@ -3,6 +3,8 @@ import {
   adminWikiEntryDocumentMediaPath,
   adminWikiEntryDocumentPath,
   adminWikiEntryDocumentPreviewPath,
+  adminWikiEntryDocumentRevisionPath,
+  adminWikiEntryDocumentRevisionsPath,
   adminWikiParseBilibiliBatchPath,
   adminWikiPath,
   wikiPath,
@@ -34,6 +36,8 @@ import {
   adminWikiEntryDocumentExportStructuredSchema,
   adminWikiEntryDocumentMediaUploadSchema,
   adminWikiEntryDocumentPreviewSchema,
+  adminWikiEntryDocumentRevisionSchema,
+  adminWikiEntryDocumentRevisionsSchema,
   adminWikiEntryDocumentSaveSchema,
   adminWikiEntryDocumentSchema,
   adminWikiParseBilibiliBatchResultSchema,
@@ -128,6 +132,10 @@ export {
   type WikiAdminEntryDocumentSave,
   type WikiAdminEntryDocumentPreview,
   type WikiAdminEntryDocumentExportStructured,
+  type WikiAdminEntryDocumentRevision,
+  type WikiAdminEntryDocumentRevisions,
+  type WikiDocumentRevisionSummary,
+  type WikiDocumentRevisionsSummary,
   type WikiAdminBilibiliBatchItem,
   type WikiAdminParseBilibiliBatchResult,
   type WikiAdminSaveEntryDocumentRequest,
@@ -320,6 +328,36 @@ export function getAdminWikiEntryDocument(entryId: number) {
       ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       select: normalizeWikiAdminEntryDocument,
+    })
+  )
+}
+
+/**
+ * Retained document snapshots of one entry, newest first.
+ *
+ * The list is bounded by the API's retention window, so the drawer never shows
+ * a revision that can no longer be restored.
+ */
+export function getAdminWikiEntryDocumentRevisions(entryId: number) {
+  return adminApiClient.Get(
+    adminWikiEntryDocumentRevisionsPath(entryId),
+    parsed(adminWikiEntryDocumentRevisionsSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+/** One retained snapshot, including the Markdown the drawer can load. */
+export function getAdminWikiEntryDocumentRevision(input: {
+  entryId: number
+  revision: number
+}) {
+  return adminApiClient.Get(
+    adminWikiEntryDocumentRevisionPath(input.entryId, input.revision),
+    parsed(adminWikiEntryDocumentRevisionSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeAuth(),
     })
   )
 }

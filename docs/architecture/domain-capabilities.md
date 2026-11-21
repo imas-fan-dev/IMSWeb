@@ -344,6 +344,9 @@ wiki/
       save-entry-document.ts
       preview-entry-document.ts
       upload-entry-document-media.ts
+      export-structured-entry-document.ts
+      list-entry-document-revisions.ts
+      get-entry-document-revision.ts
   tools/
     handlers/
       parse-bilibili.ts

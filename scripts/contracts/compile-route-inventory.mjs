@@ -57,6 +57,8 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiParseBilibiliBatchRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/parse-bilibili-batch", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiExportStructuredEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryDocumentRevisionParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions/:revision", carriers: 1, policy: "accept-and-project" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
@@ -73,6 +75,8 @@ const PARAM_BUILDERS = {
   adminWikiEntryDocumentPreviewPath: (entryId) => `entries/${entryId}/document/preview`,
   adminWikiEntryDocumentMediaPath: (entryId) => `entries/${entryId}/document/media`,
   adminWikiEntryDocumentExportStructuredPath: (entryId) => `entries/${entryId}/document/export-structured`,
+  adminWikiEntryDocumentRevisionsPath: (entryId) => `entries/${entryId}/document/revisions`,
+  adminWikiEntryDocumentRevisionPath: (entryId, revision) => `entries/${entryId}/document/revisions/${revision}`,
 };
 // Builders that own a complete literal path and take no argument. Consumers see
 // only the package declarations, so the body is not resolvable from source; each
@@ -454,8 +458,15 @@ class Evaluator {
       const pathBuilder = calledName(node);
       if (pathBuilder && FIXED_BUILDERS[pathBuilder]) return [FIXED_BUILDERS[pathBuilder]];
       if (pathBuilder && PARAM_BUILDERS[pathBuilder]) {
-        const identifiers = node.arguments[0] ? this.strings(node.arguments[0], environment, seen) : [""];
-        return identifiers.map((identifier) => join(PATH_PREFIXES.adminWikiPath, PARAM_BUILDERS[pathBuilder](identifier)));
+        // Builders take one segment per dynamic parameter; resolve each argument
+        // and combine them so a two-parameter builder keeps its full path.
+        let combinations = [[]];
+        for (const argument of node.arguments) {
+          const values = this.strings(argument, environment, seen);
+          combinations = combinations.flatMap((combination) => values.map((value) => [...combination, value]));
+        }
+        if (!node.arguments.length) combinations = [[""]];
+        return combinations.map((combination) => join(PATH_PREFIXES.adminWikiPath, PARAM_BUILDERS[pathBuilder](...combination)));
       }
       if (pathBuilder && PATH_PREFIXES[pathBuilder]) {
         const suffix = node.arguments[0] ? this.strings(node.arguments[0], environment, seen) : [""];

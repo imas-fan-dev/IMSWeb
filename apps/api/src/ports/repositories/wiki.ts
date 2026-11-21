@@ -65,6 +65,28 @@ export type WikiEntryDocumentSaveResult =
     | { status: 'conflict'; revision: number }
     | { status: 'not-found' };
 
+/** One retained snapshot of an entry's document, without its Markdown body. */
+export interface WikiEntryDocumentRevisionRecord {
+    revision: number;
+    summary: string;
+    createdBy: string | null;
+    /** ISO 8601 commit timestamp, so the workbench can order the history. */
+    createdAt: string;
+}
+
+/** A retained snapshot plus the Markdown a maintainer can restore. */
+export interface WikiEntryDocumentRevisionSnapshot
+    extends WikiEntryDocumentRevisionRecord {
+    sourceMarkdown: string;
+}
+
+/** What the document read reports about the retained history. */
+export interface WikiEntryDocumentRevisionsSummary {
+    count: number;
+    latestRevision: number | null;
+    latestCreatedAt: string | null;
+}
+
 export interface WikiEntryContent {
     contentMode: WikiContentMode;
     document: WikiPublicStoryDocument | null;
@@ -75,7 +97,8 @@ export interface WikiEntryContent {
  *
  * `saveWikiEntryDocument` owns the whole transaction: the optimistic lock
  * check, the mode switch, the compiled snapshot, and the 30-revision retention
- * window all commit or roll back together.
+ * window all commit or roll back together. The history reads below expose that
+ * same window: the repository prunes it, so it also decides what is restorable.
  */
 export interface WikiDocumentRepository {
     findWikiEntryDocumentTarget(
@@ -98,6 +121,21 @@ export interface WikiDocumentRepository {
     createWikiEntryDocumentMedia(
         input: CreateWikiEntryDocumentMediaInput
     ): Promise<WikiEntryDocumentMediaRecord>;
+    /** Retained snapshots of one entry, newest first (retention window only). */
+    listWikiEntryDocumentRevisions(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionRecord[]>;
+    /**
+     * One snapshot scoped to its entry, so another entry's revision and a
+     * pruned or never-existing revision are indistinguishable to the caller.
+     */
+    findWikiEntryDocumentRevision(
+        entryId: number,
+        revision: number
+    ): Promise<WikiEntryDocumentRevisionSnapshot | null>;
+    findWikiEntryDocumentRevisionsSummary(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionsSummary>;
 }
 
 export interface AgencyRecord {

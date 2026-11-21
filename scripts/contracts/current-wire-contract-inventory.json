@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "a7df37d0aaf8d96cdff22a13e8e3f7d517e2849934148c5fd12c0130d98389d4",
+    "semanticDigest": "e3d43685b41ea812cb896ddf4f92fab4da0767c11c3e6f386988288556d7b462",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,13 +16,13 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 431,
-    "mountedMethodPaths": 331,
+    "mountedRegistrations": 433,
+    "mountedMethodPaths": 333,
     "noInputRoutes": 100,
-    "requestCarriers": 436,
+    "requestCarriers": 438,
     "policies": {
       "reject": 111,
-      "accept-and-project": 224,
+      "accept-and-project": 226,
       "passthrough": 17,
       "non-object-applicable": 84
     },
@@ -487,11 +487,31 @@
         "carriers": 1,
         "policy": "reject",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryIdParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/admin/wiki/entries/:entryId/document/revisions",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryDocumentRevisionParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/admin/wiki/entries/:entryId/document/revisions/:revision",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 198,
+      "/api/admin": 200,
       "/api/birthdays": 1,
       "/api/cards": 8,
       "/api/check": 1,
@@ -4282,7 +4302,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:b79d83cb8ae69235:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:0f3dd75faf239139:fb7f85e2:0",
       "carriers": [
         {
           "kind": "param",
@@ -4291,6 +4311,56 @@
             "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
           },
           "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document/revisions",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/list-entry-document-revisions.ts#anonymous:a511b5fc113ca326:04d6e811:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document/revisions/:revision",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document-revision.ts#anonymous:ed7c9085ef7be6bc:65eefefa:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryDocumentRevisionParamsSchema",
           "schemaModule": "@imsweb/contracts/wiki",
           "schemaLocation": {
             "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
@@ -18614,13 +18684,47 @@
     {
       "method": "GET",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:b79d83cb8ae69235:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:0f3dd75faf239139:fb7f85e2:0",
       "kind": "param",
       "source": "validated",
       "location": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
       "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document/revisions",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/list-entry-document-revisions.ts#anonymous:a511b5fc113ca326:04d6e811:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/wiki/entries/:entryId/document/revisions/:revision",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document-revision.ts#anonymous:ed7c9085ef7be6bc:65eefefa:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryDocumentRevisionParamsSchema",
       "schemaModule": "@imsweb/contracts/wiki",
       "schemaLocation": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"

@@ -210,6 +210,11 @@ function documentPayload(
     blocks?: unknown[]
     warnings?: Array<{ line: number; code: string; message: string }>
     media?: Array<{ id: number; imageUrl: string; altText: string }>
+    revisionsSummary?: {
+      count: number
+      latestRevision: number | null
+      latestCreatedAt: string | null
+    }
   } = {}
 ) {
   return {
@@ -234,6 +239,11 @@ function documentPayload(
     },
     warnings: input.warnings ?? [],
     media: input.media ?? [],
+    revisionsSummary: input.revisionsSummary ?? {
+      count: 0,
+      latestRevision: null,
+      latestCreatedAt: null,
+    },
   }
 }
 

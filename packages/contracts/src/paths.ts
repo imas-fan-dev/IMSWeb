@@ -220,6 +220,26 @@ export function adminWikiEntryDocumentMediaPath(
   return adminWikiPath(`entries/${entryId}/document/media`)
 }
 
+/**
+ * Retained revision snapshots of one entry's document, newest first.
+ *
+ * The document read returns only a `revisionsSummary`; the full list has its own
+ * path so opening the workbench never pays for thirty snapshots it may not show.
+ */
+export function adminWikiEntryDocumentRevisionsPath(
+  entryId: string | number
+): string {
+  return adminWikiPath(`entries/${entryId}/document/revisions`)
+}
+
+/** One retained snapshot of an entry's document, addressed by its revision. */
+export function adminWikiEntryDocumentRevisionPath(
+  entryId: string | number,
+  revision: string | number
+): string {
+  return adminWikiPath(`entries/${entryId}/document/revisions/${revision}`)
+}
+
 /** Batch Bilibili link parsing for the document authoring toolbar. */
 export function adminWikiParseBilibiliBatchPath(): string {
   return adminWikiPath("parse-bilibili-batch")

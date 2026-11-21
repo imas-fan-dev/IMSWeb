@@ -200,6 +200,8 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 | `PUT /api/admin/wiki/entries/:entryId/document`         | 编译并保存；`expectedRevision` 过期返回 `409`         |
 | `POST /api/admin/wiki/entries/:entryId/document/preview` | 只编译不落库，返回 AST 与行号告警                    |
 | `POST /api/admin/wiki/entries/:entryId/document/export-structured` | 只读导出结构化卡片为 Markdown 草稿与数据卫生告警 |
+| `GET /api/admin/wiki/entries/:entryId/document/revisions` | 该内容页保留的历史快照，最新在前，最多 30 条         |
+| `GET /api/admin/wiki/entries/:entryId/document/revisions/:revision` | 单个快照的 `sourceMarkdown`；不存在返回 `404` |
 | `POST /api/admin/wiki/parse-bilibili-batch`              | 批量解析 1 至 20 条 B 站链接，逐条返回结果或错误      |
 
 保存拒绝未知请求字段；成功时在同一事务内写文档行、切换 `content_mode`、追加 revision 快照并裁剪
@@ -207,6 +209,17 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 `ok: false` 并给出 `error`，整批仍返回 `200`。结构化导出同样只读：按内容形态推断布局（不看
 `entryKind`）、按数值排序数字章节桶、拆分 `出场：` 名单为 `tags`，并把脏数据以 `lintWarnings`
 回报而不是静默丢弃；草稿是否插入、替换与保存由维护者在工作台决定。
+
+### 历史版本查看与恢复
+
+- `GET .../document/revisions` 只返回仍可恢复的快照（裁剪窗口内），按 `revision` 降序排列；
+  `summary`、`createdBy`（写入操作者）与 `createdAt` 一并返回，供工作台「版本历史」抽屉展示。
+- `GET .../document/revisions/:revision` 以 `(entry_id, revision)` 限定查询：不存在、已被裁剪、
+  属于其它内容页或属于已软删除内容页时统一返回同一个 `404`，不泄漏其它内容页是否存在该版本。
+- 文档读取额外返回 `revisionsSummary`（`count`、`latestRevision`、`latestCreatedAt`），让抽屉
+  在打开前就知道有多少可恢复快照。
+- 「载入到编辑器」是非破坏性草稿载入：只替换编辑器文本，保留当前 `expectedRevision`，因此随后
+  保存会生成新的向前版本（例如 r33）而不是改写历史；是否保存仍由维护者决定。
 
 ### 企划、栏目与内容页写入
 

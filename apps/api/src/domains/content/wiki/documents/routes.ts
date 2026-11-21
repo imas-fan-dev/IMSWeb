@@ -3,8 +3,11 @@ import {
     adminWikiEntryDocumentMediaPath,
     adminWikiEntryDocumentPath,
     adminWikiEntryDocumentPreviewPath,
+    adminWikiEntryDocumentRevisionPath,
+    adminWikiEntryDocumentRevisionsPath,
 } from '@imsweb/contracts/paths';
 import {
+    adminWikiEntryDocumentRevisionParamsSchema,
     adminWikiEntryIdParamsSchema,
     adminWikiExportStructuredEntryDocumentRequestSchema,
     adminWikiPreviewEntryDocumentRequestSchema,
@@ -14,6 +17,8 @@ import type { Env, Hono } from 'hono';
 import type { WikiServicesResolver } from '@/domains/content/wiki/handler-support';
 import { createHandleExportStructuredWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/export-structured-entry-document';
 import { createHandleGetWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/get-entry-document';
+import { createHandleGetWikiEntryDocumentRevision } from '@/domains/content/wiki/documents/handlers/get-entry-document-revision';
+import { createHandleListWikiEntryDocumentRevisions } from '@/domains/content/wiki/documents/handlers/list-entry-document-revisions';
 import { createHandlePreviewWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/preview-entry-document';
 import { createHandleSaveWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/save-entry-document';
 import { createHandleUploadWikiEntryDocumentMedia } from '@/domains/content/wiki/documents/handlers/upload-entry-document-media';
@@ -66,5 +71,18 @@ export function registerWikiDocumentRoutes<E extends Env>(
             jsonOptions,
         ),
         createHandleExportStructuredWikiEntryDocument(resolveServices),
+    );
+    app.get(
+        adminWikiEntryDocumentRevisionsPath(':entryId'),
+        paramSchemaValidator(adminWikiEntryIdParamsSchema, paramOptions),
+        createHandleListWikiEntryDocumentRevisions(resolveServices),
+    );
+    app.get(
+        adminWikiEntryDocumentRevisionPath(':entryId', ':revision'),
+        paramSchemaValidator(
+            adminWikiEntryDocumentRevisionParamsSchema,
+            paramOptions,
+        ),
+        createHandleGetWikiEntryDocumentRevision(resolveServices),
     );
 }

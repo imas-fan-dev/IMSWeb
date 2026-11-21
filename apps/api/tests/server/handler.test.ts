@@ -233,10 +233,12 @@ import { test } from 'vitest';
             'createHandleDeleteWikiStoryLink',
             'createHandleEditWikiStory',
             'createHandleGetWikiEntryDocument',
+            'createHandleGetWikiEntryDocumentRevision',
             'createHandleListAdminWikiCatalog',
             'createHandleListAdminWikiStories',
             'createHandleListPublicWikiCatalog',
             'createHandleListPublicWikiStories',
+            'createHandleListWikiEntryDocumentRevisions',
             'createHandleListWikiIdolMedia',
             'createHandleListWikiStoryCoverAssets',
             'createHandleListWikiStorySourceCatalog',
@@ -533,7 +535,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 186);
+            assert.equal(Object.values(actual).flat().length, 188);
         });
 
 

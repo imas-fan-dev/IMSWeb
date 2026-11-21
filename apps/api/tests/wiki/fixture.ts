@@ -37,6 +37,9 @@ import type {
     WikiEntryContent,
     WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
+    WikiEntryDocumentRevisionRecord,
+    WikiEntryDocumentRevisionSnapshot,
+    WikiEntryDocumentRevisionsSummary,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
     WikiGroupMemberRecord,
@@ -644,6 +647,10 @@ export class MemoryStoryRepository implements StoryRepository {
     }
     documentModes = new Map<number, WikiContentMode>();
     documents = new Map<number, WikiEntryDocumentRecord>();
+    documentRevisions: Array<{
+        entryId: number;
+        snapshot: WikiEntryDocumentRevisionSnapshot;
+    }> = [];
     documentMedia: WikiEntryDocumentMediaRecord[] = [];
     documentCoverRefs = new Map<number, Set<number>>();
     async findWikiEntryDocumentTarget(entryId: number): Promise<WikiEntryDocumentTarget | null> {
@@ -689,7 +696,48 @@ export class MemoryStoryRepository implements StoryRepository {
         });
         this.documentModes.set(input.entryId, input.contentMode);
         this.documentCoverRefs.set(input.entryId, new Set(input.coverAssetIds));
+        this.documentRevisions.push({
+            entryId: input.entryId,
+            snapshot: {
+                revision,
+                summary: input.summary,
+                createdBy: input.updatedBy,
+                createdAt: new Date().toISOString(),
+                sourceMarkdown: input.sourceMarkdown
+            }
+        });
         return { status: 'saved' as const, revision };
+    }
+    async listWikiEntryDocumentRevisions(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionRecord[]> {
+        return this.documentRevisions
+            .filter((row) => row.entryId === entryId)
+            .map((row) => row.snapshot)
+            .sort((left, right) => right.revision - left.revision)
+            .slice(0, 30)
+            .map(({ sourceMarkdown: _sourceMarkdown, ...record }) => record);
+    }
+    async findWikiEntryDocumentRevision(
+        entryId: number,
+        revision: number
+    ): Promise<WikiEntryDocumentRevisionSnapshot | null> {
+        const row = this.documentRevisions.find((candidate) =>
+            candidate.entryId === entryId && candidate.snapshot.revision === revision
+        );
+        return row ? { ...row.snapshot } : null;
+    }
+    async findWikiEntryDocumentRevisionsSummary(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionsSummary> {
+        const newest = this.documentRevisions
+            .filter((row) => row.entryId === entryId)
+            .sort((left, right) => right.snapshot.revision - left.snapshot.revision)[0];
+        return {
+            count: this.documentRevisions.filter((row) => row.entryId === entryId).length,
+            latestRevision: newest?.snapshot.revision ?? null,
+            latestCreatedAt: newest?.snapshot.createdAt ?? null
+        };
     }
     async listWikiEntryDocumentMedia(entryId: number): Promise<WikiEntryDocumentMediaRecord[]> {
         return this.documentMedia

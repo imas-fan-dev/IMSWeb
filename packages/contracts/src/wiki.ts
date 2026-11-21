@@ -844,12 +844,13 @@ export const wikiPublicStoriesSchema = exactJsonResponse({
 })
 
 /**
- * Admin document endpoints (Ticket 01 scope: read, save, preview).
+ * Admin document endpoints (Ticket 01 read/save/preview + Ticket 07 history).
  *
  * `revision` is the optimistic lock for `PUT`; a stale `expectedRevision`
  * returns `409` with the current value in `wikiRevisionConflictResponseSchema`.
  * `media` lists the entry's uploaded document images so the workbench can pick
- * them without a second request; revision summaries arrive with Ticket 07.
+ * them without a second request, and `revisionsSummary` counts the retained
+ * snapshots so the history drawer can open without a second read.
  */
 export const wikiDocumentMediaItemSchema = exactJsonResponse({
   id: z.number().int().positive(),
@@ -872,6 +873,48 @@ export const adminWikiEntryDocumentEntrySchema = exactJsonResponse({
   entryKind: wikiEntryKindSchema,
 })
 
+/**
+ * One retained snapshot of an entry's document.
+ *
+ * The API keeps at most the newest 30 snapshots per entry, so `revision` is
+ * contiguous only inside the retention window: a restored older text saves
+ * forward as a new revision instead of rewriting `revision` numbers.
+ */
+export const wikiDocumentRevisionSummarySchema = exactJsonResponse({
+  revision: z.number().int().positive(),
+  summary: z.string(),
+  createdBy: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+/** Newest-first snapshot list of one entry, capped at the retention window. */
+export const adminWikiEntryDocumentRevisionsSchema = exactJsonResponse({
+  status: z.literal("success"),
+  revisions: z.array(wikiDocumentRevisionSummarySchema),
+})
+
+/** One snapshot including the Markdown the maintainer can restore. */
+export const adminWikiEntryDocumentRevisionSchema = exactJsonResponse({
+  status: z.literal("success"),
+  revision: z.number().int().positive(),
+  summary: z.string(),
+  createdBy: z.string().nullable(),
+  createdAt: z.string().min(1),
+  sourceMarkdown: z.string(),
+})
+
+/**
+ * Retained-snapshot counters carried by the document read.
+ *
+ * Counts only what is still restorable, so a pristine entry and one whose
+ * history was pruned both report the truth the drawer will show.
+ */
+export const wikiDocumentRevisionsSummarySchema = exactJsonResponse({
+  count: z.number().int().nonnegative(),
+  latestRevision: z.number().int().positive().nullable(),
+  latestCreatedAt: z.string().min(1).nullable(),
+})
+
 export const adminWikiEntryDocumentSchema = exactJsonResponse({
   status: z.literal("success"),
   entry: adminWikiEntryDocumentEntrySchema,
@@ -881,6 +924,7 @@ export const adminWikiEntryDocumentSchema = exactJsonResponse({
   document: wikiPublicStoryDocumentSchema,
   warnings: z.array(wikiDocumentWarningSchema),
   media: z.array(wikiDocumentMediaItemSchema),
+  revisionsSummary: wikiDocumentRevisionsSummarySchema,
 })
 
 export const adminWikiEntryDocumentSaveSchema = exactJsonResponse({
@@ -1146,6 +1190,18 @@ export const adminWikiPreviewEntryDocumentRequestSchema = strictRequestObject({
 })
 
 /**
+ * Path parameters of one document snapshot.
+ *
+ * `revision` rejects negatives at the HTTP boundary, so a malformed history URL
+ * never reaches the repository as a "missing row" query; both segments arrive as
+ * strings from Hono and are coerced into positive integers here.
+ */
+export const adminWikiEntryDocumentRevisionParamsSchema = strictRequestObject({
+  entryId: z.coerce.number().int().positive(),
+  revision: z.coerce.number().int().nonnegative(),
+})
+
+/**
  * Structured-to-Markdown export request.
  *
  * Both fields are optional because the exporter's own defaults are the
@@ -1256,6 +1312,21 @@ export type WikiAdminEntryDocumentPreview = z.infer<
   typeof adminWikiEntryDocumentPreviewSchema
 >
 export type WikiDocumentMediaItem = z.infer<typeof wikiDocumentMediaItemSchema>
+export type WikiDocumentRevisionSummary = z.infer<
+  typeof wikiDocumentRevisionSummarySchema
+>
+export type WikiDocumentRevisionsSummary = z.infer<
+  typeof wikiDocumentRevisionsSummarySchema
+>
+export type WikiAdminEntryDocumentRevision = z.infer<
+  typeof adminWikiEntryDocumentRevisionSchema
+>
+export type WikiAdminEntryDocumentRevisions = z.infer<
+  typeof adminWikiEntryDocumentRevisionsSchema
+>
+export type WikiAdminEntryDocumentRevisionParams = z.infer<
+  typeof adminWikiEntryDocumentRevisionParamsSchema
+>
 export type WikiAdminEntryDocumentMediaUpload = z.infer<
   typeof adminWikiEntryDocumentMediaUploadSchema
 >

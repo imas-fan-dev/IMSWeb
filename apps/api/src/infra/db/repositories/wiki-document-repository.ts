@@ -5,6 +5,9 @@ import type {
     WikiEntryContent,
     WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
+    WikiEntryDocumentRevisionRecord,
+    WikiEntryDocumentRevisionSnapshot,
+    WikiEntryDocumentRevisionsSummary,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
 } from '@/ports/repositories';
@@ -24,6 +27,29 @@ const EMPTY_DOCUMENT: WikiPublicStoryDocument = {
 
 /** Snapshots kept per entry; older ones are pruned inside the save transaction. */
 const WIKI_DOCUMENT_REVISION_LIMIT = 30;
+
+interface DocumentRevisionRow {
+    revision: number;
+    summary: string;
+    created_by: string | null;
+    created_at: string | Date;
+}
+
+/** The driver returns `Date` for `timestamptz`; the wire contract is ISO. */
+function isoTime(value: string | Date): string {
+    return value instanceof Date ? value.toISOString() : value;
+}
+
+function asRevision(
+    row: DocumentRevisionRow
+): WikiEntryDocumentRevisionRecord {
+    return {
+        revision: row.revision,
+        summary: row.summary,
+        createdBy: row.created_by,
+        createdAt: isoTime(row.created_at),
+    };
+}
 
 function asDocument(value: unknown): WikiPublicStoryDocument {
     if (!value || typeof value !== 'object') return EMPTY_DOCUMENT;
@@ -217,6 +243,86 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
               WHERE entry_id=? ORDER BY id`,
             [entryId]
         );
+    }
+
+    /**
+     * The retention window, newest first.
+     *
+     * `ORDER BY revision DESC` (not `created_at`) keeps the order deterministic
+     * even when two saves commit inside the same clock tick, and the `LIMIT`
+     * repeats the pruned window so a row outside it can never be listed. The
+     * entry join hides soft-deleted entries exactly like the document read.
+     */
+    async listWikiEntryDocumentRevisions(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionRecord[]> {
+        const rows = await queryAll<DocumentRevisionRow>(
+            this.database,
+            `SELECT revisions.revision, revisions.summary,
+                    revisions.created_by, revisions.created_at
+               FROM wiki_entry_document_revisions revisions
+               JOIN wiki_entries entries ON entries.id=revisions.entry_id
+              WHERE revisions.entry_id=? AND entries.deleted_at IS NULL
+              ORDER BY revisions.revision DESC
+              LIMIT ${WIKI_DOCUMENT_REVISION_LIMIT}`,
+            [entryId]
+        );
+        return rows.map(asRevision);
+    }
+
+    /**
+     * One snapshot scoped to its entry.
+     *
+     * A revision that belongs to another entry, or to a soft-deleted entry,
+     * resolves to `null` so the route cannot report another entry's existence.
+     */
+    async findWikiEntryDocumentRevision(
+        entryId: number,
+        revision: number
+    ): Promise<WikiEntryDocumentRevisionSnapshot | null> {
+        const row = await queryOne<
+            DocumentRevisionRow & { source_markdown: string }
+        >(
+            this.database,
+            `SELECT revisions.revision, revisions.summary,
+                    revisions.created_by, revisions.created_at,
+                    revisions.source_markdown
+               FROM wiki_entry_document_revisions revisions
+               JOIN wiki_entries entries ON entries.id=revisions.entry_id
+              WHERE revisions.entry_id=? AND revisions.revision=?
+                AND entries.deleted_at IS NULL`,
+            [entryId, revision]
+        );
+        return row
+            ? { ...asRevision(row), sourceMarkdown: row.source_markdown }
+            : null;
+    }
+
+    async findWikiEntryDocumentRevisionsSummary(
+        entryId: number
+    ): Promise<WikiEntryDocumentRevisionsSummary> {
+        const row = await queryOne<{
+            count: number | string;
+            latest_revision: number | null;
+            latest_created_at: string | Date | null;
+        }>(
+            this.database,
+            `SELECT COUNT(*)::int AS count,
+                    MAX(revision) AS latest_revision,
+                    (SELECT created_at FROM wiki_entry_document_revisions
+                      WHERE entry_id=? ORDER BY revision DESC LIMIT 1)
+                        AS latest_created_at
+               FROM wiki_entry_document_revisions
+              WHERE entry_id=?`,
+            [entryId, entryId]
+        );
+        return {
+            count: Number(row?.count ?? 0),
+            latestRevision: row?.latest_revision ?? null,
+            latestCreatedAt: row?.latest_created_at
+                ? isoTime(row.latest_created_at)
+                : null,
+        };
     }
 
     findWikiEntryDocumentMediaById(
