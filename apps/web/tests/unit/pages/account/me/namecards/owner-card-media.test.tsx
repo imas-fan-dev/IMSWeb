@@ -25,6 +25,7 @@ vi.mock("~/lib/api/platform-client", () => ({
   platformApiClient: { Get: mocks.load },
 }))
 
+import { ApiError } from "~/lib/api/api-error"
 import { ownerCardMediaPath } from "~/lib/api/endpoints/fudaba/owner-card-media"
 import { useOwnerCardMedia } from "~/components/shared/use-owner-card-media"
 
@@ -173,7 +174,8 @@ describe("private image lifetime", () => {
   it("retries a failed load without rendering the protected URL", async () => {
     mocks.load
       .mockReturnValueOnce({
-        send: () => Promise.reject(new Error("offline")),
+        send: () =>
+          Promise.reject(new ApiError("Not Found", { kind: "http", status: 404 })),
         abort: vi.fn(),
       })
       .mockReturnValueOnce({
