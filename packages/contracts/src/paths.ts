@@ -213,6 +213,10 @@ export function adminWikiEntryDocumentMediaPath(
   return adminWikiPath(`entries/${entryId}/document/media`)
 }
 
+/** Batch Bilibili link parsing for the document authoring toolbar. */
+export function adminWikiParseBilibiliBatchPath(): string {
+  return adminWikiPath("parse-bilibili-batch")
+}
 
 export function eventChroniclePath(suffix = ""): string {
   return appendPath(EVENT_CHRONICLE_PATH_PREFIX, suffix)

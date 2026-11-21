@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "8b1726d2c72ea319f717287230a4ed70144831edf6751a60434ed0393fb0c9cb",
+    "semanticDigest": "102391799778bc588f429cf9e552e304d27bcead53d4dff8ec30106bba84edb5",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,12 +16,12 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 429,
-    "mountedMethodPaths": 329,
+    "mountedRegistrations": 430,
+    "mountedMethodPaths": 330,
     "noInputRoutes": 100,
-    "requestCarriers": 433,
+    "requestCarriers": 434,
     "policies": {
-      "reject": 109,
+      "reject": 110,
       "accept-and-project": 223,
       "passthrough": 17,
       "non-object-applicable": 84
@@ -457,11 +457,21 @@
         "carriers": 1,
         "policy": "accept-and-project",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiParseBilibiliBatchRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/wiki/parse-bilibili-batch",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 196,
+      "/api/admin": 197,
       "/api/birthdays": 1,
       "/api/cards": 8,
       "/api/check": 1,
@@ -12488,6 +12498,31 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/wiki/parse-bilibili-batch",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/parse-bilibili-batch.ts#anonymous:4ca7cf250d676f6c:c098ec58:0",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
+          },
+          "schemaSymbol": "adminWikiParseBilibiliBatchRequestSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/wiki/story-content-types",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
@@ -22371,6 +22406,23 @@
       "schemaModule": "@imsweb/contracts/wiki",
       "schemaLocation": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wiki/parse-bilibili-batch",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/parse-bilibili-batch.ts#anonymous:4ca7cf250d676f6c:c098ec58:0",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
+      },
+      "schemaSymbol": "adminWikiParseBilibiliBatchRequestSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
       },
       "policy": "reject",
       "syntaxPolicy": "reject"

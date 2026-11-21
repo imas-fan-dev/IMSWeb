@@ -54,6 +54,7 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/media", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiParseBilibiliBatchRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/parse-bilibili-batch", carriers: 1, policy: "reject" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
@@ -69,6 +70,12 @@ const PARAM_BUILDERS = {
   adminWikiEntryDocumentPath: (entryId) => `entries/${entryId}/document`,
   adminWikiEntryDocumentPreviewPath: (entryId) => `entries/${entryId}/document/preview`,
   adminWikiEntryDocumentMediaPath: (entryId) => `entries/${entryId}/document/media`,
+};
+// Builders that own a complete literal path and take no argument. Consumers see
+// only the package declarations, so the body is not resolvable from source; each
+// fixed builder is listed once here and the API must register through it.
+const FIXED_BUILDERS = {
+  adminWikiParseBilibiliBatchPath: join(PATH_PREFIXES.adminWikiPath, "parse-bilibili-batch"),
 };
 
 export class InventoryFailure extends Error {
@@ -442,6 +449,7 @@ class Evaluator {
     }
     if (ts.isCallExpression(node)) {
       const pathBuilder = calledName(node);
+      if (pathBuilder && FIXED_BUILDERS[pathBuilder]) return [FIXED_BUILDERS[pathBuilder]];
       if (pathBuilder && PARAM_BUILDERS[pathBuilder]) {
         const identifiers = node.arguments[0] ? this.strings(node.arguments[0], environment, seen) : [""];
         return identifiers.map((identifier) => join(PATH_PREFIXES.adminWikiPath, PARAM_BUILDERS[pathBuilder](identifier)));

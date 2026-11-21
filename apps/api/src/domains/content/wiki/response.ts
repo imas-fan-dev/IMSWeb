@@ -44,6 +44,7 @@ import type {
     WikiAdminEntryDocumentMediaUpload,
     WikiAdminEntryDocumentPreview,
     WikiAdminEntryDocumentSave,
+    WikiAdminParseBilibiliBatchResult,
 } from '@imsweb/contracts/wiki';
 
 export type WikiRouteHandler<E extends Env, I extends Input = Input> = Handler<E, string, I>;
@@ -100,6 +101,8 @@ export type WikiAdminEntryDocumentSaveResponse = WikiAdminEntryDocumentSave;
 export type WikiAdminEntryDocumentPreviewResponse = WikiAdminEntryDocumentPreview;
 export type WikiAdminEntryDocumentMediaUploadResponse =
     WikiAdminEntryDocumentMediaUpload;
+export type WikiAdminBilibiliBatchResponse =
+    WikiAdminParseBilibiliBatchResult;
 
 export type WikiJsonResponse =
     | WikiErrorResponse
@@ -130,5 +133,6 @@ export type WikiJsonResponse =
     | WikiAdminEntryDocumentSaveResponse
     | WikiAdminEntryDocumentPreviewResponse
     | WikiAdminEntryDocumentMediaUploadResponse
+    | WikiAdminBilibiliBatchResponse
     | WikiRandomBackground
     | WikiRandomIdol;

@@ -20,8 +20,8 @@ wiki/
     routes.ts           # 企划/栏目/内容页/分类 CRUD、布局、公开与后台目录、随机读取
     handlers/           # 9 个 action（含 manage-catalog 的 8 个实体 CRUD handler）
   stories/
-    routes.ts           # 剧情读写、卡片、来源、内容类型与来源平台目录、B 站解析
-    handlers/           # 10 个 action
+    routes.ts           # 剧情读写、卡片、来源、内容类型与来源平台目录、B 站解析与批量解析
+    handlers/           # 11 个 action
   media/
     routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
     handlers/           # 11 个 action
@@ -38,7 +38,7 @@ wiki/
 从不出现对象键。
 
 按实际承载内容归并：剧情目录选项（content-types/source-platforms）与 B 站来源解析
-始终服务剧情编辑，归入 `stories`；实体图标、偶像媒体、封面素材与 `/icon/*`、`/css/*`
+（单条与文档工具栏使用的批量解析）都复用同一个解析服务，归入 `stories`；实体图标、偶像媒体、封面素材与 `/icon/*`、`/css/*`
 退役资源拒绝同属媒体服务面，归入 `media`；随机背景/偶像读取目录数据，归入 `catalog`；
 增强 Markdown 文档是独立的编辑与编译生命周期，归入 `documents`。
 

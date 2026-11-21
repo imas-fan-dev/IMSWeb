@@ -199,9 +199,11 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 | `GET /api/admin/wiki/entries/:entryId/document`         | 读取模式、Markdown 原文、当前 `revision` 与编译 AST   |
 | `PUT /api/admin/wiki/entries/:entryId/document`         | 编译并保存；`expectedRevision` 过期返回 `409`         |
 | `POST /api/admin/wiki/entries/:entryId/document/preview` | 只编译不落库，返回 AST 与行号告警                    |
+| `POST /api/admin/wiki/parse-bilibili-batch`              | 批量解析 1 至 20 条 B 站链接，逐条返回结果或错误      |
 
 保存拒绝未知请求字段；成功时在同一事务内写文档行、切换 `content_mode`、追加 revision 快照并裁剪
-到最新 30 条。
+到最新 30 条。批量解析先 trim 再去重，最多 4 条并发复用既有单条解析服务；单条失败只把该条标为
+`ok: false` 并给出 `error`，整批仍返回 `200`。
 
 ### 企划、栏目与内容页写入
 

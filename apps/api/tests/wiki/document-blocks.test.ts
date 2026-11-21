@@ -217,6 +217,37 @@ describe('Enhanced Markdown story blocks', () => {
         assert.deepEqual(result.warnings, []);
     });
 
+    test("accepts the batch macro's escaped source line", async () => {
+        // The document workbench emits this exact line for a parsed Bilibili
+        // link whose UP name contains `]`/`|` and whose title contains `](`.
+        const result = await compileEnhancedMarkdown(
+            [
+                ':::links',
+                '- [剧情｜Bilibili｜A\\]B｜C](https://www.bilibili.com/video/BV1xx411c7mD) 标题]\\(陷阱',
+                ':::',
+                ''
+            ].join('\n')
+        );
+
+        assert.deepEqual(result.document.blocks, [
+            {
+                type: 'links',
+                title: '',
+                collapsed: false,
+                links: [
+                    {
+                        up: 'A]B｜C',
+                        title: '标题](陷阱',
+                        url: 'https://www.bilibili.com/video/BV1xx411c7mD',
+                        contentType: '剧情',
+                        sourcePlatform: 'Bilibili'
+                    }
+                ]
+            }
+        ]);
+        assert.deepEqual(result.warnings, []);
+    });
+
     test('compiles :::card-grid and :::card with zero-link, text-only, and tagged cards', async () => {
         const result = await compileEnhancedMarkdown(
             [

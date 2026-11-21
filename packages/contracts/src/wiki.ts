@@ -1145,6 +1145,29 @@ export const adminWikiPreviewEntryDocumentRequestSchema = strictRequestObject({
   sourceMarkdown: z.string(),
 })
 
+/**
+ * One requested Bilibili URL and its resolved metadata.
+ *
+ * A failed link keeps the batch a success: `ok` is false and `error` carries
+ * the reason, while the resolved fields stay absent.
+ */
+export const adminWikiBilibiliBatchItemSchema = exactJsonResponse({
+  inputUrl: z.string(),
+  ok: z.boolean(),
+  title: z.string().optional(),
+  up: z.string().optional(),
+  stdUrl: z.string().optional(),
+  coverUrl: z.string().optional(),
+  error: z.string().optional(),
+})
+export const adminWikiParseBilibiliBatchRequestSchema = strictRequestObject({
+  urls: z.array(z.string()).min(1).max(20),
+})
+export const adminWikiParseBilibiliBatchResultSchema = exactJsonResponse({
+  status: z.literal("success"),
+  items: z.array(adminWikiBilibiliBatchItemSchema),
+})
+
 export type CreateWikiAgencyRequest = z.infer<typeof createWikiAgencyRequestSchema>
 export type UpdateWikiAgencyRequest = z.infer<typeof updateWikiAgencyRequestSchema>
 export type CreateWikiGroupRequest = z.infer<typeof createWikiGroupRequestSchema>
@@ -1185,4 +1208,13 @@ export type WikiAdminSaveEntryDocumentRequest = z.infer<
 >
 export type WikiAdminPreviewEntryDocumentRequest = z.infer<
   typeof adminWikiPreviewEntryDocumentRequestSchema
+>
+export type WikiAdminBilibiliBatchItem = z.infer<
+  typeof adminWikiBilibiliBatchItemSchema
+>
+export type WikiAdminParseBilibiliBatchRequest = z.infer<
+  typeof adminWikiParseBilibiliBatchRequestSchema
+>
+export type WikiAdminParseBilibiliBatchResult = z.infer<
+  typeof adminWikiParseBilibiliBatchResultSchema
 >

@@ -1,5 +1,10 @@
-import { adminWikiPath, wikiPath } from '@imsweb/contracts/paths';
 import {
+  adminWikiParseBilibiliBatchPath,
+  adminWikiPath,
+  wikiPath,
+} from '@imsweb/contracts/paths';
+import {
+  adminWikiParseBilibiliBatchRequestSchema,
   createWikiContentTypeRequestSchema,
   createWikiSourcePlatformRequestSchema,
   updateWikiContentTypeRequestSchema,
@@ -45,6 +50,7 @@ import {
   createHandleUpdateWikiStoryCatalogOption,
 } from "@/domains/content/wiki/stories/handlers/manage-story-source-catalog";
 import { createHandleParseBilibili } from "@/domains/content/wiki/stories/handlers/parse-bilibili";
+import { createHandleWikiParseBilibiliBatch } from "@/domains/content/wiki/stories/handlers/parse-bilibili-batch";
 import { createHandleUpdateWikiStoryCard } from "@/domains/content/wiki/stories/handlers/update-story-card";
 import {
   jsonSchemaValidator,
@@ -139,6 +145,11 @@ export function registerWikiStoryRoutes<E extends Env>(
   app.post(
     wikiPath('/delete_story'),
     createHandleDeleteWikiStory(resolveServices),
+  );
+  app.post(
+    adminWikiParseBilibiliBatchPath(),
+    jsonSchemaValidator(adminWikiParseBilibiliBatchRequestSchema, jsonOptions),
+    createHandleWikiParseBilibiliBatch(resolveServices),
   );
   app.post(
     wikiPath('/parse_bilibili'),
