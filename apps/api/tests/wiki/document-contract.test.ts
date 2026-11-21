@@ -53,3 +53,117 @@ describe('public story document contract', () => {
         }
     });
 });
+
+const SOURCE_LINK = {
+    up: 'UP主',
+    title: '第一话',
+    url: 'https://www.bilibili.com/video/BV1xx411c7mD',
+    contentType: '剧情',
+    sourcePlatform: 'Bilibili',
+};
+
+function documentWithSourceLink(url: string) {
+    return {
+        version: 1 as const,
+        headings: [],
+        availableTags: [],
+        blocks: [
+            {
+                type: 'links' as const,
+                title: '',
+                collapsed: false,
+                links: [{ ...SOURCE_LINK, url }],
+            },
+        ],
+    };
+}
+
+// Story blocks extend the version 1 AST without changing the existing nodes:
+// the schema is exact, so a new card option needs a contract change here first.
+describe('public story document story blocks', () => {
+    test('accepts links, card grids, and tabs with their exact wire shape', () => {
+        const document = {
+            version: 1 as const,
+            headings: [],
+            availableTags: ['天海春香'],
+            blocks: [
+                {
+                    type: 'links' as const,
+                    title: '来源',
+                    collapsed: true,
+                    links: [SOURCE_LINK],
+                },
+                {
+                    type: 'cardGrid' as const,
+                    layout: 'list' as const,
+                    cols: null,
+                    ratio: '1/1' as const,
+                    filter: 'tags' as const,
+                    collapsed: false,
+                    title: '',
+                    cards: [
+                        {
+                            type: 'card' as const,
+                            id: 42,
+                            title: '【初星】',
+                            subtitle: '',
+                            fit: 'contain' as const,
+                            tags: ['天海春香'],
+                            links: [],
+                        },
+                    ],
+                },
+                {
+                    type: 'tabs' as const,
+                    items: [
+                        {
+                            type: 'tab' as const,
+                            title: '序章',
+                            children: [
+                                {
+                                    type: 'paragraph' as const,
+                                    children: [
+                                        { type: 'text' as const, value: '正文' },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        assert.deepEqual(wikiPublicStoryDocumentSchema.parse(document), document);
+    });
+
+    test('rejects unsafe source URLs and out-of-range card grid options', () => {
+        assert.throws(
+            () =>
+                wikiPublicStoryDocumentSchema.parse(
+                    documentWithSourceLink('javascript:alert(1)')
+                ),
+            /unsafe|invalid/i
+        );
+        assert.throws(
+            () =>
+                wikiPublicStoryDocumentSchema.parse({
+                    version: 1,
+                    headings: [],
+                    availableTags: [],
+                    blocks: [
+                        {
+                            type: 'cardGrid',
+                            layout: 'grid',
+                            cols: 9,
+                            ratio: null,
+                            filter: null,
+                            collapsed: false,
+                            title: '',
+                            cards: [],
+                        },
+                    ],
+                }),
+            /cols|too_big|invalid/i
+        );
+    });
+});

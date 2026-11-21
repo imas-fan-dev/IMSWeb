@@ -465,6 +465,73 @@ export interface WikiDocumentListItem {
   children: WikiDocumentBlock[]
 }
 
+/**
+ * One parsed `- [类型｜平台｜UP](url) 标题` source list entry.
+ *
+ * The compiler resolves `contentType` / `sourcePlatform` (explicit segments or
+ * host inference) and keeps the trailing title outside the attribute syntax, so
+ * quotes, brackets, and angle brackets in titles never need escaping.
+ */
+export interface WikiDocumentSourceLink {
+  up: string
+  title: string
+  url: string
+  contentType: string
+  sourcePlatform: string
+}
+
+export interface WikiDocumentCard {
+  type: "card"
+  /** Optional database card id; renders the `#story-card-<id>` deep-link anchor. */
+  id: number | null
+  title: string
+  subtitle: string
+  fit: "cover" | "contain"
+  tags: string[]
+  links: WikiDocumentSourceLink[]
+}
+
+export interface WikiDocumentLinksBlock {
+  type: "links"
+  title: string
+  collapsed: boolean
+  links: WikiDocumentSourceLink[]
+}
+
+export type WikiDocumentCardLayout = "grid" | "portrait" | "banner" | "list"
+
+export type WikiDocumentCardRatio =
+  | "16/9"
+  | "4/5"
+  | "9/16"
+  | "1/1"
+  | "2.8/1"
+
+export interface WikiDocumentCardGridBlock {
+  type: "cardGrid"
+  layout: WikiDocumentCardLayout
+  /** Explicit column count (`2`–`6`); `null` keeps the responsive default. */
+  cols: number | null
+  /** Card media ratio; `null` keeps the layout default. */
+  ratio: WikiDocumentCardRatio | null
+  /** `"tags"` opts the grid into the page tag facet filter. */
+  filter: "tags" | null
+  collapsed: boolean
+  title: string
+  cards: WikiDocumentCard[]
+}
+
+export interface WikiDocumentTab {
+  type: "tab"
+  title: string
+  children: WikiDocumentBlock[]
+}
+
+export interface WikiDocumentTabsBlock {
+  type: "tabs"
+  items: WikiDocumentTab[]
+}
+
 export type WikiDocumentBlock =
   | {
       type: "heading"
@@ -499,6 +566,9 @@ export type WikiDocumentBlock =
       open: boolean
       children: WikiDocumentBlock[]
     }
+  | WikiDocumentLinksBlock
+  | WikiDocumentCardGridBlock
+  | WikiDocumentTabsBlock
 
 export interface WikiDocumentHeading {
   id: string
@@ -591,7 +661,59 @@ export const wikiDocumentBlockSchema: z.ZodType<WikiDocumentBlock> = z.lazy(
         open: z.boolean(),
         children: z.array(wikiDocumentBlockSchema),
       }),
+      wikiDocumentLinksBlockSchema,
+      wikiDocumentCardGridSchema,
+      exactJsonResponse({
+        type: z.literal("tabs"),
+        items: z.array(wikiDocumentTabSchema),
+      }),
     ])
+)
+
+export const wikiDocumentSourceLinkSchema: z.ZodType<WikiDocumentSourceLink> =
+  exactJsonResponse({
+    up: z.string(),
+    title: z.string(),
+    url: wikiDocumentUrlSchema,
+    contentType: z.string(),
+    sourcePlatform: z.string(),
+  })
+
+export const wikiDocumentCardSchema: z.ZodType<WikiDocumentCard> =
+  exactJsonResponse({
+    type: z.literal("card"),
+    id: z.number().int().positive().nullable(),
+    title: z.string(),
+    subtitle: z.string(),
+    fit: z.enum(["cover", "contain"]),
+    tags: z.array(z.string()),
+    links: z.array(wikiDocumentSourceLinkSchema),
+  })
+
+export const wikiDocumentCardGridSchema = exactJsonResponse({
+  type: z.literal("cardGrid"),
+  layout: z.enum(["grid", "portrait", "banner", "list"]),
+  cols: z.number().int().min(2).max(6).nullable(),
+  ratio: z.enum(["16/9", "4/5", "9/16", "1/1", "2.8/1"]).nullable(),
+  filter: z.literal("tags").nullable(),
+  collapsed: z.boolean(),
+  title: z.string(),
+  cards: z.array(wikiDocumentCardSchema),
+})
+
+export const wikiDocumentLinksBlockSchema = exactJsonResponse({
+  type: z.literal("links"),
+  title: z.string(),
+  collapsed: z.boolean(),
+  links: z.array(wikiDocumentSourceLinkSchema),
+})
+
+export const wikiDocumentTabSchema: z.ZodType<WikiDocumentTab> = z.lazy(() =>
+  exactJsonResponse({
+    type: z.literal("tab"),
+    title: z.string(),
+    children: z.array(wikiDocumentBlockSchema),
+  })
 )
 
 export const wikiDocumentHeadingSchema: z.ZodType<WikiDocumentHeading> =
