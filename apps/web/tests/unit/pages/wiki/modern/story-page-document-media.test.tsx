@@ -34,7 +34,8 @@ const HYBRID_DOCUMENT: WikiPublicStoryDocument = {
       asset: { kind: "doc", id: 7 },
       caption: "剧情截图",
       fit: "contain",
-      imageUrl: "/api/wiki/document-media/7.webp",
+      imageUrl:
+        "https://media.test/wiki/projects/1/entries/7/document/shot.webp",
       presentationPolicy: "inherit",
     },
     {
@@ -101,7 +102,10 @@ describe("StoryPage document media and embedded categories", () => {
       .getByText("剧情截图")
       .closest("figure") as HTMLElement
     const image = within(figure).getByRole("img", { name: "剧情截图" })
-    expect(image).toHaveAttribute("src", "/api/wiki/document-media/7.webp")
+    expect(image).toHaveAttribute(
+      "src",
+      "https://media.test/wiki/projects/1/entries/7/document/shot.webp"
+    )
     expect(image).toHaveStyle({ objectFit: "contain" })
     expect(within(figure).getByText("剧情截图").tagName).toBe("FIGCAPTION")
   })

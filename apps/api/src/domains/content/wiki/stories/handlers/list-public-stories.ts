@@ -15,9 +15,9 @@ import {
   collectWikiDocumentAssetSites,
   loadWikiDocumentAssetTable,
   resolveWikiDocumentAssets,
-  wikiDocumentAssetImageUrl,
+  documentImageUrl,
   wikiDocumentCategorySelection,
-} from "@/domains/content/wiki/document-assets";
+} from "@/domains/content/wiki/documents/document-assets";
 import {
   requirePublicObjectUrl,
   resolvePublicObjectUrl,
@@ -156,7 +156,7 @@ async function resolvePublicWikiDocument(
   const assetRefs = collectWikiDocumentAssetSites(document);
   const [assets, imageUrl] = await Promise.all([
     loadWikiDocumentAssetTable({ repository, entryId, projectId, assetRefs }),
-    wikiDocumentAssetImageUrl(storage),
+    documentImageUrl(storage),
   ]);
   const resolved = await resolveWikiDocumentAssets({
     document,

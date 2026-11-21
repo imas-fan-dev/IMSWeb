@@ -344,7 +344,6 @@ wiki/
       save-entry-document.ts
       preview-entry-document.ts
       upload-entry-document-media.ts
-      serve-entry-document-media.ts
   tools/
     handlers/
       parse-bilibili.ts

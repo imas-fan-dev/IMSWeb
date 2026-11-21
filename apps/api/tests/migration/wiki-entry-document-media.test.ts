@@ -79,6 +79,57 @@ describe('wiki entry document media migration', () => {
         ]);
     });
 
+    test('enforces one object key per upload and one cover reference per document', async () => {
+        const database = await createPostgresTestDatabase('wiki-doc-media-keys');
+        const { projectId, entryId } = await seedProjectEntry(database, 'keys');
+        await executeSql(
+            database,
+            `INSERT INTO wiki_entry_documents (entry_id, project_id) VALUES (?, ?)`,
+            [entryId, projectId]
+        );
+        const assetId = await seedCoverAsset(database, projectId, '唯一封面');
+        await executeSql(
+            database,
+            `INSERT INTO wiki_entry_document_media (project_id, entry_id, object_key)
+             VALUES (?, ?, ?)`,
+            [projectId, entryId, 'wiki/projects/keys/document/one.webp']
+        );
+
+        await assert.rejects(
+            () =>
+                executeSql(
+                    database,
+                    `INSERT INTO wiki_entry_document_media (project_id, entry_id, object_key)
+                     VALUES (?, ?, ?)`,
+                    [projectId, entryId, 'wiki/projects/keys/document/one.webp']
+                ),
+            /duplicate key value violates unique constraint/
+        );
+
+        await executeSql(
+            database,
+            `INSERT INTO wiki_entry_document_cover_refs
+                 (entry_id, project_id, cover_asset_id) VALUES (?, ?, ?)`,
+            [entryId, projectId, assetId]
+        );
+        await assert.rejects(
+            () =>
+                executeSql(
+                    database,
+                    `INSERT INTO wiki_entry_document_cover_refs
+                         (entry_id, project_id, cover_asset_id) VALUES (?, ?, ?)`,
+                    [entryId, projectId, assetId]
+                ),
+            /duplicate key value violates unique constraint/
+        );
+        const references = await queryAll<{ cover_asset_id: number }>(
+            database,
+            `SELECT cover_asset_id FROM wiki_entry_document_cover_refs WHERE entry_id=?`,
+            [entryId]
+        );
+        assert.deepEqual(references, [{ cover_asset_id: assetId }]);
+    });
+
     test('refuses to start when the deployment skipped the media migration', async () => {
         const database = await createPostgresTestDatabase('wiki-doc-media-guard');
         await executeSql(

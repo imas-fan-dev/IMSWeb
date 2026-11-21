@@ -11,8 +11,8 @@ import {
     collectWikiDocumentCategorySites,
     loadWikiDocumentAssetTable,
     resolveWikiDocumentAssets,
-    wikiDocumentAssetImageUrl,
-} from '@/domains/content/wiki/document-assets';
+    documentImageUrl,
+} from '@/domains/content/wiki/documents/document-assets';
 import type { WikiEntryDocumentParams } from '@/domains/content/wiki/documents/document-request';
 import type { WikiValidatedInput } from '@/domains/content/wiki/request';
 import type { WikiRouteHandler } from '@/domains/content/wiki/response';
@@ -49,7 +49,7 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
                 projectId: entry.projectId,
                 assetRefs,
             }),
-            wikiDocumentAssetImageUrl(services.storage!),
+            documentImageUrl(services.storage!),
         ]);
         const resolved = await resolveWikiDocumentAssets({
             document,
@@ -73,14 +73,11 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
             sourceMarkdown: stored?.sourceMarkdown ?? '',
             revision: stored?.revision ?? 0,
             document: resolved.document,
-            warnings: [],
+            warnings: resolved.warnings,
             media: await Promise.all(
                 mediaRecords.map(async (record) => ({
                     id: record.id,
-                    imageUrl: await imageUrl(
-                        { kind: 'doc', id: record.id },
-                        record.objectKey
-                    ),
+                    imageUrl: await imageUrl(record.objectKey),
                     altText: record.altText,
                 }))
             ),

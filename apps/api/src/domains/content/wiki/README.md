@@ -26,12 +26,16 @@ wiki/
     routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
     handlers/           # 11 个 action
   documents/
-    routes.ts           # 增强 Markdown 文档的读取、保存、预览、图片上传与读取
+    routes.ts           # 增强 Markdown 文档的读取、保存、预览与图片上传
     enhanced-markdown-compiler.ts  # 纯函数：Markdown -> 版本化 AST + plainText + 行号告警
+    document-assets.ts             # `cover:<id>`/`doc:<id>` 引用解析、封面引用集合、公开读 URL 口径
     document-request.ts            # 该 capability 的请求模型
-    handlers/           # 5 个 action：读取、保存、预览、上传文档图片、提供文档图片
-  document-assets.ts    # 跨能力共享：`cover:<id>`/`doc:<id>` 引用解析、封面引用选择、公开读 URL 口径
+    handlers/           # 4 个 action：读取、保存、预览、上传文档图片
 ```
+
+文档图片没有独立的公开读取路由：上传与共享封面都通过
+`ObjectStorage.createPublicReadUrl` 得到公开读 URL，AST 里只出现该 URL（或 `null`），
+从不出现对象键。
 
 按实际承载内容归并：剧情目录选项（content-types/source-platforms）与 B 站来源解析
 始终服务剧情编辑，归入 `stories`；实体图标、偶像媒体、封面素材与 `/icon/*`、`/css/*`

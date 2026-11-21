@@ -16,7 +16,7 @@ import {
 import { createHonoApp } from '@/app';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
-import { queryAll, queryOne } from '@/infra/db/sql/query';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 import { readContractJson } from '../contracts/contract-json';
 import { createPostgresTestDatabase } from '../postgres-test-database';
 import {
@@ -579,5 +579,231 @@ describe('wiki document media and embedded categories', () => {
             status: 'error',
             msg: '请选择要上传的图片',
         });
+    });
+
+    test('leaves no media row when the public read URL cannot be resolved', async () => {
+        const database = await createPostgresTestDatabase('wiki-doc-media-no-public');
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+        const storage = new MemoryObjectStorage();
+        // No public read base configured: the deployment cannot serve the object.
+        storage.publicReadUrlBase = null;
+        const images = new FixtureImageProcessor();
+        const uploads = new FixtureUploadParser();
+        const app = createHonoApp(() => ({
+            story: repository,
+            storage,
+            images,
+            uploads,
+            backofficeTokens: {
+                sign: async () => 'backoffice-token',
+                verify: async () => ({
+                    id: 1,
+                    username: 'operator',
+                    producername: 'Operator',
+                    dept: 'op' as const,
+                    adminRole: 'admin' as const,
+                    csrfSecret: CSRF_TOKEN,
+                }),
+            },
+        }));
+        const { entryId } = await seedProject(database, 'nopublic');
+
+        uploadImage(uploads);
+        const response = await app.request(
+            `http://wiki.test${adminWikiEntryDocumentMediaPath(entryId)}`,
+            {
+                method: 'POST',
+                headers: { Cookie: ACCESS_COOKIE, 'X-CSRFToken': CSRF_TOKEN },
+            }
+        );
+        assert.equal(response.status, 500);
+        assert.deepEqual(await response.json(), {
+            status: 'error',
+            msg: '保存文档图片失败',
+        });
+        assert.deepEqual(
+            await queryAll<{ id: number }>(
+                database,
+                'SELECT id FROM wiki_entry_document_media WHERE entry_id=?',
+                [entryId]
+            ),
+            []
+        );
+        assert.deepEqual(
+            [...storage.objects.keys()].filter((key) => key.includes('/document/')),
+            []
+        );
+    });
+
+    test('removes the uploaded object when the media row cannot be written', async () => {
+        const database = await createPostgresTestDatabase('wiki-doc-media-rollback');
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+        const storage = new MemoryObjectStorage();
+        const { app, uploads } = createServices(repository, storage);
+        const { entryId } = await seedProject(database, 'rollback');
+
+        // A real database failure at insert time: the metadata table is gone
+        // while the object write still succeeds.
+        await executeSql(
+            database,
+            'ALTER TABLE public.wiki_entry_document_media RENAME TO wiki_entry_document_media_broken'
+        );
+        try {
+            uploadImage(uploads);
+            const response = await app.request(
+                `http://wiki.test${adminWikiEntryDocumentMediaPath(entryId)}`,
+                {
+                    method: 'POST',
+                    headers: { Cookie: ACCESS_COOKIE, 'X-CSRFToken': CSRF_TOKEN },
+                }
+            );
+            assert.equal(response.status, 500);
+            assert.deepEqual(await response.json(), {
+                status: 'error',
+                msg: '保存文档图片失败',
+            });
+        } finally {
+            await executeSql(
+                database,
+                'ALTER TABLE public.wiki_entry_document_media_broken RENAME TO wiki_entry_document_media'
+            );
+        }
+        // The object is compensated away, so no row points at a missing object.
+        assert.deepEqual(
+            [...storage.objects.keys()].filter((key) => key.includes('/document/')),
+            []
+        );
+        assert.deepEqual(
+            await queryAll<{ id: number }>(
+                database,
+                'SELECT id FROM wiki_entry_document_media WHERE entry_id=?',
+                [entryId]
+            ),
+            []
+        );
+    });
+
+    test('reports references that broke after the save when the document is read', async () => {
+        const database = await createPostgresTestDatabase('wiki-doc-media-readwarn');
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+        const storage = new MemoryObjectStorage();
+        const { app, uploads } = createServices(repository, storage);
+        const { entryId } = await seedProject(database, 'readwarn');
+
+        uploadImage(uploads);
+        const uploaded = await readContractJson(
+            await app.request(
+                `http://wiki.test${adminWikiEntryDocumentMediaPath(entryId)}`,
+                {
+                    method: 'POST',
+                    headers: { Cookie: ACCESS_COOKIE, 'X-CSRFToken': CSRF_TOKEN },
+                }
+            ),
+            adminWikiEntryDocumentMediaUploadSchema
+        );
+        const saved = await adminRequest(
+            app,
+            'PUT',
+            adminWikiEntryDocumentPath(entryId),
+            {
+                contentMode: 'document',
+                sourceMarkdown: `::media{asset="doc:${uploaded.media.id}"}\n`,
+                expectedRevision: 0,
+            }
+        );
+        assert.equal(saved.status, 200);
+
+        // The upload disappears after the save (asset maintenance, manual delete).
+        await executeSql(
+            database,
+            'DELETE FROM wiki_entry_document_media WHERE id=?',
+            [uploaded.media.id]
+        );
+
+        const read = await readContractJson(
+            await adminRequest(app, 'GET', adminWikiEntryDocumentPath(entryId)),
+            adminWikiEntryDocumentSchema
+        );
+        assert.deepEqual(read.warnings, [
+            {
+                line: 0,
+                code: 'asset-not-found',
+                message: `图片素材 doc:${uploaded.media.id} 不存在`,
+            },
+        ]);
+        assert.deepEqual(
+            read.document.blocks.map((block) =>
+                block.type === 'media' ? block.imageUrl : undefined
+            ),
+            [null]
+        );
+    });
+
+    test('warns with line numbers on save for every unusable reference', async () => {
+        const database = await createPostgresTestDatabase('wiki-doc-media-savewarn');
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+        const storage = new MemoryObjectStorage();
+        const { app } = createServices(repository, storage);
+        const own = await seedProject(database, 'savewarn');
+        const other = await seedProject(database, 'savewarnother');
+        const foreignCover = await seedCoverAsset(
+            database,
+            storage,
+            other.project.id,
+            'save-warn-cover'
+        );
+
+        const saved = await adminRequest(
+            app,
+            'PUT',
+            adminWikiEntryDocumentPath(own.entryId),
+            {
+                contentMode: 'document',
+                sourceMarkdown: [
+                    '## 一',
+                    '',
+                    `::media{asset="cover:${foreignCover.id}"}`,
+                    '',
+                    '::media{asset="doc:424242"}',
+                    '',
+                    '::story-category{name="不存在的分类"}',
+                    '',
+                ].join('\n'),
+                expectedRevision: 0,
+            }
+        );
+        assert.equal(saved.status, 200);
+        const savedBody = await readContractJson(
+            saved,
+            adminWikiEntryDocumentSaveSchema
+        );
+        assert.deepEqual(
+            savedBody.warnings.map((warning) => [
+                warning.line,
+                warning.code,
+                warning.message,
+            ]),
+            [
+                [
+                    3,
+                    'asset-cross-project',
+                    `共享封面素材 cover:${foreignCover.id} 不属于当前企划`,
+                ],
+                [5, 'asset-not-found', '图片素材 doc:424242 不存在'],
+                [7, 'unknown-category', '内容页没有该分类：不存在的分类'],
+            ]
+        );
+        assert.deepEqual(
+            await queryAll<{ cover_asset_id: number }>(
+                database,
+                'SELECT cover_asset_id FROM wiki_entry_document_cover_refs WHERE entry_id=?',
+                [own.entryId]
+            ),
+            []
+        );
     });
 });

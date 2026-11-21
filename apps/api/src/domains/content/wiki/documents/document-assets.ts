@@ -65,11 +65,14 @@ interface ResolvedAsset {
  * they sit next to, so no raw storage key ever reaches the wire. The API
  * refuses the request when the deployment has no public read base configured,
  * which is the same failure the shared cover library already surfaces.
+ *
+ * The URL depends only on the stored object, never on the reference that points
+ * at it, so an upload can resolve it before the media row exists.
  */
-export function wikiDocumentAssetImageUrl(
+export function documentImageUrl(
     storage: ObjectStorage
-): (asset: WikiDocumentAssetRef, objectKey: string) => Promise<string> {
-    return (_asset, objectKey) => requirePublicObjectUrl(storage, objectKey);
+): (objectKey: string) => Promise<string> {
+    return (objectKey) => requirePublicObjectUrl(storage, objectKey);
 }
 
 /**
@@ -271,10 +274,7 @@ export async function resolveWikiDocumentAssets(input: {
     assetRefs: readonly WikiDocumentAssetSite[];
     categoryRefs: readonly WikiDocumentCategorySite[];
     assets: WikiDocumentAssetTable;
-    imageUrl: (
-        asset: WikiDocumentAssetRef,
-        objectKey: string
-    ) => Promise<string>;
+    imageUrl: (objectKey: string) => Promise<string>;
 }): Promise<WikiDocumentAssetResolution> {
     const warnings: WikiDocumentWarning[] = [];
     const resolved = new Map<string, ResolvedAsset>();
@@ -299,7 +299,7 @@ export async function resolveWikiDocumentAssets(input: {
             }
             if (!resolved.has(key)) {
                 resolved.set(key, {
-                    imageUrl: await input.imageUrl(asset, record.objectKey),
+                    imageUrl: await input.imageUrl(record.objectKey),
                     presentationPolicy: record.presentationPolicy,
                 });
                 coverAssetIds.push(asset.id);
@@ -321,7 +321,7 @@ export async function resolveWikiDocumentAssets(input: {
         }
         if (!resolved.has(key)) {
             resolved.set(key, {
-                imageUrl: await input.imageUrl(asset, record.objectKey),
+                imageUrl: await input.imageUrl(record.objectKey),
                 presentationPolicy: 'inherit',
             });
         }

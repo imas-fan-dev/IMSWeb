@@ -194,9 +194,9 @@ export function normalizeWikiPublicStories(
 /**
  * Rewrites API-origin document image URLs for the current delivery origin.
  *
- * Document `imageUrl`s are either the storage public URL (absolute) or the
- * app-served `/api/wiki/document-media/<id>.webp` fallback, which still needs
- * the API origin in a split-origin deployment.
+ * Document `imageUrl`s are the API-resolved `ObjectStorage.createPublicReadUrl`
+ * values: absolute in a split-origin deployment, otherwise the API-relative
+ * public path that `apiMediaUrl` routes for the current target.
  */
 function normalizeDocumentBlocks(
   blocks: readonly WikiDocumentBlock[]

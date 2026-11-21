@@ -13,7 +13,7 @@ import {
     requireWikiServices,
     validateAndConvertStoryImage,
 } from '@/domains/content/wiki/service';
-import { wikiDocumentAssetImageUrl } from '@/domains/content/wiki/document-assets';
+import { documentImageUrl } from '@/domains/content/wiki/documents/document-assets';
 import type { WikiEntryDocumentParams } from '@/domains/content/wiki/documents/document-request';
 import {
     parseUploadWikiEntryDocumentMediaRequest,
@@ -81,6 +81,12 @@ export function createHandleUploadWikiEntryDocumentMedia<E extends Env>(
                     entry: String(entryId),
                 },
             });
+            // Resolve the public read URL before writing the row: a deployment
+            // without a public read base must fail here, not leave a media row
+            // pointing at an object the response could never serve.
+            const imageUrl = await documentImageUrl(services.storage!)(
+                createdKey
+            );
             const record = await repository.createWikiEntryDocumentMedia({
                 entryId,
                 projectId: entry.projectId,
@@ -97,10 +103,7 @@ export function createHandleUploadWikiEntryDocumentMedia<E extends Env>(
                 status: 'success',
                 media: {
                     id: record.id,
-                    imageUrl: await wikiDocumentAssetImageUrl(services.storage!)(
-                        { kind: 'doc', id: record.id },
-                        record.objectKey
-                    ),
+                    imageUrl,
                     altText: record.altText,
                 },
             });
