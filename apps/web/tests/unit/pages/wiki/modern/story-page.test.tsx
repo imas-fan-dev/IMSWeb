@@ -33,6 +33,8 @@ function storyPayload(
       entrySubtype: null,
       imageTransform: defaultWikiImageTransform,
     },
+    contentMode: "structured",
+    document: null,
     categories: [
       {
         name: "enzaP卡",
@@ -124,6 +126,8 @@ function gakumasSCardPayload() {
       entrySubtype: "special",
       imageTransform: defaultWikiImageTransform,
     },
+    contentMode: "structured",
+    document: null,
     categories: [
       {
         name: "S卡",

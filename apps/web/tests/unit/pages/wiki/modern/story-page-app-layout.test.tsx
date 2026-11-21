@@ -33,6 +33,8 @@ const storyPayload = {
     entrySubtype: null,
     imageTransform: defaultWikiImageTransform,
   },
+  contentMode: "structured",
+  document: null,
   categories: [],
 }
 

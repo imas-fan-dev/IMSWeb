@@ -77,6 +77,24 @@ export function StoryNavigationPanel({
       </label>
 
       <nav aria-label="剧情分类" className="grid gap-1">
+        {stories.document?.headings.length ? (
+          <p className="px-3 pt-2 text-xs font-semibold text-muted-foreground">
+            文档目录
+          </p>
+        ) : null}
+        {stories.document?.headings.map((heading) => (
+          <a
+            key={heading.id}
+            href={`#${heading.id}`}
+            onClick={onNavigate}
+            className={cn(
+              "flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+              heading.level === 3 && "pl-6 text-muted-foreground"
+            )}
+          >
+            <span className="min-w-0 truncate">{heading.text}</span>
+          </a>
+        ))}
         {categories.map((category, index) => (
           <a
             key={category.name}

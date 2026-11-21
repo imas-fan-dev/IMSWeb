@@ -203,6 +203,8 @@ export function makeWikiPublicStories(
     status: "success",
     agency: makeWikiAgencySummary(),
     idol: makeWikiPublicIdol(),
+    contentMode: "structured",
+    document: null,
     categories: [{ name: "主线", cards: [makeWikiPublicStoryCard()] }],
     ...overrides,
   }

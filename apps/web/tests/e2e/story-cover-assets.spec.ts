@@ -151,6 +151,8 @@ test.describe("story cover assets", () => {
               rotation: 0,
             },
           },
+          contentMode: "structured",
+          document: null,
           categories: [
             {
               name: "enza主线",

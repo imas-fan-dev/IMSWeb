@@ -2,6 +2,7 @@ import { Layers3Icon } from "lucide-react"
 import { type CSSProperties } from "react"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { WikiDocumentRenderer } from "~/components/wiki/wiki-document-renderer"
 import type {
   WikiPublicStories,
   WikiPublicStoryCard,
@@ -44,6 +45,11 @@ export function ClassicStoryContent({
 }: ClassicStoryContentProps) {
   return (
     <section className="wiki-classic-story-content">
+      {stories.document ? (
+        <article className="wiki-classic-story-document">
+          <WikiDocumentRenderer document={stories.document} />
+        </article>
+      ) : null}
       {castFilter ? (
         <ClassicSCardCastFilter {...castFilter} />
       ) : (

@@ -97,6 +97,18 @@
   height: 15px;
 }
 
+.wiki-classic-story-document {
+  padding: 18px 22px;
+  border: 1px solid color-mix(in srgb, var(--classic-story-color) 26%, white);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--classic-story-ink);
+}
+
+.wiki-classic-story-document > :first-child {
+  margin-top: 0;
+}
+
 @media (max-width: 800px) {
   .wiki-classic-s-card-filter {
     top: 8px;

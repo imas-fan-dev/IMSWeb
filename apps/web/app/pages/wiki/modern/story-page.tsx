@@ -13,6 +13,7 @@ import { useLocation, useSearchParams } from "react-router"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
+import { WikiDocumentRenderer } from "~/components/wiki/wiki-document-renderer"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -357,6 +358,12 @@ export function StoryPage() {
 
           <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:px-8 lg:py-10">
             <div className="min-w-0 space-y-12">
+              {stories.document ? (
+                <WikiDocumentRenderer
+                  document={stories.document}
+                  className="rounded-lg border bg-card px-5 py-6 sm:px-8"
+                />
+              ) : null}
               {visibleCategories.length ? (
                 visibleCategories.map((category, index) => (
                   <StoryCategorySection
@@ -369,7 +376,7 @@ export function StoryPage() {
                     highlightedCardId={highlightedCardId}
                   />
                 ))
-              ) : (
+              ) : stories.document ? null : (
                 <div className="rounded-lg border border-dashed px-6 py-16 text-center">
                   <Link2Icon className="mx-auto size-7 text-muted-foreground" />
                   <p className="mt-4 font-medium">

@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | 读者浏览现代 Wiki 目录 | [modern/index](modern/index.tsx)、[modern 组件](modern/components/) | 企划切换、栏目与内容页筛选、目录展示 |
 | 读者查看现代剧情 | [modern/story-page](modern/story-page.tsx)、[剧情分类](modern/components/story-category-section.tsx)、[剧情导航](modern/components/story-navigation-panel.tsx) | 剧情分类、卡片与阅读导航 |
+| 读者阅读增强 Markdown 文档 | [wiki-document-renderer](../../components/wiki/wiki-document-renderer.tsx)（现代与经典共用） | 渲染 API 编译的 AST：标题、列表、引用、表格、callout 与可折叠 details；不解析 Markdown、不注入 HTML |
 | Web 读者使用经典目录与剧情 | [classic/index](classic/index.tsx)、[classic-story-page](classic/classic-story-page.tsx)、[classic 组件与样式](classic/components/) | 经典页面自身的展示与外壳 |
 | 维护者调整共同展示规则 | [wiki-model](wiki-model.ts)、[CG 配音筛选](cg-voiced-idols.ts)、[学园卡片筛选](gakumas-s-card-cast-model.ts) | 卡片布局、颜色与特定资料筛选模型 |
 | 多页面复用 Wiki UI | [components/wiki](../../components/wiki/) | 跨目录与管理页面可复用的业务展示 |

@@ -59,6 +59,8 @@
 ## Wiki 阅读与后台运营
 
 公开 Wiki 的目录、现代剧情和经典外壳见 [Wiki 局部索引](pages/wiki/README.md)。
+`document` 模式内容由两套视图共用的
+[文档渲染器](components/wiki/wiki-document-renderer.tsx) 渲染 API 编译好的 AST；
 请求归属为 [wiki](lib/api/endpoints/wiki/)，测试见
 [Wiki 单元测试](../tests/unit/pages/wiki/) 与 [移动阅读流程](../tests/e2e/wiki-mobile.spec.ts)。
 

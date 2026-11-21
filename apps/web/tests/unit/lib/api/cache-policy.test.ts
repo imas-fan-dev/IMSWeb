@@ -67,6 +67,8 @@ const emptyWikiStories = {
     entrySubtype: null,
     imageTransform: defaultWikiImageTransform,
   },
+  contentMode: "structured",
+  document: null,
   categories: [],
 } as const
 

@@ -283,6 +283,8 @@ function storyResponse(
       color: agency.color,
     },
     idol,
+    contentMode: "structured",
+    document: null,
     categories,
   }
 }
