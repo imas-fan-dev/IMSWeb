@@ -74,7 +74,7 @@ const PARAM_BUILDERS = {
 // Builders that own a complete literal path and take no argument. Consumers see
 // only the package declarations, so the body is not resolvable from source; each
 // fixed builder is listed once here and the API must register through it.
-const FIXED_BUILDERS = {
+export const FIXED_BUILDERS = {
   adminWikiParseBilibiliBatchPath: join(PATH_PREFIXES.adminWikiPath, "parse-bilibili-batch"),
 };
 

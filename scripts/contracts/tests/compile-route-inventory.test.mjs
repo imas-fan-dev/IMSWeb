@@ -6,10 +6,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 import {
+  FIXED_BUILDERS,
   collectRouteInventory,
   routeInventoryArtifact,
   runInventoryCli,
 } from "../compile-route-inventory.mjs";
+import * as contractPaths from "../../../packages/contracts/src/paths.ts";
 
 function fixture(source) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "imsweb-route-inventory-"));
@@ -129,6 +131,20 @@ test.describe('route inventory compiler', () => {
         ["PUT", "/custom", "json", "reject"],
       ],
     );
+  });
+
+  test("fixed zero-argument builders match the contracts path builders", () => {
+    // The inventory reads package declarations, so zero-argument builders are
+    // mirrored in FIXED_BUILDERS. Drift between that table and the real builder
+    // would silently register the wrong path, so compare both here.
+    for (const [builder, expectedPath] of Object.entries(FIXED_BUILDERS)) {
+      assert.equal(
+        typeof contractPaths[builder],
+        "function",
+        `${builder} is not exported by @imsweb/contracts/paths`,
+      );
+      assert.equal(contractPaths[builder](), expectedPath);
+    }
   });
 
   test("production inventory preserves approved totals and route-level reconciliation", () => {

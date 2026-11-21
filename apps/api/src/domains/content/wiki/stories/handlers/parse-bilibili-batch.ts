@@ -28,7 +28,7 @@ const BILIBILI_BATCH_CONCURRENCY = 4;
  * Blank lines disappear, and a repeated link is parsed once, so one paste never
  * spends a duplicate upstream request or inserts a duplicate Markdown row.
  */
-export function uniqueBilibiliInputs(urls: readonly string[]): string[] {
+function uniqueBilibiliInputs(urls: readonly string[]): string[] {
     const seen = new Set<string>();
     const unique: string[] = [];
     for (const raw of urls) {

@@ -77,6 +77,39 @@ function installBatchFetch(items: unknown[]) {
   return recorded
 }
 
+/**
+ * Holds the batch response open so a test can observe the in-flight dialog and
+ * then fail the request deterministically.
+ */
+function installPendingBatchFetch() {
+  const recorded: RecordedBatch[] = []
+  let failRequest: (() => void) | null = null
+  installFetchMock((...args) => {
+    const request = requestDetails(args)
+    const url = new URL(request.url, window.location.origin)
+    if (
+      request.method.toUpperCase() === "POST" &&
+      url.pathname === "/api/admin/wiki/parse-bilibili-batch"
+    ) {
+      recorded.push({
+        body: JSON.parse(String(request.body)) as { urls: string[] },
+        csrf: request.headers.get("x-csrftoken"),
+      })
+      return new Promise<Response>((_resolve, reject) => {
+        failRequest = () => reject(new TypeError("Failed to fetch"))
+      })
+    }
+    return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+  })
+  return {
+    recorded,
+    fail: () => {
+      if (!failRequest) throw new Error("batch request has not started")
+      failRequest()
+    },
+  }
+}
+
 const idlePreview: DocumentPreviewView = {
   requestedSource: null,
   document: null,
@@ -279,5 +312,103 @@ describe("Wiki document batch Bilibili macro", () => {
 
     await user.click(screen.getByRole("option", { name: "电话" }))
     expect(combobox).toHaveTextContent("电话")
+  })
+
+  it("locks the dialog while parsing and recovers after a request failure", async () => {
+    const pending = installPendingBatchFetch()
+    render(<EditorHarness initialSource="" />)
+    const user = userEvent.setup()
+
+    const { dialog, urls } = await openBatchDialog(user)
+    await user.click(urls)
+    await user.paste("https://www.bilibili.com/video/BV1xx411c7mD")
+    await user.click(within(dialog).getByRole("button", { name: "解析链接" }))
+
+    const parsing = await within(dialog).findByRole("button", {
+      name: "解析中…",
+    })
+    expect(parsing).toBeDisabled()
+    expect(
+      within(dialog).getByRole("button", { name: "插入链接" })
+    ).toBeDisabled()
+    expect(pending.recorded).toHaveLength(1)
+
+    pending.fail()
+
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert).toHaveTextContent("批量解析失败")
+    expect(alert).toHaveTextContent("网络请求失败")
+    const retry = await within(dialog).findByRole("button", {
+      name: "解析链接",
+    })
+    expect(retry).toBeEnabled()
+    expect(within(dialog).queryByText(/条成功/)).not.toBeInTheDocument()
+    expect(
+      within(dialog).getByRole("button", { name: "插入链接" })
+    ).toBeDisabled()
+  })
+
+  it("refuses more than twenty links without calling the API", async () => {
+    const recorded = installBatchFetch([])
+    render(<EditorHarness initialSource="" />)
+    const user = userEvent.setup()
+
+    const { dialog, urls } = await openBatchDialog(user)
+    await user.click(urls)
+    await user.paste(
+      Array.from(
+        { length: 21 },
+        (_, index) =>
+          `https://www.bilibili.com/video/BV1${String(index).padStart(9, "0")}`
+      ).join("\n")
+    )
+
+    expect(await within(dialog).findByText("链接过多")).toBeVisible()
+    expect(dialog).toHaveTextContent("一次最多解析 20 条链接，请拆分后再试。")
+    const parse = within(dialog).getByRole("button", { name: "解析链接" })
+    expect(parse).toBeDisabled()
+    await user.click(parse)
+    expect(recorded).toHaveLength(0)
+  })
+
+  it("counts server successes even when a success carries no canonical URL", async () => {
+    installBatchFetch([
+      {
+        inputUrl: "https://www.bilibili.com/video/BV1xx411c7mD",
+        ok: true,
+        title: "第一话",
+        up: "UP甲",
+        stdUrl: "https://www.bilibili.com/video/BV1xx411c7mD",
+      },
+      {
+        inputUrl: "https://www.bilibili.com/video/BV1yy411c7mE",
+        ok: true,
+        title: "无规范链接",
+        up: "UP乙",
+      },
+      {
+        inputUrl: "https://www.bilibili.com/video/BV1zz411c7mF",
+        ok: false,
+        error: "啥都木有",
+      },
+    ])
+    render(<EditorHarness initialSource="" />)
+    const user = userEvent.setup()
+
+    const { dialog, urls } = await openBatchDialog(user)
+    await user.click(urls)
+    await user.paste(
+      [
+        "https://www.bilibili.com/video/BV1xx411c7mD",
+        "https://www.bilibili.com/video/BV1yy411c7mE",
+        "https://www.bilibili.com/video/BV1zz411c7mF",
+      ].join("\n")
+    )
+    await user.click(within(dialog).getByRole("button", { name: "解析链接" }))
+
+    expect(await within(dialog).findByText("2 条成功 · 1 条失败")).toBeVisible()
+    expect(
+      within(dialog).getByRole("button", { name: "插入 1 条链接" })
+    ).toBeEnabled()
   })
 })

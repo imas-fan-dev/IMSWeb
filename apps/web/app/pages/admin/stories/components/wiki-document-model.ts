@@ -215,11 +215,13 @@ export type BatchBilibiliLink = {
 /**
  * Escapes one `[类型｜平台｜UP]` label field.
  *
- * Backslashes and `]` are escaped so a label cannot close the link text early,
- * and halfwidth `|` becomes `｜` so it never reads as a field separator.
+ * Whitespace collapses to single spaces so a pasted newline cannot break the
+ * line; backslashes and `]` are escaped so a label cannot close the link text
+ * early, and halfwidth `|` becomes `｜` so it never reads as a field separator.
  */
 function sourceListLabelField(value: string) {
   return value
+    .replaceAll(/\s+/gu, " ")
     .trim()
     .replaceAll("\\", "\\\\")
     .replaceAll("]", "\\]")

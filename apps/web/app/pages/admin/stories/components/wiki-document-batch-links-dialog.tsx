@@ -80,8 +80,11 @@ export function DocumentBatchLinksDialog({
   const tooMany = urls.length > BATCH_BILIBILI_LIMIT
   const contentTypeOptions = batchContentTypeOptions(contentTypes)
   const parsed = result?.items ?? []
-  const resolved = parsed.filter((item) => item.ok && item.stdUrl)
-  const failed = parsed.length - resolved.length
+  // The summary reports the server's verdict per link; insertion additionally
+  // requires the canonical URL the line needs.
+  const succeeded = parsed.filter((item) => item.ok).length
+  const failed = parsed.length - succeeded
+  const insertable = parsed.filter((item) => item.ok && item.stdUrl)
 
   const parse = async () => {
     if (!urls.length || tooMany) return
@@ -98,7 +101,7 @@ export function DocumentBatchLinksDialog({
   }
 
   const insert = () => {
-    const lines = resolved.map((item) =>
+    const lines = insertable.map((item) =>
       bilibiliSourceLine({
         contentType,
         up: item.up ?? "",
@@ -236,7 +239,7 @@ export function DocumentBatchLinksDialog({
           {result ? (
             <div className="flex flex-col gap-2">
               <p aria-live="polite" className="text-xs text-muted-foreground">
-                {resolved.length} 条成功 · {failed} 条失败
+                {succeeded} 条成功 · {failed} 条失败
               </p>
               <ul
                 aria-label="批量解析结果"
@@ -277,10 +280,12 @@ export function DocumentBatchLinksDialog({
                 className="animate-spin"
               />
             ) : null}
-            解析链接
+            {parsing ? "解析中…" : "解析链接"}
           </Button>
-          <Button type="button" disabled={!resolved.length} onClick={insert}>
-            {resolved.length ? `插入 ${resolved.length} 条链接` : "插入链接"}
+          <Button type="button" disabled={!insertable.length} onClick={insert}>
+            {insertable.length
+              ? `插入 ${insertable.length} 条链接`
+              : "插入链接"}
           </Button>
         </DialogFooter>
       </DialogContent>
