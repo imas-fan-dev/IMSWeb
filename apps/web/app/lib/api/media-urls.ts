@@ -88,6 +88,10 @@ import type {
 } from "@imsweb/contracts/producer-map"
 import type {
   WikiAdminCatalog,
+  WikiAdminEntryDocument,
+  WikiAdminEntryDocumentMediaUpload,
+  WikiAdminEntryDocumentPreview,
+  WikiAdminEntryDocumentSave,
   WikiAdminStories,
   WikiDocumentBlock,
   WikiPublicCatalog,
@@ -321,6 +325,58 @@ export function normalizeWikiStoryCoverAssets(
       imageUrl: apiMediaUrl(asset.imageUrl),
     })),
   }
+}
+
+function adminDocumentMedia<T extends { imageUrl: string }>(media: T): T {
+  return { ...media, imageUrl: apiMediaUrl(media.imageUrl) }
+}
+
+/**
+ * Admin document reads carry the same server-compiled AST the public pages
+ * render, plus the entry's uploaded media list, so both go through the one
+ * runtime-owned URL rule.
+ */
+export function normalizeWikiAdminEntryDocument(
+  response: WikiAdminEntryDocument
+): WikiAdminEntryDocument {
+  return {
+    ...response,
+    document: {
+      ...response.document,
+      blocks: normalizeDocumentBlocks(response.document.blocks),
+    },
+    media: response.media.map(adminDocumentMedia),
+  }
+}
+
+export function normalizeWikiAdminEntryDocumentSave(
+  response: WikiAdminEntryDocumentSave
+): WikiAdminEntryDocumentSave {
+  return {
+    ...response,
+    document: {
+      ...response.document,
+      blocks: normalizeDocumentBlocks(response.document.blocks),
+    },
+  }
+}
+
+export function normalizeWikiAdminEntryDocumentPreview(
+  response: WikiAdminEntryDocumentPreview
+): WikiAdminEntryDocumentPreview {
+  return {
+    ...response,
+    document: {
+      ...response.document,
+      blocks: normalizeDocumentBlocks(response.document.blocks),
+    },
+  }
+}
+
+export function normalizeWikiAdminEntryDocumentMediaUpload(
+  response: WikiAdminEntryDocumentMediaUpload
+): WikiAdminEntryDocumentMediaUpload {
+  return { ...response, media: adminDocumentMedia(response.media) }
 }
 
 /* -------------------------------------------------------------------------- */

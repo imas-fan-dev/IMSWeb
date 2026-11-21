@@ -1,4 +1,10 @@
-import { adminWikiPath, wikiPath } from "@imsweb/contracts/paths"
+import {
+  adminWikiEntryDocumentMediaPath,
+  adminWikiEntryDocumentPath,
+  adminWikiEntryDocumentPreviewPath,
+  adminWikiPath,
+  wikiPath,
+} from "@imsweb/contracts/paths"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import {
@@ -9,6 +15,10 @@ import {
 import { apiClient } from "../../client"
 import {
   normalizeWikiAdminCatalog,
+  normalizeWikiAdminEntryDocument,
+  normalizeWikiAdminEntryDocumentMediaUpload,
+  normalizeWikiAdminEntryDocumentPreview,
+  normalizeWikiAdminEntryDocumentSave,
   normalizeWikiAdminStories,
   normalizeWikiPublicCatalog,
   normalizeWikiPublicStories,
@@ -18,6 +28,10 @@ import {
 } from "../../media-urls"
 import { withBackofficeAuth, withBackofficeCsrf } from "../../types"
 import {
+  adminWikiEntryDocumentMediaUploadSchema,
+  adminWikiEntryDocumentPreviewSchema,
+  adminWikiEntryDocumentSaveSchema,
+  adminWikiEntryDocumentSchema,
   bilibiliResultSchema,
   wikiAdminCatalogSchema,
   wikiAdminStoriesSchema,
@@ -45,6 +59,7 @@ import {
   wikiStorySourceCatalogSchema,
   wikiStorySourcePlatformMutationSchema,
   type WikiAdminStory,
+  type WikiContentMode,
   type WikiEntityImageKind,
   type WikiImageTransform,
   type WikiStoryCoverPresentationPolicy,
@@ -269,6 +284,74 @@ export function getAdminWikiStoryCoverAssets(agencyId: number) {
       ...wikiResponseConfig(),
       meta: withBackofficeAuth(),
       select: normalizeWikiStoryCoverAssets,
+    })
+  )
+}
+
+/** Enhanced Markdown documents: read, compile-only preview, save, and media. */
+export function getAdminWikiEntryDocument(entryId: number) {
+  return adminApiClient.Get(
+    adminWikiEntryDocumentPath(entryId),
+    parsed(adminWikiEntryDocumentSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeAuth(),
+      select: normalizeWikiAdminEntryDocument,
+    })
+  )
+}
+
+export function previewAdminWikiEntryDocument(input: {
+  entryId: number
+  sourceMarkdown: string
+}) {
+  return adminApiClient.Post(
+    adminWikiEntryDocumentPreviewPath(input.entryId),
+    { sourceMarkdown: input.sourceMarkdown },
+    parsed(adminWikiEntryDocumentPreviewSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeAuth(),
+      select: normalizeWikiAdminEntryDocumentPreview,
+    })
+  )
+}
+
+export function saveAdminWikiEntryDocument(input: {
+  entryId: number
+  contentMode: WikiContentMode
+  sourceMarkdown: string
+  expectedRevision: number
+  summary?: string
+}) {
+  const body: Record<string, unknown> = {
+    contentMode: input.contentMode,
+    sourceMarkdown: input.sourceMarkdown,
+    expectedRevision: input.expectedRevision,
+  }
+  if (input.summary) body.summary = input.summary
+  return adminApiClient.Put(
+    adminWikiEntryDocumentPath(input.entryId),
+    body,
+    parsed(adminWikiEntryDocumentSaveSchema, {
+      ...wikiMutationConfig(),
+      select: normalizeWikiAdminEntryDocumentSave,
+    })
+  )
+}
+
+export function uploadAdminWikiEntryDocumentMedia(input: {
+  entryId: number
+  file: File
+  altText?: string
+}) {
+  const form = new FormData()
+  form.append("image", input.file)
+  if (input.altText) form.append("alt_text", input.altText)
+  return adminApiClient.Post(
+    adminWikiEntryDocumentMediaPath(input.entryId),
+    form,
+    parsed(adminWikiEntryDocumentMediaUploadSchema, {
+      ...wikiMutationConfig(),
+      select: normalizeWikiAdminEntryDocumentMediaUpload,
     })
   )
 }
