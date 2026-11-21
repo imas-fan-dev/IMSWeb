@@ -319,6 +319,7 @@ export function WikiWorkbench() {
                   categories={stories?.categories ?? []}
                   cards={stories?.cards ?? []}
                   coverAssets={coverAssets}
+                  contentTypes={stories?.contentTypes ?? []}
                   onDraftDirtyChange={reportDraftDirty}
                   structured={
                     storiesError ? (

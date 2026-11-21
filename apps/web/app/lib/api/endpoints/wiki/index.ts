@@ -2,6 +2,7 @@ import {
   adminWikiEntryDocumentMediaPath,
   adminWikiEntryDocumentPath,
   adminWikiEntryDocumentPreviewPath,
+  adminWikiParseBilibiliBatchPath,
   adminWikiPath,
   wikiPath,
 } from "@imsweb/contracts/paths"
@@ -33,6 +34,7 @@ import {
   adminWikiEntryDocumentPreviewSchema,
   adminWikiEntryDocumentSaveSchema,
   adminWikiEntryDocumentSchema,
+  adminWikiParseBilibiliBatchResultSchema,
   bilibiliResultSchema,
   wikiAdminCatalogSchema,
   wikiAdminStoriesSchema,
@@ -60,6 +62,7 @@ import {
   wikiRevisionConflictResponseSchema,
   wikiStorySourceCatalogSchema,
   wikiStorySourcePlatformMutationSchema,
+  type WikiAdminParseBilibiliBatchRequest,
   type WikiAdminSaveEntryDocumentRequest,
   type WikiAdminStory,
   type WikiEntityImageKind,
@@ -121,6 +124,8 @@ export {
   type WikiAdminEntryDocumentMediaUpload,
   type WikiAdminEntryDocumentSave,
   type WikiAdminEntryDocumentPreview,
+  type WikiAdminBilibiliBatchItem,
+  type WikiAdminParseBilibiliBatchResult,
   type WikiAdminSaveEntryDocumentRequest,
   type WikiPublicStories,
   type WikiPublicStoryCard,
@@ -863,6 +868,24 @@ export function deleteWikiCategory(group: Omit<WikiStoryGroup, "cardName">) {
     form,
     parsed(wikiMutationResultSchema, {
       ...wikiMutationConfig(),
+    })
+  )
+}
+
+/**
+ * Parses a pasted batch of Bilibili links for the document authoring toolbar.
+ *
+ * The API keeps partial results: a failed link comes back with `ok: false` and
+ * `error`, so the dialog can insert the links that resolved.
+ */
+export function parseAdminWikiBilibiliBatch(urls: readonly string[]) {
+  const body: WikiAdminParseBilibiliBatchRequest = { urls: [...urls] }
+  return adminApiClient.Post(
+    adminWikiParseBilibiliBatchPath(),
+    body,
+    parsed(adminWikiParseBilibiliBatchResultSchema, {
+      ...wikiResponseConfig(),
+      meta: withBackofficeCsrf(),
     })
   )
 }

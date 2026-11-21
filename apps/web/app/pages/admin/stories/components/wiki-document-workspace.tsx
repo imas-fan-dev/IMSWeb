@@ -18,6 +18,7 @@ import {
   type WikiContentMode,
   type WikiDocumentMediaItem,
   type WikiStoryCoverAsset,
+  type WikiStoryContentType,
 } from "~/lib/api"
 import { errorMessage } from "./wiki-workbench-model"
 import { useDocumentPreview, useWikiEntryDocument } from "./wiki-document-hooks"
@@ -61,6 +62,7 @@ export function WikiDocumentWorkspace({
   categories,
   cards,
   coverAssets,
+  contentTypes,
   onDraftDirtyChange,
   structured,
 }: {
@@ -71,6 +73,8 @@ export function WikiDocumentWorkspace({
   cards: readonly { category: string }[]
   /** Agency shared covers the toolbar can embed as `cover:<id>`. */
   coverAssets: readonly WikiStoryCoverAsset[]
+  /** Content types the batch Bilibili macro writes; the catalog's active ones. */
+  contentTypes: readonly WikiStoryContentType[]
   /**
    * Reports whether the document draft differs from the stored document, so the
    * page can confirm before an entry switch would discard it.
@@ -317,6 +321,7 @@ export function WikiDocumentWorkspace({
           preview={preview}
           categories={categoryOptions}
           coverAssets={coverAssets}
+          contentTypes={contentTypes}
           uploading={upload.uploading}
           uploadError={upload.error}
           onUpload={uploadMedia}

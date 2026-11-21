@@ -1,5 +1,5 @@
 import { ImagePlusIcon, LoaderCircleIcon } from "lucide-react"
-import { useRef } from "react"
+import { useRef, useState, type RefObject } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button } from "~/components/ui/button"
@@ -17,7 +17,9 @@ import type {
   WikiPublicStoryCategory,
   WikiPublicStoryDocument,
   WikiStoryCoverAsset,
+  WikiStoryContentType,
 } from "~/lib/api"
+import { DocumentBatchLinksDialog } from "./wiki-document-batch-links-dialog"
 import { errorMessage } from "./wiki-workbench-model"
 import {
   DOCUMENT_INSERT_TEMPLATES,
@@ -152,17 +154,24 @@ export function DocumentWarnings({
 export function DocumentToolbar({
   categories,
   coverAssets,
+  contentTypes,
+  focusReturnRef,
   uploading,
   onInsert,
   onUpload,
 }: {
   categories: readonly DocumentCategoryOption[]
   coverAssets: readonly WikiStoryCoverAsset[]
+  /** Active catalog content types the batch Bilibili macro can write. */
+  contentTypes: readonly WikiStoryContentType[]
+  /** Source textarea the batch dialog returns focus to when it closes. */
+  focusReturnRef: RefObject<HTMLTextAreaElement | null>
   uploading: boolean
   onInsert: (snippet: string) => void
   onUpload: (file: File) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [batchLinksOpen, setBatchLinksOpen] = useState(false)
   return (
     <div
       role="toolbar"
@@ -239,6 +248,26 @@ export function DocumentToolbar({
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setBatchLinksOpen(true)}
+      >
+        批量解析 B 站链接
+      </Button>
+
+      <DocumentBatchLinksDialog
+        open={batchLinksOpen}
+        onOpenChange={setBatchLinksOpen}
+        contentTypes={contentTypes}
+        finalFocus={focusReturnRef}
+        onInsert={(snippet) => {
+          onInsert(snippet)
+          setBatchLinksOpen(false)
+        }}
+      />
 
       <Button
         type="button"

@@ -204,3 +204,112 @@ export function documentDraftIsDirty(
 ) {
   return loaded ? source !== loaded.sourceMarkdown : false
 }
+
+/** One Bilibili link the batch parser resolved. */
+export type BatchBilibiliLink = {
+  title: string
+  up: string
+  stdUrl: string
+}
+
+/**
+ * Escapes one `[类型｜平台｜UP]` label field.
+ *
+ * Backslashes and `]` are escaped so a label cannot close the link text early,
+ * and halfwidth `|` becomes `｜` so it never reads as a field separator.
+ */
+function sourceListLabelField(value: string) {
+  return value
+    .trim()
+    .replaceAll("\\", "\\\\")
+    .replaceAll("]", "\\]")
+    .replaceAll("|", "｜")
+}
+
+/**
+ * Keeps a trailing title human-readable while neutralizing `](`.
+ *
+ * Titles never enter attribute quotes, so `"`, `【】`, `「」`, `*`, `<`, `>` stay
+ * literal. Only a `](` sequence is escaped, because it would otherwise open a
+ * second link, and newlines collapse to one line.
+ */
+function sourceListTitle(value: string) {
+  return value.replaceAll(/\s+/gu, " ").trim().replaceAll("](", "]\\(")
+}
+
+/** `- [类型｜Bilibili｜UP](url) 标题` for one resolved link. */
+export function bilibiliSourceLine(
+  link: BatchBilibiliLink & { contentType: string }
+) {
+  const label = [link.contentType, "Bilibili", link.up]
+    .map(sourceListLabelField)
+    .join("｜")
+  const title = sourceListTitle(link.title)
+  const line = `- [${label}](${link.stdUrl})`
+  return title ? `${line} ${title}` : line
+}
+
+/** How the batch macro wraps the generated source lines. */
+export type BatchBilibiliWrapper = "lines" | "links"
+
+export const BATCH_BILIBILI_WRAPPERS: readonly {
+  id: BatchBilibiliWrapper
+  label: string
+}[] = [
+  { id: "lines", label: "仅链接行" },
+  { id: "links", label: ":::links 块" },
+]
+
+/** Generated Markdown for the batch macro, inserted at the editor caret. */
+export function batchBilibiliSnippet(
+  lines: readonly string[],
+  wrapper: BatchBilibiliWrapper
+) {
+  if (!lines.length) return ""
+  return wrapper === "links"
+    ? [":::links", ...lines, ":::"].join("\n")
+    : lines.join("\n")
+}
+
+/** The batch endpoint accepts at most this many links per request. */
+export const BATCH_BILIBILI_LIMIT = 20
+
+/**
+ * Splits a pasted column of links into trimmed, de-duplicated inputs.
+ *
+ * Mirrors the API: blank lines vanish and a repeated link is parsed once, so
+ * the request never carries entries the batch parser would drop anyway.
+ */
+export function splitBatchBilibiliUrls(text: string) {
+  const seen = new Set<string>()
+  const urls: string[] = []
+  for (const line of text.split(/\r?\n/u)) {
+    const url = line.trim()
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    urls.push(url)
+  }
+  return urls
+}
+
+/** The content type the batch macro writes unless the maintainer picks another. */
+export const DEFAULT_BATCH_CONTENT_TYPE = "剧情"
+
+/**
+ * Content types the batch macro offers: `剧情` first, then active catalog types.
+ *
+ * Inactive catalog options are excluded because new links must not revive a
+ * retired content type; `剧情` is always offered as the default even when the
+ * catalog has not been seeded yet.
+ */
+export function batchContentTypeOptions(
+  contentTypes: readonly { name: string; isActive: boolean }[]
+) {
+  const names = [DEFAULT_BATCH_CONTENT_TYPE]
+  for (const option of contentTypes) {
+    if (!option.isActive) continue
+    const name = option.name.trim()
+    if (name && !names.includes(name)) names.push(name)
+  }
+  return names
+}

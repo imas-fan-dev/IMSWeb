@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from "react"
 import { adminTextareaClass } from "~/components/admin/admin-ui"
 import { Button } from "~/components/ui/button"
 import { Textarea } from "~/components/ui/textarea"
-import type { WikiDocumentWarning, WikiStoryCoverAsset } from "~/lib/api"
+import type {
+  WikiDocumentWarning,
+  WikiStoryContentType,
+  WikiStoryCoverAsset,
+} from "~/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { cn } from "~/lib/utils"
 import {
@@ -38,6 +42,7 @@ export function WikiDocumentEditor({
   preview,
   categories,
   coverAssets,
+  contentTypes,
   uploading,
   uploadError,
   onUpload,
@@ -50,6 +55,7 @@ export function WikiDocumentEditor({
   preview: DocumentPreviewView
   categories: readonly DocumentCategoryOption[]
   coverAssets: readonly WikiStoryCoverAsset[]
+  contentTypes: readonly WikiStoryContentType[]
   uploading: boolean
   uploadError: unknown
   onUpload: (file: File) => Promise<{ id: number } | null>
@@ -161,6 +167,8 @@ export function WikiDocumentEditor({
       <DocumentToolbar
         categories={categories}
         coverAssets={coverAssets}
+        contentTypes={contentTypes}
+        focusReturnRef={textareaRef}
         uploading={uploading}
         onInsert={insertSnippet}
         onUpload={(file) => void uploadFile(file)}
