@@ -10,6 +10,7 @@ import {
   successEnvelope,
 } from "../common.js"
 import { namecardDiffSideSchema } from "../namecards.js"
+import { namecardTagNamesSchema } from "../namecard-tags.js"
 
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
@@ -85,6 +86,11 @@ export const fudabaCardClaimPayloadSchema = z
     madeOn: claimFieldSchema.madeOn.optional(),
     seriesCodes: claimFieldSchema.seriesCodes.optional(),
     favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
+    /**
+     * 标签随认领表单提交，但即时生效、**不写进 payload**：处理层会在创建认领
+     * 记录前摘掉它，审核 diff 里也不会出现。
+     */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict()
 
@@ -167,6 +173,8 @@ export const fudabaCardSupplementPayloadSchema = z
     groupName: claimFieldSchema.groupName.optional(),
     seriesCodes: claimFieldSchema.seriesCodes.optional(),
     favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
+    /** 同认领：即时生效，处理层在写入补充记录前摘掉。 */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict()
   .refine(filledInAtLeastOnce, { message: "至少要改动一处资料" })

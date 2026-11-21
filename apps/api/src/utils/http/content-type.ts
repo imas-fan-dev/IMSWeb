@@ -5,7 +5,8 @@ const CONTENT_TYPES: Record<string, string> = {
     '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
     '.geojson': 'application/geo+json', '.png': 'image/png', '.svg': 'image/svg+xml',
     '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.webp': 'image/webp',
-    '.woff': 'font/woff', '.woff2': 'font/woff2'
+    '.woff': 'font/woff', '.woff2': 'font/woff2',
+    '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8'
 };
 
 export function contentTypeForPath(filePath: string): string {

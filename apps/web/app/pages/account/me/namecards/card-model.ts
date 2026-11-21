@@ -44,6 +44,8 @@ export function cardFields(card: FudabaOwnerCard): FudabaCardFields {
     madeWithAi: content.madeWithAi,
     visible: content.visible,
     credits: content.credits.length ? content.credits : [emptyCredit()],
+    // 标签即时生效，不随待审版本变化：无论读 live 还是 pending 内容，都取根上的 tags。
+    tags: (card.tags ?? []).map((tag) => tag.name),
   }
 }
 
@@ -65,6 +67,7 @@ export function emptyCardFields(profile: PlatformProfile): FudabaCardFields {
     madeWithAi: false,
     visible: true,
     credits: [emptyCredit()],
+    tags: [],
   }
 }
 

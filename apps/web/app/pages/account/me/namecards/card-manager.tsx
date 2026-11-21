@@ -786,7 +786,7 @@ export function CardManager({
         <div
           data-testid="card-manager-controls"
           className={cn(
-            "sticky z-30 mt-3 bg-background py-2",
+            "sticky z-30 mt-3 py-2",
             IS_APP_TARGET ? "top-0" : "top-16"
           )}
         >

@@ -25,6 +25,7 @@ export async function handleListNamecards(
                 ? { seriesCodes: query.series }
                 : {}),
             ...(query.group ? { groupName: query.group } : {}),
+            ...(query.tags.length > 0 ? { tags: query.tags } : {}),
             ...(query.character.length > 0
                 ? { characterIds: query.character }
                 : {}),

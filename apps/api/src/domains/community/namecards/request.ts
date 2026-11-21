@@ -39,6 +39,8 @@ export interface NamecardListQuery {
     q: string | null;
     series: string[];
     group: string | null;
+    /** 标签筛选：词之间 OR（最多 5 个）。 */
+    tags: string[];
     character: number[];
     match: "any" | "all";
     excludeOther: boolean;
@@ -218,6 +220,13 @@ function wallQueryTextList(value: unknown): string[] {
     ];
 }
 
+/** 标签筛选：沿用可重复文本的读取规则，再按契约截到 5 个词、每个 64 字。 */
+function wallQueryTags(value: unknown): string[] {
+    return wallQueryTextList(value)
+        .map((tag) => tag.slice(0, 64))
+        .slice(0, 5);
+}
+
 /** 担当角色 id：契约解析成数字数组，旧入口给字符串。 */
 function wallQueryCharacterIds(value: unknown): number[] {
     const values = Array.isArray(value)
@@ -264,6 +273,7 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
         q: wallQueryText(query.q),
         series: wallQueryTextList(query.series),
         group: wallQueryText(query.group),
+        tags: wallQueryTags(query.tags),
         character: wallQueryCharacterIds(query.character),
         match: query.match === "all" ? "all" : "any",
         excludeOther: isSwitch(query.excludeOther),

@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures/test"
-import { installBrowserIconMock } from "./fixtures/homepage"
 
 test("merges range offices with their count while retaining the portrait search dock @mobile", async ({
   page,
@@ -9,7 +8,6 @@ test("merges range offices with their count while retaining the portrait search 
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )
-  await installBrowserIconMock(api)
   await api.mockRoute(
     "/api/community/exchange/office-series",
     (route) =>

@@ -389,8 +389,12 @@ export class FrontendStaticAssets implements StaticAssets {
         if (decision.kind === "not-found") {
             return new Response("Not Found", { status: 404 });
         }
-        return this.assets.fetch(
+        const noindex = decision.assetPath.endsWith(".html") &&
+            /^\/(?:account|admin)(?:\/|$)/i.test(url.pathname);
+        const response = await this.assets.fetch(
             rewriteFrontendRequest(request, url, decision.assetPath),
         );
+        if (noindex) response.headers.set("X-Robots-Tag", "noindex");
+        return response;
     }
 }

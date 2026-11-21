@@ -28,6 +28,7 @@ import type { PostgresConnection } from '@/infra/db/postgresql/connection';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
+import { SqlNamecardTagRepository } from '@/infra/db/repositories/namecard-tag-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
 import { SqlWikiEntityRepository } from '@/infra/db/repositories/wiki-entity-repository';
 import { SqlNamecardNotificationRepository } from '@/infra/db/repositories/namecard-notification-repository';
@@ -1735,6 +1736,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             favorite_characters: [character()],
             middle_object_keys: [],
             credits: [],
+            tags: [],
             legacy_card_id: null,
             origin: 'exchange',
             pages: [cardPageRow('front', 1), cardPageRow('back', 2)],
@@ -2291,6 +2293,12 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             ).bind('P Name A', matchingCardId).run();
             await fudaba.createCard(registeredCard(`0${legacyId}`, ownerA));
 
+            // 认领并入既有名片时，标签取并集：目标已有「偶像」，无主卡上是
+            // 「偶像 + 本家」，绑定通过后目标应保留两条。
+            const tagRepository = new SqlNamecardTagRepository(database);
+            await tagRepository.replace({ cardId: matchingCardId, names: ['偶像'] });
+            await tagRepository.replace({ cardNumber: legacyId, names: ['偶像', '本家'] });
+
             // The same-id hint moved from the envelope table to the notification
             // feed: an ownerless wall card whose producer name matches a new
             // account's display name tells that account exactly once.
@@ -2438,6 +2446,13 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             // own columns untouched so it can absorb further guest uploads.
             assert.equal(claimCompleted.card?.id, matchingCardId);
             assert.equal((await fudaba.findCardById(matchingCardId))?.legacy_card_id, null);
+            assert.deepEqual(
+                (await tagRepository.listForCards([matchingCardId]))
+                    .get(matchingCardId)
+                    ?.map((tag) => tag.name)
+                    .sort(),
+                ['本家', '偶像'].sort()
+            );
             // The ownerless legacy row this claim bound onto must stop showing up
             // twice: it stays in place (guest attributes/reactions history are not
             // lost) but gets soft deleted so it drops off every compat read path.
@@ -3915,6 +3930,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261118140000_namecard_drop_fudaba_card_favorites',
                 '20261118150000_namecard_sort_metadata',
                 '20261119120000_namecard_exchange_gift',
+                '20261120120000_namecard_tags',
                 '20261121120000_namecard_project_visibility',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);

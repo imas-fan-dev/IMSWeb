@@ -161,6 +161,7 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         pending_pages: [],
         middle_object_keys: [],
         credits: [],
+        tags: [],
         exchange_mode: 'manual',
         made_on: null,
         group_name: null,

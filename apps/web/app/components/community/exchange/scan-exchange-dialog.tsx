@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppression"
 import {
   Sheet,
   SheetContent,
@@ -53,10 +54,14 @@ export function ScanExchangeDialog({
 }) {
   if (!open) return null
   return (
-    <ScanExchangeBody
-      cardNumbers={cardNumbers}
-      onClose={() => onOpenChange(false)}
-    />
+    <>
+      {/* 全屏取景不经过 Dialog / Sheet，原生底栏需在整个扫码流程中让位。 */}
+      <NativeTabBarSuppression />
+      <ScanExchangeBody
+        cardNumbers={cardNumbers}
+        onClose={() => onOpenChange(false)}
+      />
+    </>
   )
 }
 

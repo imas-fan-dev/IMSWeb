@@ -175,4 +175,19 @@ describe("namecard review diff", () => {
     const rows = diffFields(side(), null)
     expect(rows.every((row) => row.pending === null)).toBe(true)
   })
+
+  it("never turns instant-effect tags into comparison rows", () => {
+    const tagged = {
+      ...side(),
+      tags: [
+        { name: "765", presetId: 2 },
+        { name: "旧卡", presetId: null },
+      ],
+    } as DiffSide
+    const rows = diffFields(tagged, tagged)
+
+    expect(rows.map((row) => row.label)).not.toContain("标签")
+    expect(rows).toHaveLength(diffFields(side(), side()).length)
+    expect(rows.find((row) => row.label === "简介")?.live).toBe("简介")
+  })
 })

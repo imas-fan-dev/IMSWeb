@@ -1,7 +1,9 @@
+import { iconPath } from "@imsweb/contracts/paths"
 import { isRouteErrorResponse } from "react-router"
 import { useTranslation } from "react-i18next"
 
 import { RootAppLayout, RootDocumentLayout } from "~/layouts/root-layout"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import type { Route } from "./+types/root"
 import "./app.css"
 import { NavigationLink } from "~/components/navigation/navigation-link"
@@ -17,7 +19,11 @@ export function meta() {
 }
 
 export function links() {
-  return [{ rel: "icon", href: "/favicon.ico", type: "image/x-icon" }]
+  return [
+    IS_APP_TARGET
+      ? { rel: "icon", href: "/brand/imsweb-app-icon.png", type: "image/png" }
+      : { rel: "icon", href: iconPath("/agencies/1.webp"), type: "image/webp" },
+  ]
 }
 
 export { RootDocumentLayout as Layout }

@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "f1b9dbdd090097ba875b673f824a4ef55fa9c3eafa10aba448e63989ce1f98ad",
+    "semanticDigest": "787d56fe8140a9fd80229f9041f62062e6c331f32f8ec26f55d42caca743231d",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,19 +16,19 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 410,
-    "mountedMethodPaths": 311,
-    "noInputRoutes": 99,
-    "requestCarriers": 409,
+    "mountedRegistrations": 427,
+    "mountedMethodPaths": 327,
+    "noInputRoutes": 100,
+    "requestCarriers": 429,
     "policies": {
-      "reject": 96,
-      "accept-and-project": 212,
+      "reject": 109,
+      "accept-and-project": 219,
       "passthrough": 17,
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 866,
-      "json": 800,
+      "total": 871,
+      "json": 805,
       "nonJson": 66
     },
     "unresolved": 0
@@ -45,6 +45,16 @@
       }
     },
     "explicitQueryAdditions": [
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardTagSuggestQuerySchema",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1,
+        "routes": [
+          "GET /api/cards/tags/suggest"
+        ]
+      },
       {
         "module": "@imsweb/contracts/namecards",
         "symbol": "namecardCollectionOwnersQuerySchema",
@@ -197,16 +207,206 @@
         "carriers": 1,
         "policy": "accept-and-project",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagFreeQuerySchema",
+        "kind": "query",
+        "method": "GET",
+        "path": "/api/admin/namecard-tags/free",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPromoteRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/free/promote",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlockRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/free/block",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetListQuerySchema",
+        "kind": "query",
+        "method": "GET",
+        "path": "/api/admin/namecard-tags/presets",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetCreateRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/presets",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetParamsSchema",
+        "kind": "param",
+        "method": "PATCH",
+        "path": "/api/admin/namecard-tags/presets/:id",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetUpdateRequestSchema",
+        "kind": "json",
+        "method": "PATCH",
+        "path": "/api/admin/namecard-tags/presets/:id",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetParamsSchema",
+        "kind": "param",
+        "method": "DELETE",
+        "path": "/api/admin/namecard-tags/presets/:id",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetParamsSchema",
+        "kind": "param",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/presets/:id/merge",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagPresetMergeRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/presets/:id/merge",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistListQuerySchema",
+        "kind": "query",
+        "method": "GET",
+        "path": "/api/admin/namecard-tags/blocklist",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistCreateRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/blocklist",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistParamsSchema",
+        "kind": "param",
+        "method": "PATCH",
+        "path": "/api/admin/namecard-tags/blocklist/:id",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistUpdateRequestSchema",
+        "kind": "json",
+        "method": "PATCH",
+        "path": "/api/admin/namecard-tags/blocklist/:id",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistParamsSchema",
+        "kind": "param",
+        "method": "DELETE",
+        "path": "/api/admin/namecard-tags/blocklist/:id",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "adminNamecardTagBlocklistParamsSchema",
+        "kind": "param",
+        "method": "POST",
+        "path": "/api/admin/namecard-tags/blocklist/:id/remove-matches",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardTagValidateRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/cards/tags/validate",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardTagCardParamsSchema",
+        "kind": "param",
+        "method": "PUT",
+        "path": "/api/community/exchange/cards/:cardId/tags",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardTagSetRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/community/exchange/cards/:cardId/tags",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 178,
+      "/api/admin": 192,
       "/api/birthdays": 1,
-      "/api/cards": 6,
+      "/api/cards": 8,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 68,
+      "/api/community": 69,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -773,6 +973,56 @@
           "expression": "body satisfies InformationErrorResponse"
         }
       ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/namecard-tags/blocklist/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleDeleteBlocklist",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/namecard-tags/presets/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleDeletePreset",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
     },
     {
       "method": "DELETE",
@@ -3446,6 +3696,103 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/namecard-tags/blocklist",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleListBlocklist",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistListQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/namecard-tags/blocklist/matches",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleListBlockedMatches",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/namecard-tags/free",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleListFreeTags",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagFreeQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/namecard-tags/presets",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleListPresets",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetListQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/news",
       "registration": {
         "file": "apps/api/src/domains/content/news/routes.ts"
@@ -4092,6 +4439,42 @@
           "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
           "kind": "json",
           "expression": "{ cardNumber } satisfies RandomOwnerlessCardResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/tags/suggest",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleSuggestNamecardTags",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": "namecardTagSuggestQuerySchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/suggest-tags.ts",
+          "kind": "json",
+          "expression": "{ presets } satisfies NamecardTagSuggestResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/suggest-tags.ts",
+          "kind": "json",
+          "expression": "{ presets : [ ] } satisfies NamecardTagSuggestResponse"
         }
       ]
     },
@@ -9149,6 +9532,84 @@
     },
     {
       "method": "PATCH",
+      "path": "/api/admin/namecard-tags/blocklist/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateBlocklist",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/namecard-tags/presets/:id",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleUpdatePreset",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
@@ -11097,6 +11558,170 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/namecard-tags/blocklist",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleCreateBlocklist",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistCreateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/blocklist/:id/remove-matches",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleRemoveBlocklistMatches",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/free/block",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleBlockFreeTag",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagBlockRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/free/promote",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handlePromoteFreeTag",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPromoteRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/presets",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleCreatePreset",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetCreateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/presets/:id/merge",
+      "registration": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "handlerSymbol": "handleMergeFreeTag",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "schemaSymbol": "adminNamecardTagPresetMergeRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/news",
       "registration": {
         "file": "apps/api/src/domains/content/news/routes.ts"
@@ -11823,6 +12448,37 @@
         }
       ],
       "responses": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/cards/tags/validate",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "handlerSymbol": "handleValidateNamecardTags",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "schemaSymbol": "namecardTagValidateRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/public-cards/handlers/validate-tags.ts",
+          "kind": "json",
+          "expression": "{ blocked } satisfies NamecardTagValidateResponse"
+        }
+      ]
     },
     {
       "method": "POST",
@@ -15443,6 +16099,56 @@
     },
     {
       "method": "PUT",
+      "path": "/api/community/exchange/cards/:cardId/tags",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleReplaceNamecardTags",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardTagCardParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardTagSetRequestSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/replace-card-tags.ts",
+          "kind": "json",
+          "expression": "{ tags : saved } satisfies NamecardTagSetResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/replace-card-tags.ts",
+          "kind": "json",
+          "expression": "{ success : false , code : \"NAMECARD_TAG_INVALID\" , message : status > = 500 ? \"\\u6807\\u7B7E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies NamecardTagErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/community/exchange/me/cards/:cardId",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
@@ -16398,6 +17104,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/namecard-tags/blocklist/:id",
+      "handlerSymbol": "handleDeleteBlocklist",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/namecard-tags/presets/:id",
+      "handlerSymbol": "handleDeletePreset",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "DELETE",
@@ -17500,6 +18240,57 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/namecard-tags/blocklist",
+      "handlerSymbol": "handleListBlocklist",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistListQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/namecard-tags/free",
+      "handlerSymbol": "handleListFreeTags",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagFreeQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/namecard-tags/presets",
+      "handlerSymbol": "handleListPresets",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetListQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/platform/messages",
       "handlerSymbol": "handleListAdminStationMessages",
       "kind": "query",
@@ -17695,6 +18486,23 @@
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
       },
       "schemaSymbol": "namecardContributorsQuerySchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/tags/suggest",
+      "handlerSymbol": "handleSuggestNamecardTags",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "schemaSymbol": "namecardTagSuggestQuerySchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
@@ -19864,6 +20672,74 @@
     },
     {
       "method": "PATCH",
+      "path": "/api/admin/namecard-tags/blocklist/:id",
+      "handlerSymbol": "handleUpdateBlocklist",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/namecard-tags/blocklist/:id",
+      "handlerSymbol": "handleUpdateBlocklist",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/namecard-tags/presets/:id",
+      "handlerSymbol": "handleUpdatePreset",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/namecard-tags/presets/:id",
+      "handlerSymbol": "handleUpdatePreset",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
       "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "kind": "param",
@@ -20901,6 +21777,125 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/namecard-tags/blocklist",
+      "handlerSymbol": "handleCreateBlocklist",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistCreateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/blocklist/:id/remove-matches",
+      "handlerSymbol": "handleRemoveBlocklistMatches",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlocklistParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/free/block",
+      "handlerSymbol": "handleBlockFreeTag",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagBlockRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/free/promote",
+      "handlerSymbol": "handlePromoteFreeTag",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPromoteRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/presets",
+      "handlerSymbol": "handleCreatePreset",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetCreateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/presets/:id/merge",
+      "handlerSymbol": "handleMergeFreeTag",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/namecard-tags/presets/:id/merge",
+      "handlerSymbol": "handleMergeFreeTag",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "schemaSymbol": "adminNamecardTagPresetMergeRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/admin/namecard-tags/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/news",
       "handlerSymbol": "handleCreateNews",
       "kind": "json",
@@ -21253,6 +22248,23 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cards/tags/validate",
+      "handlerSymbol": "handleValidateNamecardTags",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "schemaSymbol": "namecardTagValidateRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/public-cards/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "POST",
@@ -22782,6 +23794,40 @@
         "file": "apps/api/src/domains/community/fudaba/cards/routes.ts"
       },
       "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/cards/:cardId/tags",
+      "handlerSymbol": "handleReplaceNamecardTags",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardTagCardParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/cards/:cardId/tags",
+      "handlerSymbol": "handleReplaceNamecardTags",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardTagSetRequestSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "reject",
       "syntaxPolicy": "reject"
     },
     {
@@ -24723,6 +25769,22 @@
       "file": "apps/api/src/domains/community/namecards/public-cards/handlers/get-random-ownerless-card.ts",
       "kind": "json",
       "expression": "{ cardNumber } satisfies RandomOwnerlessCardResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/tags/suggest",
+      "handlerSymbol": "handleSuggestNamecardTags",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/suggest-tags.ts",
+      "kind": "json",
+      "expression": "{ presets } satisfies NamecardTagSuggestResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cards/tags/suggest",
+      "handlerSymbol": "handleSuggestNamecardTags",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/suggest-tags.ts",
+      "kind": "json",
+      "expression": "{ presets : [ ] } satisfies NamecardTagSuggestResponse"
     },
     {
       "method": "GET",
@@ -27438,6 +28500,14 @@
     },
     {
       "method": "POST",
+      "path": "/api/cards/tags/validate",
+      "handlerSymbol": "handleValidateNamecardTags",
+      "file": "apps/api/src/domains/community/namecards/public-cards/handlers/validate-tags.ts",
+      "kind": "json",
+      "expression": "{ blocked } satisfies NamecardTagValidateResponse"
+    },
+    {
+      "method": "POST",
       "path": "/api/community/exchange/card/:slug/commit",
       "handlerSymbol": "handleCommitCardShare",
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/commit-card-share.ts",
@@ -29427,6 +30497,22 @@
       "file": "apps/api/src/domains/content/producer-map/handlers/update-producer-map.ts",
       "kind": "json",
       "expression": "{ error : status > = 500 ? \"\\u5236\\u4F5C\\u4EBA\\u5730\\u56FE\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies ProducerMapMutationErrorResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/cards/:cardId/tags",
+      "handlerSymbol": "handleReplaceNamecardTags",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/replace-card-tags.ts",
+      "kind": "json",
+      "expression": "{ tags : saved } satisfies NamecardTagSetResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/exchange/cards/:cardId/tags",
+      "handlerSymbol": "handleReplaceNamecardTags",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/replace-card-tags.ts",
+      "kind": "json",
+      "expression": "{ success : false , code : \"NAMECARD_TAG_INVALID\" , message : status > = 500 ? \"\\u6807\\u7B7E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies NamecardTagErrorResponse"
     },
     {
       "method": "PUT",

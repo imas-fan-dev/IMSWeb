@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ScanExchangeDialog } from "~/components/community/exchange/scan-exchange-dialog"
 import { EXCHANGE_COMPLETED_MESSAGE } from "~/components/community/exchange/use-exchange-submit"
 import { ApiError } from "~/lib/api"
+import {
+  isNativeTabBarInteractionBlocked,
+  isNativeTabBarSuppressed,
+  NATIVE_TAB_BAR_SUPPRESSION_EVENT,
+  nativeTabBarSuppressed,
+} from "~/lib/native-tab-bar-suppression"
 
 const runtime = vi.hoisted(() => ({ app: true, tauri: true }))
 
@@ -126,6 +132,30 @@ beforeEach(() => {
 })
 
 describe("ScanExchangeDialog", () => {
+  it("keeps native navigation hidden and inert until the scanner closes", async () => {
+    const camera = Promise.withResolvers<{ content: string; format: string }>()
+    scannerMocks.scan.mockReturnValue(camera.promise)
+    const dispatch = vi.spyOn(window, "dispatchEvent")
+    const { unmount } = renderDialog()
+    const visibilityChanges = () =>
+      dispatch.mock.calls
+        .map(([event]) => event)
+        .filter((event) => event.type === NATIVE_TAB_BAR_SUPPRESSION_EVENT)
+        .map(nativeTabBarSuppressed)
+
+    await waitFor(() => expect(scannerMocks.scan).toHaveBeenCalledTimes(1))
+    expect(isNativeTabBarSuppressed()).toBe(true)
+    expect(isNativeTabBarInteractionBlocked()).toBe(true)
+
+    camera.resolve({ content: TOKEN, format: "QR_CODE" })
+    expect(await screen.findByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
+    expect(visibilityChanges()).toEqual([true])
+
+    unmount()
+    expect(visibilityChanges()).toEqual([true, false])
+    expect(isNativeTabBarInteractionBlocked()).toBe(false)
+  })
+
   it("scans a QR token and commits the cards picked for this exchange", async () => {
     renderDialog()
 
@@ -253,6 +283,8 @@ describe("ScanExchangeDialog", () => {
         files: [new File(["fake"], "code.png", { type: "image/png" })],
       },
     })
+    expect(screen.getByText("正在识别图片…")).toBeVisible()
+    expect(isNativeTabBarSuppressed()).toBe(true)
     await act(async () => camera.resolve({ content: TOKEN, format: "QR_CODE" }))
     expect(apiMocks.commitScanSession).not.toHaveBeenCalled()
 

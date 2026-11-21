@@ -2,7 +2,6 @@ import type { EditorialArticleList } from "@imsweb/contracts/editorial"
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installAdminEditorialMock } from "./fixtures/admin-editorial"
 
 const longTitle =
@@ -40,7 +39,6 @@ const posts = {
 } satisfies EditorialArticleList
 
 test.beforeEach(async ({ page, api }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: {
       username: "event-layout-qa",

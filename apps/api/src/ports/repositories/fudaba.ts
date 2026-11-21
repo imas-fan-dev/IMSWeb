@@ -1,5 +1,6 @@
 import type { AuditLogInput } from "@/ports/repositories/admin";
 import type { WikiImageTransform } from "@/ports/repositories/wiki";
+import type { NamecardTagRecord } from "@/ports/repositories/namecard-tags";
 
 export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 
@@ -237,6 +238,8 @@ export interface FudabaCardRecord {
     made_with_ai: boolean;
     visible: boolean;
     credits: FudabaCardCredit[];
+    /** 已保存标签（即时生效，不随待审内容变化）。 */
+    tags: NamecardTagRecord[];
     publication_status: FudabaCardPublicationStatus;
     review_status: FudabaCardReviewStatus | null;
     review_reason: string | null;

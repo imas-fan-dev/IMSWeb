@@ -117,13 +117,14 @@ test.describe("namecard desktop reactions", () => {
       }
     })
     expect(geometry.pills).toHaveLength(2)
-    expect(geometry.add.width).toBeGreaterThanOrEqual(43.5)
-    expect(geometry.add.height).toBeGreaterThanOrEqual(43.5)
-    expect(geometry.circle.width).toBeCloseTo(32, 0)
-    expect(geometry.circle.height).toBeCloseTo(32, 0)
+    // 紧凑档把添加按钮收到 32px、胶囊/圆形按钮收到 28px/24px。
+    expect(geometry.add.width).toBeGreaterThanOrEqual(31.5)
+    expect(geometry.add.height).toBeGreaterThanOrEqual(31.5)
+    expect(geometry.circle.width).toBeCloseTo(24, 0)
+    expect(geometry.circle.height).toBeCloseTo(24, 0)
     await expect(add.locator("span")).toHaveCSS("border-top-style", "dashed")
     for (const pill of geometry.pills) {
-      expect(pill.height).toBeCloseTo(32, 0)
+      expect(pill.height).toBeCloseTo(28, 0)
       const overlaps =
         Math.min(pill.right, geometry.add.right) -
           Math.max(pill.x, geometry.add.x) >

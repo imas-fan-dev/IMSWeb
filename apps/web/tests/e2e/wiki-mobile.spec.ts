@@ -740,10 +740,7 @@ test.describe("wiki mobile", () => {
     },
     async ({ page, api, isMobile }) => {
       test.skip(!isMobile, "mobile-only classic story layout")
-      installSeededWikiApis(api, [
-        { path: "/api/wiki/catalog", times: 1 },
-        { path: "/api/wiki/stories", times: 1 },
-      ])
+      installSeededWikiApis(api, [{ path: "/api/wiki/stories", times: 1 }])
 
       await page.setViewportSize({ width: 390, height: 844 })
       await page.goto(
@@ -856,10 +853,7 @@ test.describe("wiki mobile", () => {
     isMobile,
   }) => {
     test.skip(isMobile, "desktop-only classic story framing")
-    installSeededWikiApis(api, [
-      { path: "/api/wiki/catalog", times: 1 },
-      { path: "/api/wiki/stories", times: 2 },
-    ])
+    installSeededWikiApis(api, [{ path: "/api/wiki/stories", times: 2 }])
 
     await page.goto(
       "/story/classic?agency=%E5%AD%A6%E5%9B%AD%E5%81%B6%E5%83%8F%E5%A4%A7%E5%B8%88&idol=%E8%91%9B%E5%9F%8E%E8%8E%89%E8%8E%89%E5%A8%85"
@@ -956,7 +950,7 @@ test.describe("wiki mobile", () => {
     test.skip(isMobile, "desktop-only classic Wiki alignment")
     installSeededWikiApis(api, [
       { path: "/api/wiki/random_bg", times: 1 },
-      { path: "/api/wiki/catalog", times: 2 },
+      { path: "/api/wiki/catalog", times: 1 },
     ])
 
     await page.setViewportSize({ width: 1600, height: 900 })
@@ -1010,7 +1004,7 @@ test.describe("wiki mobile", () => {
     test.skip(isMobile, "desktop-only classic Wiki return regression")
     installSeededWikiApis(api, [
       { path: "/api/wiki/random_bg", times: 2 },
-      { path: "/api/wiki/catalog", times: 2 },
+      { path: "/api/wiki/catalog", times: 1 },
       { path: "/api/wiki/stories", times: 1 },
     ])
 

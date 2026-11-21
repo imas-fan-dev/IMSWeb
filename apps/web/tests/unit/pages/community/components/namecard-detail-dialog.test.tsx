@@ -10,6 +10,7 @@ import { renderPage } from "@/tests/unit/support/harness"
 
 const apiMocks = vi.hoisted(() => ({
   getCardShareLink: vi.fn(),
+  setNamecardCardTags: vi.fn(),
 }))
 
 const sessionMocks = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
       send: () => Promise.resolve({ items: [] }),
     }),
     getCardShareLink: apiMocks.getCardShareLink,
+    setNamecardCardTags: apiMocks.setNamecardCardTags,
   }
 })
 
@@ -206,6 +208,8 @@ describe("NamecardDetailDialog", () => {
     expect(screen.queryByText("全部反应")).toBeNull()
     expect(screen.queryByLabelText("名片全部反应")).toBeNull()
     expect(screen.queryByRole("button", { name: "添加反应" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "添加标签" })).toBeNull()
+    expect(screen.queryByRole("heading", { name: "标签" })).toBeNull()
     expect(screen.queryByRole("button", { name: "交换名片" })).toBeNull()
     expect(screen.queryByRole("button", { name: "分享" })).toBeNull()
     expect(screen.queryByRole("button", { name: "编辑" })).toBeNull()
@@ -215,6 +219,43 @@ describe("NamecardDetailDialog", () => {
     // 卡片信息与公开参数照旧。
     expect(screen.getByLabelText("名片公开参数")).toBeInTheDocument()
     expect(screen.getByText("制作人名称")).toBeInTheDocument()
+  })
+
+  it("mounts the inline tag editor above the reactions by default", async () => {
+    renderDialog({ tags: [{ name: "偶像", presetId: null }] })
+
+    expect(await screen.findByText("标签")).toBeVisible()
+    expect(screen.getByText("偶像")).toBeVisible()
+    expect(screen.getByRole("button", { name: "添加标签" })).toBeVisible()
+    const tagsSection = screen.getByRole("heading", { name: "标签" })
+    const reactionsSection = screen.getByRole("heading", { name: "全部反应" })
+    expect(
+      tagsSection.compareDocumentPosition(reactionsSection) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it("hides the tag section when the caller opts out", async () => {
+    renderDialog(
+      { tags: [{ name: "偶像", presetId: null }] },
+      { showTags: false }
+    )
+
+    await screen.findByRole("button", { name: "交换名片" })
+    expect(screen.queryByRole("heading", { name: "标签" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "添加标签" })).toBeNull()
+  })
+
+  it("renders the smaller reaction size", async () => {
+    renderDialog(
+      {},
+      { reactions: { reactions: { "\u{1F525}": 2 }, loading: false } }
+    )
+
+    const chip = await screen.findByRole("button", {
+      name: "\u{1F525}，2 次反应",
+    })
+    expect(chip).toHaveClass("h-7", { exact: false })
   })
 
   it("replaces the exchange entry with the collection hide toggle", async () => {
