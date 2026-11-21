@@ -1,4 +1,5 @@
 import type {
+    WikiAdminExportStructuredEntryDocumentRequest,
     WikiAdminPreviewEntryDocumentRequest,
     WikiAdminSaveEntryDocumentRequest,
 } from '@imsweb/contracts/wiki';
@@ -11,3 +12,5 @@ export interface WikiEntryDocumentParams {
 export type WikiEntryDocumentSaveRequest = WikiAdminSaveEntryDocumentRequest;
 export type WikiEntryDocumentPreviewRequest =
     WikiAdminPreviewEntryDocumentRequest;
+export type WikiEntryDocumentExportStructuredRequest =
+    WikiAdminExportStructuredEntryDocumentRequest;

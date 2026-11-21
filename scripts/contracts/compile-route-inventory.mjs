@@ -55,6 +55,8 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/media", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiParseBilibiliBatchRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/parse-bilibili-batch", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "adminWikiExportStructuredEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "reject" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
@@ -70,6 +72,7 @@ const PARAM_BUILDERS = {
   adminWikiEntryDocumentPath: (entryId) => `entries/${entryId}/document`,
   adminWikiEntryDocumentPreviewPath: (entryId) => `entries/${entryId}/document/preview`,
   adminWikiEntryDocumentMediaPath: (entryId) => `entries/${entryId}/document/media`,
+  adminWikiEntryDocumentExportStructuredPath: (entryId) => `entries/${entryId}/document/export-structured`,
 };
 // Builders that own a complete literal path and take no argument. Consumers see
 // only the package declarations, so the body is not resolvable from source; each

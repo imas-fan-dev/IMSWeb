@@ -199,11 +199,14 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
 | `GET /api/admin/wiki/entries/:entryId/document`         | 读取模式、Markdown 原文、当前 `revision` 与编译 AST   |
 | `PUT /api/admin/wiki/entries/:entryId/document`         | 编译并保存；`expectedRevision` 过期返回 `409`         |
 | `POST /api/admin/wiki/entries/:entryId/document/preview` | 只编译不落库，返回 AST 与行号告警                    |
+| `POST /api/admin/wiki/entries/:entryId/document/export-structured` | 只读导出结构化卡片为 Markdown 草稿与数据卫生告警 |
 | `POST /api/admin/wiki/parse-bilibili-batch`              | 批量解析 1 至 20 条 B 站链接，逐条返回结果或错误      |
 
 保存拒绝未知请求字段；成功时在同一事务内写文档行、切换 `content_mode`、追加 revision 快照并裁剪
 到最新 30 条。批量解析先 trim 再去重，最多 4 条并发复用既有单条解析服务；单条失败只把该条标为
-`ok: false` 并给出 `error`，整批仍返回 `200`。
+`ok: false` 并给出 `error`，整批仍返回 `200`。结构化导出同样只读：按内容形态推断布局（不看
+`entryKind`）、按数值排序数字章节桶、拆分 `出场：` 名单为 `tags`，并把脏数据以 `lintWarnings`
+回报而不是静默丢弃；草稿是否插入、替换与保存由维护者在工作台决定。
 
 ### 企划、栏目与内容页写入
 
@@ -298,6 +301,7 @@ Wiki 实例选择关联资料或独立维护。绑定名称和图片在目录编
 - 剧情层级只写规范化卡片/来源表；历史表只用于对账。
 - 内容页在 `structured` 与 `document` 之间切换不删除另一侧数据；公开读取按 `content_mode` 选择渲染源。
 - 文档保存的 `expectedRevision` 与 `wiki_entry_documents.revision` 原子比较；冲突返回 `409` 且不写任何行。
+- 结构化导出只读取 `wiki_story_cards` / `wiki_story_links`，不写卡片、来源或文档表。
 - 共享封面只允许同企划卡片引用，并与卡片独立图片互斥；引用计数非零时删除返回 `409`。
 - 分类重命名携带当前名称，卡片追加来源以及栏目、来源删除携带当前媒体版本；过期写入返回 `409`，
   不覆盖其他管理员的修改。

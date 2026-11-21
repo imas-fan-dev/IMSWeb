@@ -157,13 +157,13 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 430,
-      mountedMethodPaths: 330,
+      mountedRegistrations: 431,
+      mountedMethodPaths: 331,
       noInputRoutes: 100,
-      requestCarriers: 434,
+      requestCarriers: 436,
       policies: {
-        reject: 110,
-        "accept-and-project": 223,
+        reject: 111,
+        "accept-and-project": 224,
         passthrough: 17,
         "non-object-applicable": 84,
       },
@@ -212,6 +212,8 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/media", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiParseBilibiliBatchRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/parse-bilibili-batch", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiExportStructuredEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "reject", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

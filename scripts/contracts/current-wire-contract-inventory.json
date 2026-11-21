@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "102391799778bc588f429cf9e552e304d27bcead53d4dff8ec30106bba84edb5",
+    "semanticDigest": "8aa1d9cd98fb7ac9028013e823f651c026f3635d342c0d20e56e423fc6f7148b",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,13 +16,13 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 430,
-    "mountedMethodPaths": 330,
+    "mountedRegistrations": 431,
+    "mountedMethodPaths": 331,
     "noInputRoutes": 100,
-    "requestCarriers": 434,
+    "requestCarriers": 436,
     "policies": {
-      "reject": 110,
-      "accept-and-project": 223,
+      "reject": 111,
+      "accept-and-project": 224,
       "passthrough": 17,
       "non-object-applicable": 84
     },
@@ -467,11 +467,31 @@
         "carriers": 1,
         "policy": "reject",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiEntryIdParamsSchema",
+        "kind": "param",
+        "method": "POST",
+        "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "adminWikiExportStructuredEntryDocumentRequestSchema",
+        "kind": "json",
+        "method": "POST",
+        "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 197,
+      "/api/admin": 198,
       "/api/birthdays": 1,
       "/api/cards": 8,
       "/api/check": 1,
@@ -12434,6 +12454,45 @@
     },
     {
       "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiEntryIdParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        },
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "schemaSymbol": "adminWikiExportStructuredEntryDocumentRequestSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/media",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
@@ -22358,6 +22417,40 @@
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiEntryIdParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "schemaSymbol": "adminWikiExportStructuredEntryDocumentRequestSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "POST",

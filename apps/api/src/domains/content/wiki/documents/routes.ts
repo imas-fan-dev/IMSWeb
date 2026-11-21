@@ -1,15 +1,18 @@
 import {
+    adminWikiEntryDocumentExportStructuredPath,
     adminWikiEntryDocumentMediaPath,
     adminWikiEntryDocumentPath,
     adminWikiEntryDocumentPreviewPath,
 } from '@imsweb/contracts/paths';
 import {
     adminWikiEntryIdParamsSchema,
+    adminWikiExportStructuredEntryDocumentRequestSchema,
     adminWikiPreviewEntryDocumentRequestSchema,
     adminWikiSaveEntryDocumentRequestSchema,
 } from '@imsweb/contracts/wiki';
 import type { Env, Hono } from 'hono';
 import type { WikiServicesResolver } from '@/domains/content/wiki/handler-support';
+import { createHandleExportStructuredWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/export-structured-entry-document';
 import { createHandleGetWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/get-entry-document';
 import { createHandlePreviewWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/preview-entry-document';
 import { createHandleSaveWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/save-entry-document';
@@ -54,5 +57,14 @@ export function registerWikiDocumentRoutes<E extends Env>(
         adminWikiEntryDocumentMediaPath(':entryId'),
         paramSchemaValidator(adminWikiEntryIdParamsSchema, paramOptions),
         createHandleUploadWikiEntryDocumentMedia(resolveServices),
+    );
+    app.post(
+        adminWikiEntryDocumentExportStructuredPath(':entryId'),
+        paramSchemaValidator(adminWikiEntryIdParamsSchema, paramOptions),
+        jsonSchemaValidator(
+            adminWikiExportStructuredEntryDocumentRequestSchema,
+            jsonOptions,
+        ),
+        createHandleExportStructuredWikiEntryDocument(resolveServices),
     );
 }
