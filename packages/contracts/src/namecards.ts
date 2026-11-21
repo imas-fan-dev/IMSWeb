@@ -1240,6 +1240,19 @@ export const namecardScanSessionStatusResponseSchema = exactJsonResponse({
   exchangeId: z.string().min(1).nullable(),
 })
 
+/**
+ * 扫码方 / 浏览器落地页：出示方与本次名片，只在还能交换时给名片。
+ * `own-card` 是出示方自己打开了链接，与分享页同口径。
+ */
+export const namecardScanLandingSchema = exactJsonResponse({
+  state: z.enum(["active", "committed", "expired", "own-card"]),
+  expiresAt: z.string().min(1),
+  /** 只有 active / own-card 才给出示方；已用 / 过期不再露出是谁的码。 */
+  owner: namecardShareOwnerSchema.nullable(),
+  cards: z.array(namecardSchema),
+  targetMissingCount: z.number().int().nonnegative(),
+})
+
 export type NamecardExchangeSource = z.infer<typeof namecardExchangeSourceSchema>
 export type NamecardExchangeStatus = z.infer<typeof namecardExchangeStatusSchema>
 export type NamecardExchangeSkipped = z.infer<
@@ -1291,6 +1304,7 @@ export type NamecardScanSession = z.infer<typeof namecardScanSessionSchema>
 export type NamecardScanSessionStatusResponse = z.infer<
   typeof namecardScanSessionStatusResponseSchema
 >
+export type NamecardScanLanding = z.infer<typeof namecardScanLandingSchema>
 export type NamecardScanSessionRequest = z.infer<
   typeof namecardScanSessionRequestSchema
 >

@@ -73,6 +73,7 @@ const UUID = {
     noneScan: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     giveNone: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     targetLocked: 'f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0',
+    landingHeld: 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1',
     targetHidden: 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1',
     giveBlocked: 'f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2',
     shelfLocked: 'f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3',
@@ -748,6 +749,150 @@ describe('namecard exchange repository', () => {
             { headers: authHeaders('owner') },
         );
         assert.equal(malformed.status, 400);
+    });
+
+    postgresTest('the scan landing page shows the owner and the offered cards', async () => {
+        const { app, authHeaders, openScanSession, publish } = await fixture();
+        const first = await publish('owner-scan-landing-a', 'owner', 'auto');
+        const second = await publish('owner-scan-landing-b', 'owner', 'auto');
+        await publish('owner-scan-landing-unlisted', 'owner', 'auto');
+        const { token, expiresAt } = await openScanSession('owner', [first, second]);
+
+        const response = await testRequest(app, `/api/community/exchange/scan/${token}`, {
+            headers: authHeaders('collector'),
+        });
+        assert.equal(response.status, 200, await response.clone().text());
+        const body = (await response.json()) as {
+            state: string;
+            expiresAt: string;
+            owner: { accountId: string; displayName: string };
+            cards: { cardNumber: number }[];
+            targetMissingCount: number;
+        };
+        assert.equal(body.state, 'active');
+        assert.equal(body.owner.accountId, 'owner');
+        assert.equal(body.owner.displayName, 'Owner');
+        assert.equal(Date.parse(body.expiresAt), Date.parse(expiresAt));
+        // 只列会话里选中的两张；清单顺序由仓储给定，比较集合即可。
+        assert.deepEqual(
+            body.cards.map((card) => card.cardNumber).sort((a, b) => a - b),
+            [first, second].sort((a, b) => a - b),
+        );
+        assert.equal(body.targetMissingCount, 0);
+
+        // 匿名也能预览：先看人再看牌，不能强制登录。
+        const anonymous = await testRequest(app, `/api/community/exchange/scan/${token}`);
+        assert.equal(anonymous.status, 200, await anonymous.clone().text());
+        const preview = (await anonymous.json()) as { state: string; cards: unknown[] };
+        assert.equal(preview.state, 'active');
+        assert.equal(preview.cards.length, 2);
+    });
+
+    postgresTest('the scan landing page marks held cards and recognises its own owner', async () => {
+        const { app, authHeaders, namecards, openScanSession, publish } = await fixture();
+        const held = await publish('owner-scan-landing-held', 'owner', 'auto');
+        const fresh = await publish('owner-scan-landing-fresh', 'owner', 'auto');
+        const give = await publish('collector-scan-landing-give', 'collector', 'auto');
+        const { token } = await openScanSession('owner', [held, fresh]);
+
+        const exchanged = await namecards.commitExchange({
+            id: UUID.landingHeld,
+            clientExchangeId: 'client-scan-landing-held',
+            source: 'card-share',
+            initiatorAccountId: 'collector',
+            targetAccountId: 'owner',
+            targetCardNumbers: [held],
+            giveCardNumbers: [give],
+            scanSessionId: null,
+            at: AT,
+        });
+        assert.equal(exchanged.exchange.status, 'completed');
+
+        const view = await testRequest(app, `/api/community/exchange/scan/${token}`, {
+            headers: authHeaders('collector'),
+        });
+        const body = (await view.json()) as {
+            state: string;
+            cards: { cardNumber: number; collected?: boolean }[];
+        };
+        assert.equal(body.state, 'active');
+        const byNumber = new Map(body.cards.map((card) => [card.cardNumber, card]));
+        assert.equal(byNumber.get(held)?.collected, true);
+        assert.notEqual(byNumber.get(fresh)?.collected, true);
+
+        // 自己打开自己的码：只提示，不给交换入口。
+        const own = await testRequest(app, `/api/community/exchange/scan/${token}`, {
+            headers: authHeaders('owner'),
+        });
+        const ownBody = (await own.json()) as { state: string; cards: unknown[] };
+        assert.equal(ownBody.state, 'own-card');
+        assert.equal(ownBody.cards.length, 2);
+    });
+
+    postgresTest('the scan landing page drops the cards once the code is used or expired', async () => {
+        const { database, app, authHeaders, openScanSession, publish, scanCommit } =
+            await fixture();
+        const usedNumber = await publish('owner-scan-landing-used', 'owner', 'auto');
+        const collectorNumber = await publish('collector-scan-landing-used', 'collector', 'auto');
+        const { token } = await openScanSession('owner', [usedNumber]);
+        const committed = await scanCommit('collector', token, {
+            clientExchangeId: 'client-scan-landing-used',
+            giveCardNumbers: [collectorNumber],
+        });
+        assert.equal(committed.status, 200, await committed.clone().text());
+
+        // 消费优先于过期：成功换过之后哪怕时间越过 expires_at，仍报 committed。
+        await executeSql(
+            database,
+            `UPDATE namecard_scan_sessions
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 days',
+                    expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'
+              WHERE token_hash = ?`,
+            [createHash('sha256').update(token).digest('hex')],
+        );
+        const used = await testRequest(app, `/api/community/exchange/scan/${token}`);
+        const usedBody = (await used.json()) as {
+            state: string;
+            owner: unknown;
+            cards: unknown[];
+        };
+        assert.equal(usedBody.state, 'committed');
+        // 已完成的码不再露出出示方或名片。
+        assert.equal(usedBody.owner, null);
+        assert.deepEqual(usedBody.cards, []);
+
+        const expiredNumber = await publish('owner-scan-landing-expired', 'owner', 'auto');
+        const { token: expiredToken } = await openScanSession('owner', [expiredNumber]);
+        await executeSql(
+            database,
+            `UPDATE namecard_scan_sessions
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '8 days',
+                    expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'
+              WHERE token_hash = ?`,
+            [createHash('sha256').update(expiredToken).digest('hex')],
+        );
+        const expired = await testRequest(app, `/api/community/exchange/scan/${expiredToken}`);
+        const expiredBody = (await expired.json()) as {
+            state: string;
+            owner: unknown;
+            cards: unknown[];
+        };
+        assert.equal(expiredBody.state, 'expired');
+        assert.equal(expiredBody.owner, null);
+        assert.deepEqual(expiredBody.cards, []);
+    });
+
+    postgresTest('the scan landing page hides unknown codes and validates the token', async () => {
+        const { app, authHeaders } = await fixture();
+        const missing = await testRequest(app, `/api/community/exchange/scan/${'a'.repeat(64)}`);
+        assert.equal(missing.status, 404);
+        assert.deepEqual(await missing.json(), { error: '二维码无效或已失效' });
+
+        const malformed = await testRequest(app, '/api/community/exchange/scan/not-a-token', {
+            headers: authHeaders('collector'),
+        });
+        assert.equal(malformed.status, 404);
+        assert.deepEqual(await malformed.json(), { error: '二维码无效或已失效' });
     });
 
     postgresTest('a scanned code is consumed by the exchange that completed it', async () => {

@@ -123,7 +123,16 @@ export async function handleSensitiveRequestPath(
 
 export async function handleApplicationNotFound(c: Context<AppEnvironment>): Promise<Response> {
     const assets = c.get("services").staticAssets;
-    return assets ? assets.fetch(c.req.raw) : c.text("Not Found", 404);
+    const response = assets
+        ? await assets.fetch(c.req.raw)
+        : c.text("Not Found", 404);
+    // 扫码落地页不索引：令牌是私下出示的凭据，不能被搜索结果和预览缓存。
+    if (!/^\/exchange\/scan\/[0-9a-f]{64}\/?$/i.test(c.req.path)) {
+        return response;
+    }
+    const headers = new Headers(response.headers);
+    headers.set('X-Robots-Tag', 'noindex, nofollow');
+    return new Response(response.body, { status: response.status, headers });
 }
 
 export function createHonoApp<

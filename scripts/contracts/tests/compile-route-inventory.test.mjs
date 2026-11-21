@@ -141,17 +141,17 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 427,
-      mountedMethodPaths: 327,
+      mountedRegistrations: 428,
+      mountedMethodPaths: 328,
       noInputRoutes: 100,
-      requestCarriers: 429,
+      requestCarriers: 430,
       policies: {
         reject: 109,
-        "accept-and-project": 219,
+        "accept-and-project": 220,
         passthrough: 17,
         "non-object-applicable": 84,
       },
-      responses: { total: 871, json: 805, nonJson: 66 },
+      responses: { total: 874, json: 808, nonJson: 66 },
       unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
@@ -189,6 +189,7 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

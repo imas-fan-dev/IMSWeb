@@ -136,6 +136,29 @@ describe("scanExchangeCode", () => {
     })
   })
 
+  it("recognizes a scan landing link as its token", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: `https://ims.test/exchange/scan/${TOKEN}`,
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).resolves.toEqual({
+      kind: "token",
+      token: TOKEN,
+    })
+  })
+
+  it("rejects a scan landing link whose token is not 64 hex characters", async () => {
+    scannerMocks.scan.mockResolvedValue({
+      content: "https://ims.test/exchange/scan/not-a-token",
+      format: "QR_CODE",
+    })
+
+    await expect(scanExchangeCode()).rejects.toBeInstanceOf(
+      ScanInvalidCodeError
+    )
+  })
+
   it("recognizes a quick-list share link", async () => {
     scannerMocks.scan.mockResolvedValue({
       content: "https://ims.test/exchange/zheizhei",

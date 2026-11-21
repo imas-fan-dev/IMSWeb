@@ -48,6 +48,7 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",

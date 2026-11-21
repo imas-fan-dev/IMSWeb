@@ -74,6 +74,16 @@ const SPA_ROUTE_CASES: Record<
         ],
         negative: ['/chronicle/one/two', '/chronicle/one%2Ftwo', '/chronicle/one%5Ctwo']
     },
+    'exchange/scan/:token': {
+        positive: [
+            `/exchange/scan/${'a'.repeat(64)}`,
+            `/exchange/scan/${'a'.repeat(64)}/`
+        ],
+        negative: [
+            '/exchange/scan/one/two',
+            '/exchange/scan/not-a-token/extra'
+        ]
+    },
     'account/me': {
         positive: ['/account/me', '/account/me/'],
         negative: []
@@ -231,6 +241,25 @@ test.describe('frontend routing', () => {
                 await assertFileResponse(route, fallback);
             }
         }
+
+        const scanToken = 'a'.repeat(64);
+        const scanShell = await request(`/exchange/scan/${scanToken}`);
+        assert.equal(scanShell.status, 200);
+        assert.equal(
+            scanShell.headers.get('x-robots-tag'),
+            'noindex, nofollow',
+            'scan landing pages must not be indexed'
+        );
+        const malformedScan = await request('/exchange/scan/not-a-token');
+        assert.equal(malformedScan.status, 200);
+        assert.equal(malformedScan.headers.get('x-robots-tag'), null);
+        const trailingScan = await request(`/exchange/scan/${scanToken}/`);
+        assert.equal(trailingScan.status, 200);
+        assert.equal(
+            trailingScan.headers.get('x-robots-tag'),
+            'noindex, nofollow',
+            'the trailing-slash variant is the same landing page'
+        );
 
         const head = await request('/chronicle/activity-1', { method: 'HEAD' });
         assert.equal(head.status, 200);

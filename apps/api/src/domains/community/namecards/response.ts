@@ -37,6 +37,7 @@ import type {
     NamecardQuickExchange as NamecardQuickExchangeContract,
     NamecardQuickSettings as NamecardQuickSettingsContract,
     NamecardScanSession as NamecardScanSessionContract,
+    NamecardScanLanding as NamecardScanLandingContract,
     NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
@@ -89,6 +90,7 @@ export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
 /** 通知窗口的交换详情。 */
 export type NamecardExchangeDetailResponse = NamecardExchangeDetailContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
+export type NamecardScanLandingResponse = NamecardScanLandingContract;
 /** 出示方轮询二维码状态：未扫 / 已过期 / 已被某次交换消费。 */
 export type NamecardScanSessionStatusResponse =
     NamecardScanSessionStatusContract;
