@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "8aa1d9cd98fb7ac9028013e823f651c026f3635d342c0d20e56e423fc6f7148b",
+    "semanticDigest": "a7df37d0aaf8d96cdff22a13e8e3f7d517e2849934148c5fd12c0130d98389d4",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -12458,7 +12458,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:90cf5a483fbb02f1:be1e96d2:0",
       "carriers": [
         {
           "kind": "param",
@@ -22421,7 +22421,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:90cf5a483fbb02f1:be1e96d2:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22438,7 +22438,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/export-structured",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:e1e3be44a8430378:be1e96d2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/export-structured-entry-document.ts#anonymous:90cf5a483fbb02f1:be1e96d2:0",
       "kind": "json",
       "source": "validated",
       "location": {

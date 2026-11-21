@@ -1165,8 +1165,9 @@ export const adminWikiExportStructuredEntryDocumentRequestSchema =
  * Every code names a defect the export worked around instead of dropping
  * silently: a placeholder subtitle, a repeated URL on one card, a search-page
  * URL that is not content, a pseudo UP name, two category names that only differ
- * in separator, or card artwork that only exists as a legacy image file and
- * therefore cannot be referenced by the document dialect.
+ * in separator, card artwork that only exists as a legacy image file and
+ * therefore cannot be referenced by the document dialect, or a category
+ * assigned to the entry that holds no cards at all.
  */
 export const adminWikiExportLintCodeSchema = z.enum([
   "placeholder-subtitle",
@@ -1175,6 +1176,7 @@ export const adminWikiExportLintCodeSchema = z.enum([
   "pseudo-up-name",
   "near-duplicate-category",
   "unmapped-card-image",
+  "empty-category",
 ])
 
 export const adminWikiExportLintWarningSchema = exactJsonResponse({

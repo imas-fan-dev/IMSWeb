@@ -120,9 +120,14 @@ function attributeValue(value: string): string {
 /**
  * Escapes one `[类型｜平台｜UP]` label field.
  *
- * `\` would start an escape sequence, `]` would close the link text early, and a
- * halfwidth `|` would read as a field separator; the audit shows name fields are
- * otherwise clean. `【】`, `「」`, `"`, `*`, `<` and `>` stay literal.
+ * `\` would start an escape sequence and `]` would close the link text early, so
+ * both are backslash-escaped. A bar cannot be escaped at all: the compiler splits
+ * the parsed label on both `|` and `｜`, so `\|` would still split and a bar in
+ * the type or platform field would silently shift every later field. It becomes
+ * the non-separator homoglyph `丨` instead, which keeps the three fields aligned
+ * (the audit finds no bar in `category.name` / `card.name` / `link.up`, so this
+ * only guards a hand-entered value). `【】`, `「」`, `"`, `*`, `<` and `>` stay
+ * literal.
  */
 function sourceListLabelField(value: string): string {
     return value
@@ -130,7 +135,7 @@ function sourceListLabelField(value: string): string {
         .trim()
         .replaceAll('\\', '\\\\')
         .replaceAll(']', '\\]')
-        .replaceAll('|', '｜');
+        .replaceAll(/[|｜]/gu, '丨');
 }
 
 /**
@@ -258,9 +263,16 @@ function cardTitle(title: string, stripBrackets: boolean): string {
     return value.slice(1, -1).trim() || value;
 }
 
-/** Whether the card carries artwork at all (a shared cover or a legacy file). */
-function cardHasArtwork(card: StructuredExportCard): boolean {
-    return card.coverAssetId !== null || card.legacyImage;
+/**
+ * Whether the card's artwork can be expressed in the dialect at all.
+ *
+ * Only `asset="cover:<id>"` (and a future `doc:<id>`) reference is renderable, so
+ * a card whose artwork is a legacy image file counts as text-only here: counting
+ * it as artwork produced grid walls of empty frames. The unreferencable file is
+ * reported as `unmapped-card-image` instead of pretending the card has an image.
+ */
+function cardHasExportableArtwork(card: StructuredExportCard): boolean {
+    return card.coverAssetId !== null;
 }
 
 /**
@@ -268,7 +280,9 @@ function cardHasArtwork(card: StructuredExportCard): boolean {
  *
  * `entryKind` is deliberately never consulted: 765PRO's 18 idol entries are all
  * labelled `other`, while the zero-link galleries, text-only indexes and 1:1
- * card-to-source lists the audit found cut across every kind. The precedence is:
+ * card-to-source lists the audit found cut across every kind. Only *exportable*
+ * artwork counts as an image, so a legacy-image category cannot become a grid of
+ * empty frames. The precedence is:
  *
  * 1. `list` for a pure text-only category (`img == ""` across cards) — a grid of
  *    empty frames reads badly, a list of titled rows reads like an index;
@@ -276,11 +290,17 @@ function cardHasArtwork(card: StructuredExportCard): boolean {
  * 3. `portrait` for a shared-contain set (the audit's 1,169 vertical cards);
  * 4. `grid` otherwise, which is every zero-link gallery such as 学马仕 `S卡`.
  */
-function categoryLayout(category: StructuredExportCategory): string {
+function categoryLayout(
+    category: StructuredExportCategory,
+): 'list' | 'portrait' | 'grid' {
     const cards = category.cards;
-    if (cards.every((card) => !cardHasArtwork(card))) return 'list';
+    if (cards.every((card) => !cardHasExportableArtwork(card))) return 'list';
     if (cards.every((card) => card.links.length === 1)) return 'list';
-    if (cards.every((card) => cardHasArtwork(card) && card.fit === 'contain')) {
+    if (
+        cards.every(
+            (card) => cardHasExportableArtwork(card) && card.fit === 'contain',
+        )
+    ) {
         return 'portrait';
     }
     return 'grid';
@@ -413,7 +433,8 @@ function planCard(
     };
 }
 
-function categoryCollapsed(
+/** Whether one category block defaults to folded. */
+function isCategoryCollapsed(
     cardCount: number,
     categoryCount: number,
     options: StructuredExportOptions,
@@ -439,7 +460,7 @@ function planCategory(
     const attributes = [`title="${attributeValue(category.name)}"`];
     attributes.push(`layout="${categoryLayout(category)}"`);
     if (cards.some((card) => card.tags.length)) attributes.push('filter="tags"');
-    const collapsed = categoryCollapsed(
+    const collapsed = isCategoryCollapsed(
         category.cards.length,
         categoryCount,
         options,
@@ -463,17 +484,16 @@ function planCategory(
  *
  * The result is a *draft*: nothing is saved and no row is written, so a
  * maintainer reviews the generated blocks (and every `lintWarnings` row) before
- * deciding to insert or replace the document source. Categories without cards
- * are skipped — they hold no card data — and every other finding is reported
- * instead of dropped.
+ * deciding to insert or replace the document source. A category that holds no
+ * cards produces no block, but it is reported as `empty-category` — the audit
+ * finds 24 such category instances, and dropping their names silently would lose
+ * the only thing they still carry.
  */
 export function exportStructuredDocument(
     input: StructuredExportInput,
     options: StructuredExportOptions = {},
 ): StructuredExportResult {
-    const categories = orderedCategories(input.categories).filter(
-        (category) => category.cards.length > 0,
-    );
+    const categories = orderedCategories(input.categories);
     const blocks: string[] = [];
     const lintWarnings: WikiAdminExportLintWarning[] = [];
     const seenCategoryNames = new Map<string, string>();
@@ -491,6 +511,14 @@ export function exportStructuredDocument(
                 context: category.name,
                 message: `分类名「${category.name}」与「${earlier}」只差分隔符，导出后会出现两个近似重复的区块`,
             });
+        }
+        if (!category.cards.length) {
+            lintWarnings.push({
+                code: 'empty-category',
+                context: category.name,
+                message: `分类「${category.name}」在该内容页没有任何卡片，草稿中没有对应区块`,
+            });
+            continue;
         }
         const plan = planCategory(category, categories.length, options);
         blocks.push(plan.lines.join('\n'));

@@ -57,14 +57,16 @@ function exportCardFromRecord(
 }
 
 /**
- * Groups the entry's cards into categories, keeping repository order.
+ * Builds the exporter's category list from the entry's declared categories.
  *
- * `listStoryCards` orders by category display order and then card order, so a
- * category's first appearance is the maintainer's order and the exporter never
- * re-sorts content it was not asked to sort. Zero-card categories do not appear
- * in the card rows and therefore contribute nothing to the draft.
+ * `listWikiCategories` is the authority for which categories the page has, in
+ * display order, so a category that currently holds no cards still reaches the
+ * exporter and is reported as `empty-category` instead of vanishing. Cards are
+ * grouped in `listStoryCards` order (category display order, then card order), and
+ * a card whose category somehow is not declared is appended rather than dropped.
  */
 function exportCategories(
+    declaredNames: readonly string[],
     cardRows: readonly StoryCardRecord[],
     storyRows: readonly StoryRecord[],
 ): StructuredExportCategory[] {
@@ -74,20 +76,21 @@ function exportCategories(
         if (links) links.push(sourceLinkFromRecord(row));
         else linksByCard.set(row.card_id, [sourceLinkFromRecord(row)]);
     }
-    const categories: StructuredExportCategory[] = [];
-    const byName = new Map<string, StructuredExportCategory>();
+    const byName = new Map<string, StructuredExportCard[]>();
     for (const row of cardRows) {
-        let category = byName.get(row.category);
-        if (!category) {
-            category = { name: row.category, cards: [] };
-            byName.set(row.category, category);
-            categories.push(category);
-        }
-        category.cards.push(
-            exportCardFromRecord(row, linksByCard.get(row.card_id) ?? []),
+        const cards = byName.get(row.category);
+        const card = exportCardFromRecord(
+            row,
+            linksByCard.get(row.card_id) ?? [],
         );
+        if (cards) cards.push(card);
+        else byName.set(row.category, [card]);
     }
-    return categories;
+    const names = [...declaredNames];
+    for (const name of byName.keys()) {
+        if (!names.includes(name)) names.push(name);
+    }
+    return names.map((name) => ({ name, cards: byName.get(name) ?? [] }));
 }
 
 /**
@@ -112,14 +115,21 @@ export function createHandleExportStructuredWikiEntryDocument<E extends Env>(
         const repository = services.story!;
         const entry = await repository.findWikiEntryDocumentTarget(entryId);
         if (!entry) return wikiJson(wikiErrorBody('找不到该内容页'), 404);
-        const [cardRows, storyRows] = await Promise.all([
+        const [cardRows, storyRows, categoryRows] = await Promise.all([
             repository.listStoryCards(entry.projectCode, entryId),
             repository.listStories(entry.projectCode, entryId),
+            repository.listWikiCategories(entry.projectId, entryId),
         ]);
         return wikiJson({
             status: 'success',
             ...exportStructuredDocument(
-                { categories: exportCategories(cardRows, storyRows) },
+                {
+                    categories: exportCategories(
+                        categoryRows.map((category) => category.name),
+                        cardRows,
+                        storyRows,
+                    ),
+                },
                 options,
             ),
         });

@@ -76,6 +76,39 @@ function installExportFetch() {
   return recorded
 }
 
+/**
+ * A mock whose export request stays in flight until the test settles it, so the
+ * loading state is observable instead of racing the response.
+ */
+function installPendingExportFetch() {
+  let resolveRequest: ((response: Response) => void) | null = null
+  let rejectRequest: (() => void) | null = null
+  installFetchMock((...args) => {
+    const request = requestDetails(args)
+    const url = new URL(request.url, window.location.origin)
+    if (
+      url.pathname === "/api/admin/wiki/entries/1/document/export-structured"
+    ) {
+      return new Promise<Response>((resolve, reject) => {
+        resolveRequest = resolve
+        rejectRequest = () => reject(new Error("network down"))
+      })
+    }
+    return Promise.reject(new Error(`Unexpected request: ${request.url}`))
+  })
+  return {
+    succeed: (payload: unknown) => resolveRequest?.(jsonResponse(payload)),
+    fail: () => rejectRequest?.(),
+  }
+}
+
+const DRAFT_RESPONSE = {
+  status: "success",
+  markdown: DRAFT_MARKDOWN,
+  stats: { categories: 1, cards: 1, links: 0, collapsedCategories: 0 },
+  lintWarnings: [],
+}
+
 const idlePreview: DocumentPreviewView = {
   requestedSource: null,
   document: null,
@@ -210,5 +243,95 @@ describe("structured card export draft", () => {
     })
     expect(sourceTextarea().value).toBe(STRIPPED_MARKDOWN)
     expect(recorded).toHaveLength(2)
+  })
+
+  it("shows the loading state and keeps both draft actions disabled", async () => {
+    const pending = installPendingExportFetch()
+    const user = userEvent.setup()
+    render(<EditorHarness initialSource={"未改动。\n"} />)
+
+    await user.click(
+      screen.getByRole("button", { name: /从结构化卡片生成草稿/u })
+    )
+    const dialog = await screen.findByRole("dialog", {
+      name: "从结构化卡片生成草稿",
+    })
+
+    expect(within(dialog).getByText("正在生成草稿…")).toBeTruthy()
+    expect(
+      within(dialog).getByRole("button", { name: "插入到光标处" })
+    ).toBeDisabled()
+    expect(
+      within(dialog).getByRole("button", { name: "替换编辑器草稿" })
+    ).toBeDisabled()
+
+    pending.succeed(DRAFT_RESPONSE)
+
+    await waitFor(() => {
+      expect(within(dialog).queryByText("正在生成草稿…")).toBeNull()
+    })
+    expect(
+      within(dialog).getByRole("button", { name: "插入到光标处" })
+    ).toBeEnabled()
+    expect(
+      within(dialog).getByRole("button", { name: "替换编辑器草稿" })
+    ).toBeEnabled()
+  })
+
+  it("reports a generation failure without touching the draft", async () => {
+    const pending = installPendingExportFetch()
+    const user = userEvent.setup()
+    render(<EditorHarness initialSource={"未改动。\n"} />)
+
+    await user.click(
+      screen.getByRole("button", { name: /从结构化卡片生成草稿/u })
+    )
+    const dialog = await screen.findByRole("dialog", {
+      name: "从结构化卡片生成草稿",
+    })
+
+    pending.fail()
+
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert).toHaveTextContent("生成失败")
+    expect(alert).toHaveTextContent("网络请求失败")
+    expect(
+      within(dialog).queryByRole("textbox", { name: "生成的草稿" })
+    ).toBeNull()
+    expect(
+      within(dialog).getByRole("button", { name: "插入到光标处" })
+    ).toBeDisabled()
+    expect(
+      within(dialog).getByRole("button", { name: "替换编辑器草稿" })
+    ).toBeDisabled()
+
+    await user.click(within(dialog).getByRole("button", { name: "取消" }))
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull()
+    })
+    expect(sourceTextarea().value).toBe("未改动。\n")
+  })
+
+  it("says so when the data hygiene list is empty", async () => {
+    const pending = installPendingExportFetch()
+    const user = userEvent.setup()
+    render(<EditorHarness initialSource={"未改动。\n"} />)
+
+    await user.click(
+      screen.getByRole("button", { name: /从结构化卡片生成草稿/u })
+    )
+    const dialog = await screen.findByRole("dialog", {
+      name: "从结构化卡片生成草稿",
+    })
+    pending.succeed(DRAFT_RESPONSE)
+
+    await within(dialog).findByRole("textbox", { name: "生成的草稿" })
+    expect(
+      within(dialog).getByText("未发现需要人工处理的数据问题。")
+    ).toBeTruthy()
+    expect(
+      within(dialog).queryByRole("list", { name: "数据卫生提醒" })
+    ).toBeNull()
+    expect(within(dialog).getByText("数据卫生提醒")).toBeTruthy()
   })
 })

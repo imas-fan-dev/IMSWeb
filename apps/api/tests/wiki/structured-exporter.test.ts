@@ -340,6 +340,15 @@ describe('structured document exporter', () => {
             ].join('\n')
         );
         assert.deepEqual(result.lintWarnings, []);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        const grid = compiled.document.blocks[0];
+        if (grid?.type !== 'cardGrid') throw new Error('expected a card grid');
+        assert.deepEqual(grid.cards.map((card) => card.fit), [
+            'cover',
+            'contain',
+        ]);
     });
 
     test('sorts numeric chapter buckets numerically instead of lexicographically', async () => {
@@ -529,7 +538,12 @@ describe('structured document exporter', () => {
         );
     });
 
-    test('escapes the source label so a bracket cannot close it early', async () => {
+    test('keeps every source label field in its own slot', async () => {
+        // The dialect splits a `[类型｜平台｜UP]` label on both `|` and `｜`
+        // (compiler `SOURCE_FIELD_SEPARATOR`), so a stored bar cannot be escaped:
+        // `\|` still splits after Markdown parsing. It becomes the non-separator
+        // homoglyph `丨`, which keeps the three fields aligned — a bar in the
+        // type or platform field used to shift every later field silently.
         const input: StructuredExportInput = {
             categories: [
                 {
@@ -547,8 +561,8 @@ describe('structured document exporter', () => {
                                     up: 'UP]名字|X',
                                     title: '',
                                     url: 'https://www.bilibili.com/video/BV1dd411c7m5',
-                                    contentType: '剧情',
-                                    sourcePlatform: 'Bilibili',
+                                    contentType: '剧情|译制',
+                                    sourcePlatform: 'Bilibili｜测试',
                                 },
                             ],
                         },
@@ -564,7 +578,7 @@ describe('structured document exporter', () => {
             [
                 ':::card-grid{title="其他" layout="list"}',
                 ':::card{id="701" title="【卡】" asset="cover:31"}',
-                '- [剧情｜Bilibili｜UP\\]名字｜X](https://www.bilibili.com/video/BV1dd411c7m5)',
+                '- [剧情丨译制｜Bilibili丨测试｜UP\\]名字丨X](https://www.bilibili.com/video/BV1dd411c7m5)',
                 ':::',
                 ':::',
             ].join('\n')
@@ -575,13 +589,14 @@ describe('structured document exporter', () => {
         assert.deepEqual(compiled.warnings, []);
         const grid = compiled.document.blocks[0];
         if (grid?.type !== 'cardGrid') throw new Error('expected a card grid');
+        // No field drifts into its neighbour: type, platform and UP stay aligned.
         assert.deepEqual(grid.cards[0]?.links, [
             {
-                up: 'UP]名字｜X',
+                up: 'UP]名字丨X',
                 title: '',
                 url: 'https://www.bilibili.com/video/BV1dd411c7m5',
-                contentType: '剧情',
-                sourcePlatform: 'Bilibili',
+                contentType: '剧情丨译制',
+                sourcePlatform: 'Bilibili丨测试',
             },
         ]);
     });
@@ -767,7 +782,7 @@ describe('structured document exporter', () => {
         assert.equal(
             result.markdown,
             [
-                ':::card-grid{title="SP" layout="grid"}',
+                ':::card-grid{title="SP" layout="list"}',
                 ':::card{id="1001" title="【主线剧情】"}',
                 ':::',
                 ':::card{id="1002" title="【营业剧情】"}',
@@ -857,6 +872,15 @@ describe('structured document exporter', () => {
                     '分类名「节日/生日」与「节日_生日」只差分隔符，导出后会出现两个近似重复的区块',
             },
         ]);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        assert.deepEqual(
+            compiled.document.blocks.map((block) =>
+                block.type === 'cardGrid' ? block.title : block.type
+            ),
+            ['节日_生日', '其他', '节日/生日']
+        );
     });
 
     test('exports repeated card names without inventing headings', async () => {
@@ -952,5 +976,292 @@ describe('structured document exporter', () => {
             10
         );
         assert.deepEqual((await compileExport(many.markdown)).warnings, []);
+    });
+
+    test('escapes backslashes and keeps the readable characters literal', async () => {
+        // Audit §6: the only characters that really break the dialect are `\`,
+        // `]` and the `](` pair. `"`, `「」`, `*`, `<` and `>` stay literal in
+        // trailing titles (no `\*` noise), and a backslash in a label field
+        // must be escaped so it cannot start an escape sequence. A balanced
+        // `*..*` pair is read by the compiler as emphasis, so that pair
+        // round-trips as its text while `"`, `「」`, `<`, `>` and `\` stay literal.
+        const input: StructuredExportInput = {
+            categories: [
+                {
+                    name: '卡剧情',
+                    cards: [
+                        {
+                            id: 1301,
+                            title: '【Ａ「引用」】',
+                            subtitle: '「幕」*强调*<注>',
+                            fit: 'cover',
+                            coverAssetId: 61,
+                            legacyImage: false,
+                            links: [
+                                {
+                                    up: 'UP\\slash',
+                                    title: '【中字】「A」*B*<C>"D" E\\F',
+                                    url: 'https://www.bilibili.com/video/BV1gg411c7m7',
+                                    contentType: '剧情',
+                                    sourcePlatform: 'Bilibili',
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const result = exportStructuredDocument(input);
+
+        assert.equal(
+            result.markdown,
+            [
+                ':::card-grid{title="卡剧情" layout="list"}',
+                ':::card{id="1301" title="【Ａ「引用」】" subtitle="「幕」*强调*<注>" asset="cover:61"}',
+                '- [剧情｜Bilibili｜UP\\\\slash](https://www.bilibili.com/video/BV1gg411c7m7) 【中字】「A」*B*<C>"D" E\\F',
+                ':::',
+                ':::',
+            ].join('\n')
+        );
+        assert.deepEqual(result.lintWarnings, []);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        const grid = compiled.document.blocks[0];
+        if (grid?.type !== 'cardGrid') throw new Error('expected a card grid');
+        assert.equal(grid.cards[0]?.title, '【Ａ「引用」】');
+        assert.equal(grid.cards[0]?.subtitle, '「幕」*强调*<注>');
+        assert.deepEqual(grid.cards[0]?.links, [
+            {
+                up: 'UP\\slash',
+                title: '【中字】「A」B<C>"D" E\\F',
+                url: 'https://www.bilibili.com/video/BV1gg411c7m7',
+                contentType: '剧情',
+                sourcePlatform: 'Bilibili',
+            },
+        ]);
+    });
+
+    test('never builds a grid out of artwork the dialect cannot reference', async () => {
+        // 765PRO keeps most card artwork as legacy `image_file`s, and the dialect
+        // can only reference `cover:<id>` / `doc:<id>`. Counting such a card as
+        // "has artwork" produced grid walls of empty frames, so layout only counts
+        // representable artwork and the unmapped images are reported instead.
+        const input: StructuredExportInput = {
+            categories: [
+                {
+                    name: 'SP',
+                    cards: [
+                        {
+                            id: 1401,
+                            title: '【主线剧情】',
+                            subtitle: '',
+                            fit: 'cover',
+                            coverAssetId: null,
+                            legacyImage: true,
+                            links: [],
+                        },
+                        {
+                            id: 1402,
+                            title: '【营业剧情】',
+                            subtitle: '',
+                            fit: 'cover',
+                            coverAssetId: null,
+                            legacyImage: false,
+                            links: [],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const result = exportStructuredDocument(input);
+
+        assert.equal(
+            result.markdown,
+            [
+                ':::card-grid{title="SP" layout="list"}',
+                ':::card{id="1401" title="【主线剧情】"}',
+                ':::',
+                ':::card{id="1402" title="【营业剧情】"}',
+                ':::',
+                ':::',
+            ].join('\n')
+        );
+        assert.deepEqual(result.lintWarnings, [
+            {
+                code: 'unmapped-card-image',
+                context: 'SP / 【主线剧情】',
+                message:
+                    '卡片插图只存在于旧版图片文件，文档语法无法引用，草稿中已省略插图',
+            },
+        ]);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        const grid = compiled.document.blocks[0];
+        if (grid?.type !== 'cardGrid') throw new Error('expected a card grid');
+        assert.equal(grid.layout, 'list');
+        assert.deepEqual(
+            grid.cards.map((card) => card.asset),
+            [null, null]
+        );
+    });
+
+    test('reports categories that hold no cards', async () => {
+        // 24 live category instances have zero cards (audit §2). They hold no card
+        // data, but their names still exist in `wiki_entry_categories`, so the
+        // draft reports them instead of dropping them silently.
+        const input: StructuredExportInput = {
+            categories: [
+                {
+                    name: 'S卡',
+                    cards: [
+                        {
+                            id: 1501,
+                            title: '【【初】有村麻央】',
+                            subtitle: '',
+                            fit: 'cover',
+                            coverAssetId: 71,
+                            legacyImage: false,
+                            links: [],
+                        },
+                    ],
+                },
+                { name: '活动', cards: [] },
+            ],
+        };
+
+        const result = exportStructuredDocument(input);
+
+        assert.equal(
+            result.markdown,
+            [
+                ':::card-grid{title="S卡" layout="grid"}',
+                ':::card{id="1501" title="【【初】有村麻央】" asset="cover:71"}',
+                ':::',
+                ':::',
+            ].join('\n')
+        );
+        assert.deepEqual(result.stats, {
+            categories: 1,
+            cards: 1,
+            links: 0,
+            collapsedCategories: 0,
+        });
+        assert.deepEqual(result.lintWarnings, [
+            {
+                code: 'empty-category',
+                context: '活动',
+                message: '分类「活动」在该内容页没有任何卡片，草稿中没有对应区块',
+            },
+        ]);
+
+        assert.deepEqual((await compileExport(result.markdown)).warnings, []);
+    });
+
+    test('exports a 765PRO page whose entry kind is other', async () => {
+        // 765PRO's 18 idol entries are all `entry_kind="other"` in the database
+        // (`三浦梓`: game-name categories, repeated card names, no sources). The
+        // exporter input carries no kind at all, so this shape exports the same way
+        // as any other; `document-export.contract.test.ts` proves it against the
+        // real `entry_kind` column.
+        const card = (id: number, title: string) => ({
+            id,
+            title,
+            subtitle: '',
+            fit: 'cover' as const,
+            coverAssetId: null,
+            legacyImage: false,
+            links: [],
+        });
+        const input: StructuredExportInput = {
+            categories: [
+                {
+                    name: '星耀季节',
+                    cards: [card(1601, '【主线剧情】'), card(1602, '【主线剧情】')],
+                },
+                { name: 'SP', cards: [card(1603, '【营业剧情】')] },
+            ],
+        };
+
+        const result = exportStructuredDocument(input);
+
+        assert.equal(
+            result.markdown,
+            [
+                ':::card-grid{title="星耀季节" layout="list"}',
+                ':::card{id="1601" title="【主线剧情】"}',
+                ':::',
+                ':::card{id="1602" title="【主线剧情】"}',
+                ':::',
+                ':::',
+                '',
+                ':::card-grid{title="SP" layout="list"}',
+                ':::card{id="1603" title="【营业剧情】"}',
+                ':::',
+                ':::',
+            ].join('\n')
+        );
+        assert.deepEqual(result.lintWarnings, []);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        assert.deepEqual(
+            compiled.document.blocks.map((block) =>
+                block.type === 'cardGrid' ? block.title : block.type
+            ),
+            ['星耀季节', 'SP']
+        );
+    });
+
+    test('keeps emoji category names verbatim', async () => {
+        // 闪耀色彩 / 页游节日: `🍫情人节` / `🃏愚人节` / `🌟闪耀日`. The dialect must
+        // carry emoji names as titles, never ASCII-slug them.
+        const card = (id: number) => ({
+            id,
+            title: `【卡${id}】`,
+            subtitle: '',
+            fit: 'cover' as const,
+            coverAssetId: id,
+            legacyImage: false,
+            links: [],
+        });
+        const input: StructuredExportInput = {
+            categories: [
+                { name: '🍫情人节', cards: [card(1701), card(1702)] },
+                { name: '🃏愚人节', cards: [card(1703)] },
+            ],
+        };
+
+        const result = exportStructuredDocument(input);
+
+        assert.equal(
+            result.markdown,
+            [
+                ':::card-grid{title="🍫情人节" layout="grid"}',
+                ':::card{id="1701" title="【卡1701】" asset="cover:1701"}',
+                ':::',
+                ':::card{id="1702" title="【卡1702】" asset="cover:1702"}',
+                ':::',
+                ':::',
+                '',
+                ':::card-grid{title="🃏愚人节" layout="grid"}',
+                ':::card{id="1703" title="【卡1703】" asset="cover:1703"}',
+                ':::',
+                ':::',
+            ].join('\n')
+        );
+        assert.deepEqual(result.lintWarnings, []);
+
+        const compiled = await compileExport(result.markdown);
+        assert.deepEqual(compiled.warnings, []);
+        assert.deepEqual(
+            compiled.document.blocks.map((block) =>
+                block.type === 'cardGrid' ? block.title : block.type
+            ),
+            ['🍫情人节', '🃏愚人节']
+        );
     });
 });

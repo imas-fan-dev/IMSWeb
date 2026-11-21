@@ -66,7 +66,8 @@ function request(
  */
 async function seedEntry(
     database: PostgresTestDatabase,
-    suffix: string
+    suffix: string,
+    options: { extraEmptyCategory?: string } = {}
 ) {
     const project = await queryOne<{ id: number; code: string }>(
         database,
@@ -94,6 +95,23 @@ async function seedEntry(
          VALUES (?, ?, ?, 0)`,
         [project!.id, entryId, category!.id]
     );
+    if (options.extraEmptyCategory) {
+        // A category assigned to the entry that holds no cards: 24 such category
+        // instances exist in the audit.
+        const empty = await queryOne<{ id: number }>(
+            database,
+            `INSERT INTO wiki_categories (agency_id, name, storage_slug)
+             VALUES (?, ?, ?) RETURNING id`,
+            [project!.id, options.extraEmptyCategory, `empty_${suffix}`]
+        );
+        await queryOne(
+            database,
+            `INSERT INTO wiki_entry_categories
+                 (project_id, entry_id, category_id, display_order)
+             VALUES (?, ?, ?, 1)`,
+            [project!.id, entryId, empty!.id]
+        );
+    }
     const cover = await queryOne<{ id: number }>(
         database,
         `INSERT INTO wiki_story_cover_assets
@@ -301,8 +319,93 @@ describe('wiki structured export API', () => {
         assert.equal(noCsrf.status, 403);
     });
 
-    test('answers 404 for an unknown entry', async () => {
-        const database = await createPostgresTestDatabase('wiki-structured-export-missing');
+    test('reports a category that holds no cards', async () => {
+        const database = await createPostgresTestDatabase(
+            'wiki-structured-export-empty-category'
+        );
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(
+            database,
+            new PostgresqlSchemaStrategy()
+        );
+        const app = storyRepositoryApp(repository);
+        const { entryId, cardId } = await seedEntry(database, 'empty', {
+            extraEmptyCategory: '活动',
+        });
+        const path = adminWikiEntryDocumentExportStructuredPath(entryId);
+
+        const body = await readContractJson(
+            await request(app, 'POST', path, { body: {} }),
+            adminWikiEntryDocumentExportStructuredSchema
+        );
+
+        // The card data is unaffected; the empty category is only reported.
+        assert.equal(body.stats.categories, 1);
+        assert.match(body.markdown, /title="S卡"/u);
+        assert.doesNotMatch(body.markdown, /活动/u);
+        assert.deepEqual(
+            body.lintWarnings.filter(
+                (warning) => warning.code === 'empty-category'
+            ),
+            [
+                {
+                    code: 'empty-category',
+                    context: '活动',
+                    message:
+                        '分类「活动」在该内容页没有任何卡片，草稿中没有对应区块',
+                },
+            ]
+        );
+        assert.match(body.markdown, new RegExp(`id="${cardId}"`, 'u'));
+        assert.equal(
+            body.markdown.split(':::card{').length - 1,
+            2,
+            'both cards still export'
+        );
+    });
+
+    test('ignores entry_kind like the mislabelled 765PRO other pages', async () => {
+        const database = await createPostgresTestDatabase(
+            'wiki-structured-export-entry-kind'
+        );
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(
+            database,
+            new PostgresqlSchemaStrategy()
+        );
+        const app = storyRepositoryApp(repository);
+        const { entryId } = await seedEntry(database, 'kind');
+        const path = adminWikiEntryDocumentExportStructuredPath(entryId);
+
+        const readKind = async () =>
+            (await queryOne<{ entry_kind: string }>(
+                database,
+                `SELECT entry_kind FROM wiki_entries WHERE id=?`,
+                [entryId]
+            ))!;
+        assert.equal((await readKind()).entry_kind, 'idol');
+        const asIdol = await readContractJson(
+            await request(app, 'POST', path, { body: {} }),
+            adminWikiEntryDocumentExportStructuredSchema
+        );
+
+        // 765PRO's 18 idol entries are all stored as `other`; the export must not
+        // change shape when the label is wrong.
+        await queryOne(
+            database,
+            `UPDATE wiki_entries SET entry_kind='other' WHERE id=?`,
+            [entryId]
+        );
+        assert.equal((await readKind()).entry_kind, 'other');
+        const asOther = await readContractJson(
+            await request(app, 'POST', path, { body: {} }),
+            adminWikiEntryDocumentExportStructuredSchema
+        );
+
+        assert.deepEqual(asOther, asIdol);
+    });
+
+    test('answers 404 for an unknown entry', async () => {        const database = await createPostgresTestDatabase('wiki-structured-export-missing');
         await new PostgresqlSchemaStrategy().initializeStory(database);
         const repository = new SqlStoryRepository(
             database,
