@@ -93,6 +93,15 @@ const DOCUMENT: WikiPublicStoryDocument = {
           tags: ["765PRO"],
           links: [],
         },
+        {
+          type: "card",
+          id: null,
+          title: "初",
+          subtitle: "",
+          fit: "cover",
+          tags: [],
+          links: [],
+        },
       ],
     },
   ],
@@ -186,5 +195,32 @@ describe("ClassicStoryPage document story blocks", () => {
     })
     expect(card).toHaveAttribute("data-cover-target", "true")
     expect(card).toHaveClass("ring-3", "ring-primary", "ring-offset-3")
+  })
+
+  it("dims cards without a 剧情 source and opens the zero-link and text-only cards", async () => {
+    const user = userEvent.setup()
+    renderClassicDocument()
+
+    const document = await screen.findByTestId("wiki-document")
+    const zeroLinkCard = within(document).getByRole("button", {
+      name: "【学马仕】，暂无剧情来源",
+    })
+    expect(zeroLinkCard).toHaveAttribute("data-story-state", "unavailable")
+    expect(zeroLinkCard).toHaveClass("opacity-60", "grayscale")
+
+    const textOnlyCard = within(document).getByRole("button", {
+      name: "初，暂无剧情来源",
+    })
+    expect(textOnlyCard).toHaveAttribute("data-story-state", "unavailable")
+    expect(within(textOnlyCard).getByText("初")).toBeVisible()
+    expect(within(textOnlyCard).queryByText("个来源")).not.toBeInTheDocument()
+
+    await user.click(zeroLinkCard)
+
+    const dialog = await screen.findByRole("dialog")
+    expect(
+      within(dialog).getByRole("heading", { name: "【学马仕】" })
+    ).toBeVisible()
+    expect(within(dialog).getByText("暂无可用剧情来源")).toBeVisible()
   })
 })

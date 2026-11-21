@@ -699,14 +699,14 @@ export const wikiDocumentCardGridSchema = exactJsonResponse({
   collapsed: z.boolean(),
   title: z.string(),
   cards: z.array(wikiDocumentCardSchema),
-})
+}) satisfies z.ZodType<WikiDocumentCardGridBlock>
 
 export const wikiDocumentLinksBlockSchema = exactJsonResponse({
   type: z.literal("links"),
   title: z.string(),
   collapsed: z.boolean(),
   links: z.array(wikiDocumentSourceLinkSchema),
-})
+}) satisfies z.ZodType<WikiDocumentLinksBlock>
 
 export const wikiDocumentTabSchema: z.ZodType<WikiDocumentTab> = z.lazy(() =>
   exactJsonResponse({

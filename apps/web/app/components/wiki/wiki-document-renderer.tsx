@@ -1,11 +1,13 @@
-import { ExternalLinkIcon } from "lucide-react"
 import type { CSSProperties, ReactNode } from "react"
 import { useState } from "react"
 
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Badge } from "~/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
-import { StorySourceDialog } from "~/components/wiki/story-source-dialog"
+import {
+  StorySourceDialog,
+  StorySourceLinkRow,
+} from "~/components/wiki/story-source-dialog"
 import {
   documentCardSelection,
   type StorySourceSelection,
@@ -15,18 +17,16 @@ import {
   hasActiveDocumentFilter,
 } from "~/components/wiki/wiki-document-model"
 import { WikiDocumentTagFilter } from "~/components/wiki/wiki-document-tag-filter"
-import { WikiStorySourceIcon } from "~/components/wiki/wiki-story-source-icon"
 import type {
   WikiDocumentBlock,
   WikiDocumentCard,
   WikiDocumentCardGridBlock,
   WikiDocumentInline,
-  WikiDocumentSourceLink,
   WikiDocumentTab,
   WikiPublicStoryDocument,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { hasStorySource } from "~/pages/wiki/wiki-model"
+import { hasStorySource, storyCardChrome } from "~/pages/wiki/wiki-model"
 
 const CALLOUT_LABELS: Record<string, string> = {
   tip: "提示",
@@ -112,43 +112,6 @@ function inlineNodes(
   })
 }
 
-/** Compact external source row used by `:::links` groups. */
-function SourceLinkRow({
-  link,
-  id,
-}: {
-  link: WikiDocumentSourceLink
-  id: string
-}) {
-  return (
-    <NavigationLink
-      href={link.url}
-      target="_blank"
-      rel="noreferrer"
-      id={id}
-      className="group/link flex min-h-12 items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <WikiStorySourceIcon
-        contentType={link.contentType}
-        className="size-8 rounded-full bg-muted text-muted-foreground [&_svg]:size-4"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="mb-1 flex flex-wrap gap-1.5">
-          <Badge variant="secondary">{link.contentType}</Badge>
-          <Badge variant="outline">{link.sourcePlatform}</Badge>
-        </span>
-        <span className="block text-sm font-medium wrap-break-word">
-          {link.title || link.up || "查看来源"}
-        </span>
-        <span className="block text-xs wrap-break-word text-muted-foreground">
-          来源：{link.up || "未知发布者"}
-        </span>
-      </span>
-      <ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground group-hover/link:text-foreground" />
-    </NavigationLink>
-  )
-}
-
 /**
  * Tabbed document section.
  *
@@ -210,20 +173,22 @@ function DocumentCardButton({
   groupTitle: string
   context: DocumentRenderContext
 }) {
-  const hasStory = hasStorySource(card.links)
-  const isTarget = card.id !== null && card.id === context.highlightedCardId
+  const chrome = storyCardChrome(
+    card.title,
+    hasStorySource(card.links),
+    card.id !== null && card.id === context.highlightedCardId
+  )
   return (
     <button
       type="button"
       id={card.id !== null ? `story-card-${card.id}` : undefined}
-      data-story-state={hasStory ? "available" : "unavailable"}
-      data-cover-target={isTarget ? "true" : undefined}
-      aria-label={!hasStory ? `${card.title}，暂无剧情来源` : undefined}
+      data-story-state={chrome.dataStoryState}
+      data-cover-target={chrome.isCoverTarget ? "true" : undefined}
+      aria-label={chrome.ariaLabel}
+      data-card-fit={card.fit}
       className={cn(
         "flex min-h-13 scroll-mt-24 flex-col items-start gap-1 rounded-lg border bg-card px-4 py-3 text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        !hasStory &&
-          "opacity-60 grayscale hover:opacity-80 focus-visible:opacity-80",
-        isTarget && "shadow-lg ring-3 ring-primary ring-offset-3"
+        chrome.className
       )}
       onClick={() => context.onOpenCard(card, groupTitle)}
     >
@@ -283,6 +248,7 @@ function DocumentCardGrid({
       </summary>
       <div
         data-card-layout={block.layout}
+        data-card-ratio={block.ratio ?? undefined}
         className={cn("mt-3 grid gap-3", CARD_GRID_LAYOUT_CLASS[block.layout])}
         style={cardGridStyle(block)}
       >
@@ -461,7 +427,10 @@ function blockNodes(
             <ul className="mt-2 space-y-2">
               {block.links.map((link, linkIndex) => (
                 <li key={`${key}-link-${linkIndex}`}>
-                  <SourceLinkRow link={link} id={`${key}-link-${linkIndex}`} />
+                  <StorySourceLinkRow
+                    link={link}
+                    id={`${key}-link-${linkIndex}`}
+                  />
                 </li>
               ))}
             </ul>

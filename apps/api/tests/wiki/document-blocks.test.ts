@@ -476,4 +476,83 @@ describe('Enhanced Markdown story blocks', () => {
             }
         ]);
     });
+
+    test('treats bare collapsed attributes as true', async () => {
+        const result = await compileEnhancedMarkdown(
+            [
+                ':::links{collapsed title="折叠来源"}',
+                '- [](https://www.bilibili.com/video/BV1) 标题',
+                ':::',
+                '',
+                ':::card-grid{collapsed}',
+                ':::card{title="卡甲"}',
+                ':::',
+                ':::',
+                ''
+            ].join('\n')
+        );
+
+        assert.deepEqual(
+            result.document.blocks.map((block) => block.type),
+            ['links', 'cardGrid']
+        );
+        const linksBlock = result.document.blocks[0];
+        assert.ok(linksBlock.type === 'links');
+        assert.equal(linksBlock.collapsed, true);
+        const gridBlock = result.document.blocks[1];
+        assert.ok(gridBlock.type === 'cardGrid');
+        assert.equal(gridBlock.collapsed, true);
+        assert.deepEqual(result.warnings, []);
+    });
+
+    test('drops unsafe source URLs and reports them with line numbers', async () => {
+        const result = await compileEnhancedMarkdown(
+            [
+                ':::links',
+                '- [剧情｜Bilibili｜UP](javascript:alert(1)) 坏链接',
+                '- [](//evil.example/x) 协议相对',
+                ':::',
+                ''
+            ].join('\n')
+        );
+
+        assert.deepEqual(result.document.blocks, []);
+        assert.deepEqual(result.warnings, [
+            {
+                line: 2,
+                code: 'unsafe-url-blocked',
+                message: '已移除不安全的来源地址'
+            },
+            {
+                line: 3,
+                code: 'unsafe-url-blocked',
+                message: '已移除不安全的来源地址'
+            },
+            {
+                line: 1,
+                code: 'empty-directive',
+                message: ':::links 未包含有效的来源列表项'
+            }
+        ]);
+    });
+
+    test('warns when a links or card-grid container has no usable children', async () => {
+        const result = await compileEnhancedMarkdown(
+            [':::links', ':::', '', ':::card-grid', ':::', ''].join('\n')
+        );
+
+        assert.deepEqual(result.document.blocks, []);
+        assert.deepEqual(result.warnings, [
+            {
+                line: 1,
+                code: 'empty-directive',
+                message: ':::links 未包含有效的来源列表项'
+            },
+            {
+                line: 4,
+                code: 'empty-directive',
+                message: ':::card-grid 未包含有效的 :::card'
+            }
+        ]);
+    });
 });

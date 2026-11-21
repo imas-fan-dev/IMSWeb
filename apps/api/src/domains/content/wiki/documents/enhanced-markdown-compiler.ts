@@ -1,7 +1,6 @@
 import type {
     WikiDocumentBlock,
     WikiDocumentCard,
-    WikiDocumentCardLayout,
     WikiDocumentCardRatio,
     WikiDocumentHeading,
     WikiDocumentInline,
@@ -544,15 +543,20 @@ const CARD_LAYOUTS = ['grid', 'portrait', 'banner', 'list'] as const;
 const CARD_RATIOS = ['16/9', '4/5', '9/16', '1/1', '2.8/1'] as const;
 const CARD_COLUMNS = { min: 2, max: 6 } as const;
 
-/** Reads one enumerated directive attribute, warning on unknown values. */
+/**
+ * Reads one enumerated directive attribute, warning on unknown values.
+ *
+ * `fallback: null` marks the attribute as optional, so one helper serves both
+ * the required (`layout`, `fit`) and optional (`ratio`, `filter`) attributes.
+ */
 function parseEnumAttribute<T extends string>(
     node: MarkdownNode,
     attribute: string,
     value: string | null | undefined,
     allowed: readonly T[],
-    fallback: T,
+    fallback: T | null,
     context: CompileContext,
-): T {
+): T | null {
     if (value === undefined) return fallback;
     if (value !== null && (allowed as readonly string[]).includes(value)) {
         return value as T;
@@ -563,26 +567,6 @@ function parseEnumAttribute<T extends string>(
         `不支持的 ${attribute} 取值：${value ?? ''}`,
     );
     return fallback;
-}
-
-/** Reads one optional enumerated directive attribute; `null` when absent. */
-function parseNullableEnumAttribute<T extends string>(
-    node: MarkdownNode,
-    attribute: string,
-    value: string | null | undefined,
-    allowed: readonly T[],
-    context: CompileContext,
-): T | null {
-    if (value === undefined) return null;
-    if (value !== null && (allowed as readonly string[]).includes(value)) {
-        return value as T;
-    }
-    context.warnAt(
-        node,
-        'invalid-directive',
-        `不支持的 ${attribute} 取值：${value ?? ''}`,
-    );
-    return null;
 }
 
 function parseCardColumns(
@@ -650,7 +634,7 @@ function convertCardDirective(
             ['cover', 'contain'] as const,
             'cover',
             context,
-        ),
+        ) ?? 'cover',
         tags: parseCardTags(attributes.tags),
         links: collectSourceLinks(node, context),
     };
@@ -668,20 +652,22 @@ function convertCardGridDirective(
         CARD_LAYOUTS,
         'grid',
         context,
-    );
+    ) ?? 'grid';
     const cols = parseCardColumns(node, attributes.cols, context);
-    const ratio = parseNullableEnumAttribute<WikiDocumentCardRatio>(
+    const ratio = parseEnumAttribute<WikiDocumentCardRatio>(
         node,
         'card-grid.ratio',
         attributes.ratio,
         CARD_RATIOS,
+        null,
         context,
     );
-    const filter = parseNullableEnumAttribute(
+    const filter = parseEnumAttribute(
         node,
         'card-grid.filter',
         attributes.filter,
         ['tags'] as const,
+        null,
         context,
     );
     const collapsed = parseCollapsedAttribute(node, attributes, context);

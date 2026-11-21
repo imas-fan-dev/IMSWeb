@@ -516,4 +516,193 @@ describe("StoryPage document story blocks", () => {
       within(document).getByRole("heading", { name: "尾声" })
     ).toBeVisible()
   })
+
+  it("exposes the parsed card fit and grid ratio on the card grid items", async () => {
+    renderDocument({
+      version: 1,
+      headings: [],
+      availableTags: [],
+      blocks: [
+        {
+          type: "cardGrid",
+          layout: "banner",
+          cols: null,
+          ratio: "2.8/1",
+          filter: null,
+          collapsed: false,
+          title: "横幅卡池",
+          cards: [
+            {
+              type: "card",
+              id: null,
+              title: "横幅甲",
+              subtitle: "",
+              fit: "contain",
+              tags: [],
+              links: [],
+            },
+            {
+              type: "card",
+              id: null,
+              title: "横幅乙",
+              subtitle: "",
+              fit: "cover",
+              tags: [],
+              links: [],
+            },
+          ],
+        },
+      ],
+    })
+
+    const document = await screen.findByTestId("wiki-document")
+    const grid = document.querySelector('[data-card-layout="banner"]')
+    expect(grid).toHaveAttribute("data-card-ratio", "2.8/1")
+    expect(
+      within(document).getByRole("button", { name: "横幅甲，暂无剧情来源" })
+    ).toHaveAttribute("data-card-fit", "contain")
+    expect(
+      within(document).getByRole("button", { name: "横幅乙，暂无剧情来源" })
+    ).toHaveAttribute("data-card-fit", "cover")
+  })
+
+  it("searches and tag-filters cards nested in container blocks", async () => {
+    const user = userEvent.setup()
+    renderDocument({
+      version: 1,
+      headings: [],
+      availableTags: ["天海春香", "765PRO"],
+      blocks: [
+        {
+          type: "callout",
+          tone: "info",
+          title: "嵌套卡池说明",
+          children: [
+            {
+              type: "cardGrid",
+              layout: "grid",
+              cols: null,
+              ratio: null,
+              filter: "tags",
+              collapsed: false,
+              title: "嵌套卡池",
+              cards: [
+                {
+                  type: "card",
+                  id: null,
+                  title: "嵌套甲",
+                  subtitle: "",
+                  fit: "cover",
+                  tags: ["天海春香"],
+                  links: [],
+                },
+                {
+                  type: "card",
+                  id: null,
+                  title: "嵌套乙",
+                  subtitle: "",
+                  fit: "cover",
+                  tags: ["765PRO"],
+                  links: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const document = await screen.findByTestId("wiki-document")
+    await screen.findByRole("note")
+    const tagBar = within(document).getByRole("group", { name: "按标签筛选" })
+    await user.click(within(tagBar).getByRole("button", { name: "天海春香" }))
+
+    const filteredCallout = within(document).getByRole("note")
+    expect(
+      within(filteredCallout).getByRole("button", { name: /嵌套甲/ })
+    ).toBeVisible()
+    expect(
+      within(filteredCallout).queryByRole("button", { name: /嵌套乙/ })
+    ).not.toBeInTheDocument()
+
+    await user.click(within(document).getByRole("button", { name: "清除筛选" }))
+    await user.type(screen.getByTestId("story-primary-search"), "嵌套乙")
+
+    await waitFor(() =>
+      expect(
+        within(within(document).getByRole("note")).queryByRole("button", {
+          name: /嵌套甲/,
+        })
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      within(within(document).getByRole("note")).getByRole("button", {
+        name: /嵌套乙/,
+      })
+    ).toBeVisible()
+  })
+
+  it("renders collapsed link groups and card grids as closed details", async () => {
+    const user = userEvent.setup()
+    renderDocument({
+      version: 1,
+      headings: [],
+      availableTags: [],
+      blocks: [
+        {
+          type: "links",
+          title: "折叠来源",
+          collapsed: true,
+          links: [
+            {
+              up: "UP主甲",
+              title: "折叠链接",
+              url: "https://www.bilibili.com/video/BV7",
+              contentType: "剧情",
+              sourcePlatform: "Bilibili",
+            },
+          ],
+        },
+        {
+          type: "cardGrid",
+          layout: "grid",
+          cols: null,
+          ratio: null,
+          filter: null,
+          collapsed: true,
+          title: "折叠卡池",
+          cards: [
+            {
+              type: "card",
+              id: null,
+              title: "折叠卡",
+              subtitle: "",
+              fit: "cover",
+              tags: [],
+              links: [],
+            },
+          ],
+        },
+      ],
+    })
+
+    const document = await screen.findByTestId("wiki-document")
+    const linksDetails = within(document)
+      .getByText("折叠来源")
+      .closest("details") as HTMLElement
+    expect(linksDetails).not.toHaveAttribute("open")
+    const gridDetails = within(document)
+      .getByText("折叠卡池")
+      .closest("details") as HTMLElement
+    expect(gridDetails).not.toHaveAttribute("open")
+    const card = within(gridDetails).getByRole("button", {
+      name: "折叠卡，暂无剧情来源",
+    })
+    expect(card).not.toBeVisible()
+
+    await user.click(within(gridDetails).getByText("折叠卡池"))
+
+    expect(gridDetails).toHaveAttribute("open")
+    expect(card).toBeVisible()
+  })
 })

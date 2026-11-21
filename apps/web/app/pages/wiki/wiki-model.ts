@@ -1,3 +1,4 @@
+import { cn } from "~/lib/utils"
 import type { WikiPublicStoryCard, WikiPublicStoryCategory } from "~/lib/api"
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
@@ -144,6 +145,33 @@ export function hasStorySource(links: readonly { contentType: string }[]) {
   return links.some(
     (link) => link.contentType.normalize("NFKC").trim() === "剧情"
   )
+}
+
+/**
+ * Visual and accessible chrome shared by every story card.
+ *
+ * Structured category cards and document-authored `:::card` cards must dim the
+ * same way when no `剧情` source exists, highlight the `#story-card-<id>`
+ * deep-link target identically, and expose the same `data-*` markers and
+ * screen-reader text, so the rule lives in exactly one place.
+ */
+export function storyCardChrome(
+  name: string,
+  hasStory: boolean,
+  isTarget: boolean
+) {
+  return {
+    className: cn(
+      !hasStory &&
+        "opacity-60 grayscale hover:opacity-80 focus-visible:opacity-80",
+      isTarget && "shadow-lg ring-3 ring-primary ring-offset-3"
+    ),
+    dataStoryState: hasStory
+      ? ("available" as const)
+      : ("unavailable" as const),
+    isCoverTarget: isTarget,
+    ariaLabel: hasStory ? undefined : `${name}，暂无剧情来源`,
+  }
 }
 
 export function storyCardMatches(

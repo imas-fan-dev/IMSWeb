@@ -16,6 +16,7 @@ import {
   isPortraitStoryCategory,
   safeWikiColor,
   storyCardAspectRatio,
+  storyCardChrome,
   storyCardColumns,
   storyCardGap,
 } from "~/pages/wiki/wiki-model"
@@ -81,8 +82,11 @@ export function StoryCategorySection({
         {category.cards.map((card) => {
           const cardKey = `${category.name}\u0000${card.name}`
           const textOnly = !card.img
-          const hasStory = hasStorySource(card.links)
-          const isTargetCard = card.id === highlightedCardId
+          const chrome = storyCardChrome(
+            card.name,
+            hasStorySource(card.links),
+            card.id === highlightedCardId
+          )
           return (
             <button
               key={cardKey}
@@ -92,14 +96,12 @@ export function StoryCategorySection({
                 textOnly
                   ? "flex min-h-13 items-center justify-center rounded-lg border bg-card px-4 py-3 text-center text-[15px] font-bold shadow-sm transition-all duration-500 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                   : "overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-[box-shadow,filter,opacity,transform] duration-500 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-                !hasStory &&
-                  "opacity-60 grayscale hover:opacity-80 focus-visible:opacity-80",
                 "scroll-mt-24",
-                isTargetCard && "shadow-lg ring-3 ring-primary ring-offset-3"
+                chrome.className
               )}
-              data-story-state={hasStory ? "available" : "unavailable"}
-              data-cover-target={isTargetCard ? "true" : undefined}
-              aria-label={!hasStory ? `${card.name}，暂无剧情来源` : undefined}
+              data-story-state={chrome.dataStoryState}
+              data-cover-target={chrome.isCoverTarget ? "true" : undefined}
+              aria-label={chrome.ariaLabel}
               onClick={() => setSelectedCard(card)}
             >
               {textOnly ? (

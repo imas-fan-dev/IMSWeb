@@ -63,17 +63,12 @@ function sourceLinkTexts(links: readonly WikiDocumentSourceLink[]): string[] {
   ])
 }
 
+/** Inline searchable texts of the leaf blocks whose own text decides a match. */
 function blockTexts(block: WikiDocumentBlock): string[] {
   switch (block.type) {
     case "heading":
     case "paragraph":
       return [inlineText(block.children)]
-    case "blockquote":
-    case "callout":
-    case "details":
-      return block.children.flatMap(blockTexts)
-    case "list":
-      return block.items.flatMap((item) => item.children.flatMap(blockTexts))
     case "table":
       return [block.header, ...block.rows].map((row) =>
         row.map((cell) => inlineText(cell)).join(" ")
@@ -167,6 +162,21 @@ function filterBlock(
           tags
         )
         return children.length ? [{ ...tab, children }] : []
+      })
+      return items.length ? { ...block, items } : null
+    }
+    // Containers keep filtering their children so cards and source links
+    // nested inside them stay searchable and tag-filterable.
+    case "blockquote":
+    case "callout":
+    case "details": {
+      const children = filterBlockList(block.children, query, tags)
+      return children.length ? { ...block, children } : null
+    }
+    case "list": {
+      const items = block.items.flatMap((item) => {
+        const children = filterBlockList(item.children, query, tags)
+        return children.length ? [{ ...item, children }] : []
       })
       return items.length ? { ...block, items } : null
     }
