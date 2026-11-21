@@ -77,20 +77,18 @@ const card = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 12,
-    favorites: 4,
     viewerLiked: false,
-    viewerFavorited: false,
   },
 }
 
 test.beforeEach(async ({ page, api }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() => {
     window.localStorage.setItem("imsweb.language", "zh-CN")
   })
   const discoveryTest = testInfo.title.startsWith(
     "discovers an exchange office"
   )
+  if (discoveryTest) installEmptyWikiCatalogMock(api)
   await api.mockRoute(
     "**/api/community/exchange/series",
     async (route) => {
@@ -109,19 +107,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       await route.fulfill({
         json: {
           items: [office],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
-    },
-    "GET",
-    { min: 1, max: 8 }
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [card],
           pageInfo: { hasNextPage: false, nextCursor: null },
         },
       })
@@ -178,7 +163,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
           json: { success: true, cardId: "card-1", reactions: [] },
         }),
       "GET",
-      2
+      1
     )
 })
 
@@ -271,9 +256,9 @@ test.describe("community exchange", () => {
     await expect(
       page.getByRole("link", { name: "上海周末交换事务所" })
     ).toBeVisible()
-    await page.getByRole("tab", { name: "名片" }).click()
-    await expect(page.getByText("春香P", { exact: true })).toBeVisible()
-    await page.getByRole("tab", { name: "事务所" }).click()
+    await expect(
+      page.getByRole("dialog", { name: "公开交换名录" }).getByRole("tablist")
+    ).toHaveCount(0)
 
     const mainOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth
@@ -529,9 +514,7 @@ test.describe("community exchange", () => {
         createdAt: ownerCard.createdAt,
         interactions: {
           likes: 0,
-          favorites: 0,
           viewerLiked: false,
-          viewerFavorited: false,
         },
         viewerOwned: true,
         placement: placements.get(ownerCard.id),

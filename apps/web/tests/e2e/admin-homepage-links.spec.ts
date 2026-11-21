@@ -1,7 +1,6 @@
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const navigationLinks = [
   {
@@ -31,7 +30,6 @@ test.describe("admin homepage links", () => {
     page,
     api,
   }) => {
-    installEmptyWikiCatalogMock(api)
     let orderedLinks = navigationLinks
     let submittedOrder: string[] | undefined
 

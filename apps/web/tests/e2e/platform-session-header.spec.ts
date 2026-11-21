@@ -172,12 +172,8 @@ test.describe("platform session header", () => {
 
     await page.getByRole("button", { name: "帐号：浏览器制作人" }).click()
 
-    // /account/security is a web-delivered prerendered route, but its only entry
-    // sat on /account/me, which the web target does not route.
-    await expect(page.getByRole("link", { name: "帐号安全" })).toHaveAttribute(
-      "href",
-      "/account/security"
-    )
+    // 帐号安全的入口在 /account/me 页内（桌面侧栏 / 移动页内区块），头部菜单不重复。
+    await expect(page.getByRole("link", { name: "帐号安全" })).toHaveCount(0)
   })
 
   test("two tabs coordinate one Platform refresh wave", async ({

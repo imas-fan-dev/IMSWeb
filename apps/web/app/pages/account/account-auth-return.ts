@@ -1,6 +1,12 @@
 const ACCOUNT_ORIGIN = "https://account.invalid"
 
-/** Public account authentication can return only to the account workspace. */
+/** 分享页只有两种形状：`/exchange/card/<slug>` 与 `/exchange/<handle>`。 */
+const SHARE_PAGE_PATTERN = /^\/exchange\/(?:card\/[^/]+|[^/]+)$/
+
+/**
+ * Public account authentication can return only to the account workspace, or
+ * to a namecard share page (the same-origin links the share pages hand out).
+ */
 export function accountReturnTo(
   value: string | null | undefined
 ): string | null {
@@ -23,7 +29,8 @@ export function accountReturnTo(
       !(
         url.pathname === "/account/me" ||
         url.pathname.startsWith("/account/me/") ||
-        url.pathname === "/account/security"
+        url.pathname === "/account/security" ||
+        SHARE_PAGE_PATTERN.test(url.pathname)
       )
     )
       return null

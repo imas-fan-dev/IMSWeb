@@ -16,6 +16,14 @@ export async function handleRequestCard(
             404,
         );
     }
+    // R10：`none` 卡不接受别人向它发起交换。静默成功只会产生一次空交换，
+    // 调用方（墙 / 分享页 / 选卡窗口）也就无从提示。
+    if (card.exchange_mode === 'none') {
+        return c.json(
+            { error: '这张名片不接受交换' } satisfies NamecardErrorResponse,
+            409,
+        );
+    }
     return commitNamecardExchange(c, {
         clientExchangeId,
         source: 'card-request',

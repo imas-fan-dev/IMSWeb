@@ -19,6 +19,7 @@ export type CardModuleKey =
   | "exchangeMode"
   | "flags"
   | "visibility"
+  | "tags"
   | "credits"
   | "actions"
 

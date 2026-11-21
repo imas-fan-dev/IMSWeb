@@ -31,6 +31,7 @@ const IGNORED = {
     // Preview owns the editable card text, the moderation state and the staged
     // uploads, so production only contributes the artwork keys and identity.
     fudaba_cards: ['legacy_card_id', 'owner_account_id', 'producer_name', 'producer_reading',
+        'sort_name_key', 'sort_name_bucket',
         'accent', 'bio', 'trade_note', 'group_name', 'made_on', 'is_original', 'made_with_ai',
         'visible', 'exchange_mode', 'revision', 'created_at', 'updated_at', 'pending_payload',
         'review_status', 'review_reason', 'review_submitted_at'],

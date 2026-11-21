@@ -12,9 +12,7 @@ export function fudabaCardInteractionsView(
 ): FudabaCardInteractions {
     return {
         likes: state.like_count,
-        favorites: state.favorite_count,
-        viewerLiked: state.viewer_liked,
-        viewerFavorited: state.viewer_favorited
+        viewerLiked: state.viewer_liked
     };
 }
 

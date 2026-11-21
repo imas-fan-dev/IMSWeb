@@ -1,6 +1,4 @@
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaMapQuerySchema,
@@ -71,15 +69,6 @@ function installMapMocks(api: ApiDispatcher) {
     path: "/api/community/exchange/offices",
     query: fudabaOfficeQuerySchema,
     responses: { 200: fudabaOfficePageSchema },
-    times: { min: 1, max: 4 },
-    handle: () => ({ status: 200, json: emptyPage }),
-  })
-  api.expect({
-    name: "App map card directory",
-    method: "GET",
-    path: "/api/community/exchange/cards",
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
     times: { min: 1, max: 4 },
     handle: () => ({ status: 200, json: emptyPage }),
   })
@@ -810,7 +799,8 @@ test.describe("app map", () => {
           const button = await locate.boundingBox()
           return dock!.y - button!.y - button!.height
         })
-        .toBe(12)
+        // 布局是亚像素的：11.89 也是「12px 间距」，按 close 比较而不是精确相等。
+        .toBeCloseTo(12, 0)
       const browsingControls = [
         await locate.boundingBox(),
         await refresh.boundingBox(),
@@ -1042,10 +1032,11 @@ test.describe("app map", () => {
       await expect(canvas).toBeVisible({ timeout: 15_000 })
       await expect(page.getByRole("banner")).toHaveCount(0)
 
+      // 交换地图不再占一枚 Tab：中央按钮取代了它，页面仍可直接进入。
       const globalNavigation = page.getByRole("navigation", { name: "主导航" })
       await expect(
-        globalNavigation.getByRole("link", { name: "交换地图", exact: true })
-      ).toHaveAttribute("aria-current", "page")
+        globalNavigation.getByRole("button", { name: "打开名片交换菜单" })
+      ).toBeVisible()
 
       const toolTrigger = page.getByRole("button", { name: "更多地图工具" })
       await expect(toolTrigger).toHaveAccessibleName("更多地图工具")
@@ -1063,7 +1054,7 @@ test.describe("app map", () => {
       ).toBeVisible()
       await expect(
         menu.getByRole("menuitem", { name: "打开名片名录" })
-      ).toBeVisible()
+      ).toHaveCount(0)
 
       // The attribution entry lives in the same folding panel and opens the one
       // shared dialog. The panel collapses on the same click, so focus returns
@@ -1167,20 +1158,15 @@ test.describe("app map", () => {
       await page.goto("/")
 
       const globalNavigation = page.getByRole("navigation", { name: "主导航" })
-      const mapTab = globalNavigation.getByRole("link", {
-        name: "交换地图",
-        exact: true,
-      })
       await expect(globalNavigation.getByRole("link")).toHaveText([
         "首页",
         "社区",
-        "交换地图",
         "资料",
         "我的",
       ])
-      await mapTab.click()
+      await globalNavigation.getByRole("link", { name: "社区" }).click()
+      await page.goto("/community/exchange")
       await expect(page).toHaveURL(/\/community\/exchange$/)
-      await expect(mapTab).toHaveAttribute("aria-current", "page")
 
       const canvas = page.locator("canvas.maplibregl-canvas")
       await expect(canvas).toBeVisible({ timeout: 15_000 })
@@ -1253,10 +1239,9 @@ test.describe("app map", () => {
       ).toBeVisible()
 
       const requestCountBeforeReturn = mapBounds.length
-      await mapTab.click()
-      await expect
-        .poll(() => new URL(page.url()).searchParams.getAll("series"))
-        .toEqual(["765"])
+      // 地图不再占 Tab：回到地图只能走 URL，状态靠 sessionStorage 续上。
+      await page.goto("/community/exchange")
+      // 走 URL 重进后筛选状态从 sessionStorage 恢复，不靠 URL 查询串。
       await expect(canvas).toBeVisible({ timeout: 15_000 })
       await expect
         .poll(() => mapBounds.length)
@@ -1269,35 +1254,6 @@ test.describe("app map", () => {
           )
         )
       ).toEqual(preservedMapState)
-
-      const routeBeforeReselection = page.url()
-      const historyLength = await page.evaluate(() => history.length)
-      await page.evaluate(() => {
-        const originalScrollTo = window.scrollTo.bind(window)
-        Reflect.set(window, "__imsMapDocumentScrollCalls", 0)
-        window.scrollTo = ((...args: Parameters<typeof window.scrollTo>) => {
-          Reflect.set(
-            window,
-            "__imsMapDocumentScrollCalls",
-            Number(Reflect.get(window, "__imsMapDocumentScrollCalls")) + 1
-          )
-          Reflect.apply(originalScrollTo, window, args)
-        }) as typeof window.scrollTo
-      })
-      await mapTab.click()
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-          )
-      )
-      expect(page.url()).toBe(routeBeforeReselection)
-      expect(await page.evaluate(() => history.length)).toBe(historyLength)
-      expect(
-        await page.evaluate(() =>
-          Number(Reflect.get(window, "__imsMapDocumentScrollCalls"))
-        )
-      ).toBe(0)
 
       await toolTrigger.click()
       await page
@@ -1314,7 +1270,7 @@ test.describe("app map", () => {
       await expect(
         globalNavigation.getByRole("link", { name: "我的", exact: true })
       ).toHaveAttribute("aria-current", "page")
-      await expect(mapTab).not.toHaveAttribute("aria-current", "page")
+
     }
   )
 

@@ -5,7 +5,7 @@ import {
     type AdminNamecardDiffResponse,
     type NamecardErrorResponse
 } from '@/domains/community/namecards/response';
-import { namecardRepository, services } from '@/middleware/hono-context';
+import { namecardRepository, namecardTagRepository, services } from '@/middleware/hono-context';
 import { withAdminNamecardPages } from '@/domains/community/namecards/moderation/admin-namecard-diff-pages';
 import { randomUUID } from 'node:crypto';
 import {
@@ -230,6 +230,13 @@ async function updateAdminNamecard(
         result.status === 'blocked'
     ) {
         return c.json({ error: result.message } satisfies NamecardErrorResponse, 400);
+    }
+    // 标签即时生效：后台保存成功后按名片编号整组替换；后台没有平台账号，写入人为 null。
+    if (body.tags !== undefined) {
+        await namecardTagRepository(c).replace({
+            cardNumber: id,
+            names: body.tags,
+        });
     }
     // 没发布就没写入线上：此时删旧图会让名片墙直接失去图片，先留着。
     if (replacedSafeToDelete) {

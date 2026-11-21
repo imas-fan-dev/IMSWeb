@@ -1,3 +1,11 @@
+import {
+  namecardListQuerySchema,
+  namecardPageSchema,
+  namecardReactionListQuerySchema,
+  reactionSchema,
+} from "@imsweb/contracts/namecards"
+import { apiPath } from "@imsweb/contracts/paths"
+
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
@@ -5,6 +13,82 @@ import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
 
 test.describe("namecard pagination", () => {
+  test(
+    "keeps the operator shortcut in the header and aligns the floating wall actions",
+    { tag: "@mobile" },
+    async ({ page, api, isMobile }, testInfo) => {
+      if (isMobile) await page.setViewportSize({ width: 320, height: 568 })
+      installEmptyWikiCatalogMock(api)
+      await installAdminAuthMock(page, api)
+      const cards = Array.from({ length: 12 }, (_, index) =>
+        makeNamecard({
+          id: index + 1,
+          cardId: `card-${index + 1}`,
+          // 墙上的可访问名跟随公开卡号；默认值会让 12 张卡都叫「1」。
+          cardNumber: index + 1,
+        })
+      )
+      api.expect({
+        method: "GET",
+        path: apiPath("/cards"),
+        query: namecardListQuerySchema,
+        responses: { 200: namecardPageSchema },
+        times: 1,
+        handle: () => ({ status: 200, json: makeNamecardPage(cards) }),
+      })
+      api.expect({
+        method: "GET",
+        path: apiPath("/reactions"),
+        query: namecardReactionListQuerySchema,
+        responses: { 200: reactionSchema },
+        times: cards.length,
+        handle: () => ({ status: 200, json: {} }),
+      })
+
+      await page.goto("/community/cards?page=1&size=12")
+      const admin = page.getByRole("link", { name: "返回管理工作台" })
+      const create = page.getByRole("button", { name: "新建名片" })
+      const back = page.getByRole("button", { name: "返回顶部" })
+      await expect(
+        page.getByRole("banner").getByRole("link", { name: "返回管理工作台" })
+      ).toBeVisible()
+      await expect(admin).toHaveAttribute("href", "/admin")
+      await expect(create).toBeInViewport()
+      await expect(back).toHaveCount(0)
+      const createBeforeScroll = await create.boundingBox()
+
+      await expect(
+        page.getByRole("button", { name: "查看制作人名片 1 正面" })
+      ).toBeVisible()
+      await page.evaluate(() =>
+        window.scrollTo({ top: 500, behavior: "instant" })
+      )
+      await expect(back).toBeInViewport()
+      await expect(admin).toBeInViewport({ ratio: 1 })
+      await expect(create).toBeInViewport({ ratio: 1 })
+      const [createBox, backBox] = await Promise.all([
+        create.boundingBox(),
+        back.boundingBox(),
+      ])
+      expect(createBox).toEqual(createBeforeScroll)
+      expect(backBox!.x + backBox!.width).toBeCloseTo(
+        createBox!.x + createBox!.width,
+        0
+      )
+      expect(
+        createBox!.y - backBox!.y - backBox!.height
+      ).toBeGreaterThanOrEqual(7.5)
+      await testInfo.attach("namecard-wall-actions", {
+        body: await page.screenshot({ animations: "disabled" }),
+        contentType: "image/png",
+      })
+
+      await back.click()
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+      await expect(back).toHaveCount(0)
+    }
+  )
+
   test("namecard wall changes page size and jumps to a page", async ({
     page,
     api,
@@ -28,10 +112,14 @@ test.describe("namecard pagination", () => {
         const currentPage = Number(url.searchParams.get("page"))
         const pageSize = Number(url.searchParams.get("size"))
 
-        const response = makeNamecardPage([makeNamecard({ id: currentPage })], {
-          total: 80,
-          totalPage: Math.ceil(80 / pageSize),
-        })
+        const response = makeNamecardPage(
+          // 墙上的可访问名跟随公开卡号：第 N 页只有第 N 张。
+          [makeNamecard({ id: currentPage, cardNumber: currentPage })],
+          {
+            total: 80,
+            totalPage: Math.ceil(80 / pageSize),
+          }
+        )
         await route.fulfill({ status: 200, json: response })
       },
       "GET",

@@ -1,5 +1,11 @@
 import { BookOpenTextIcon, HouseIcon, MenuIcon } from "lucide-react"
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router"
 
@@ -70,7 +76,13 @@ type LensGeometry = {
   width: number
 }
 
-export function SiteHeader({ compact = false }: { compact?: boolean }) {
+export function SiteHeader({
+  compact = false,
+  actions,
+}: {
+  compact?: boolean
+  actions?: ReactNode
+}) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const navigationIndex = activeNavigationIndex(pathname)
@@ -248,6 +260,7 @@ export function SiteHeader({ compact = false }: { compact?: boolean }) {
               <HouseIcon aria-hidden="true" />
             </NavigationLink>
           ) : null}
+          {actions}
           <PlatformAccountMenu />
           <ThemeToggle />
 

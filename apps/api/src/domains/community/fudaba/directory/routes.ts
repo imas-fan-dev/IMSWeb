@@ -21,7 +21,6 @@ import {
 import { handleGetFudabaMapConfig } from '@/domains/community/fudaba/directory/handlers/get-map-config';
 import { handleGetNamecardCharacterCatalog } from '@/domains/community/fudaba/directory/handlers/get-namecard-character-catalog';
 import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/directory/handlers/get-public-office';
-import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleServeExchangeCardMedia } from '@/domains/community/fudaba/directory/handlers/serve-public-card-media';
@@ -67,6 +66,8 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
     routes.get(
         '/cards/:cardId/media/:side',
         requireFudabaPublicRead,
+        // 原卡被持有者下线（`hidden`）后不再公开放行，但**已经收到这张卡的人**仍要能看图（doc §5）。
+        optionalPlatformAuth,
         paramSchemaValidator(fudabaCardMediaParamsSchema),
         querySchemaValidator(fudabaMediaQuerySchema),
         handleServeExchangeCardMedia
@@ -115,7 +116,6 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaMapOffices
     );
     routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOwnerSeries);
-    routes.get('/me/favorites', platformAuth, querySchemaValidator(fudabaCardQuerySchema), handleListFudabaFavoriteCards);
     return routes;
 }
 

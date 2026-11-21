@@ -12,7 +12,7 @@
 
 | 来源 | 内容 | 现状 |
 | --- | --- | --- |
-| `fudaba_cards` | 名片主体：复审暂存 `pending_payload`、制作人名称/读音、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表**；旧图片 key 列已在 P4 删除 |
+| `fudaba_cards` | 名片主体：复审暂存 `pending_payload`、制作人名称/读音、排序元数据 `sort_name_key`/`sort_name_bucket`、团体、**团体标记 `is_group_card`**、制作时间、简介、交换说明、交换模式、可见性、原创/AI 标记、`publication_status`、`review_status`、`revision`、`owner_account_id`、`card_number`、`origin`、`deleted_at` | **唯一在用的名片表**；旧图片 key 列已在 P4 删除 |
 | `fudaba_card_pages` | 每张卡的 live/pending 页面：`queue`、`page_id`、`display_order`、`object_version`、`object_queue`、`width`、`height` | **媒体唯一来源** |
 | `fudaba_card_media` | 中间页旧表 | **P4 已删除**（`20261112120000_namecard_media_retire.sql`） |
 | `fudaba_card_series` / `fudaba_card_favorite_characters` / `fudaba_card_credits` | 企划、担当角色、制作人员 | 在用 |
@@ -25,6 +25,10 @@
 
 - `revision` 是整卡的乐观锁；属主保存、审核通过、管理窗修改都带 `expectedRevision`。
 - 认领/补充各有自己的 `revision`，与名片 revision 无关。
+- **排序元数据**：`sort_name_key` / `sort_name_bucket` 由 `src/utils/sorting/namecard-sort-key.ts`
+  按 PRD §3.1 的阶梯生成（0=英文、1=假名罗马音、2=中文拼音、3=特殊符号），所有改动
+  `producer_name` / `producer_reading` 的写入路径都要重算；既有行由
+  `migration:namecard-sort-keys` 回填，交换快照携带同一对键。
 - 公开读取只看 `publication_status='published'` 且 `deleted_at IS NULL`。
 - **页面行是媒体唯一来源**：`fudaba_card_pages(card_id, queue, page_id, display_order,
   object_version, object_queue, width, height)` 保存每张卡的 live/pending 页序，`page_id` 为稳定槽位
@@ -44,7 +48,7 @@
 
 | 入口 | 窗口 | 媒体 | 字段 | 动作 |
 | --- | --- | --- | --- | --- |
-| 个人名片管理（`account/me/namecards`） | `CardWorkspace` → `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 + 旋转（预览区左上角两个按钮） | `CardFields` 13 项（身份四字段 + 团体标记来自 `NamecardIdentityFields`）；必填：制作人名称（团体名片改为选填、改由团体名称必填）、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
+| 个人名片管理（`account/me/namecards`） | `CardWorkspace`：`CardManager`（分组 / 经典两态，1:1 瓦片网格 + 角标 + 交换模式徽标）→ `CardEditor`（3xl） | `CardMediaGallery`：上传 + 拖动排序 + 替换 + 删除 + 旋转（预览区左上角两个按钮） | `CardFields` 13 项（身份四字段 + 团体标记来自 `NamecardIdentityFields`）；必填：制作人名称（团体名片改为选填、改由团体名称必填）、企划、至少一张图 | 首次 `createFudabaCard`；之后 `updateFudabaCard`；图片有改动先 `replaceFudabaCardMedia`；`deleteFudabaCard` |
 | 名片墙 · 认领（`NamecardClaimDialog`，2xl） | 同上壳 | `CardMediaPreview`（只读） | `NamecardWallFields mode="claim"` 6 项 + 绑定方式；必填：名称、企划（可从卡/角色/绑定目标推导） | `createFudabaLegacyCardClaim` |
 | 名片墙 · 补充（`NamecardSupplementDialog`，2xl） | 同上壳 | `CardMediaPreview` | `NamecardWallFields mode="supplement"` 4 项；必须至少一处改动 | `createFudabaCardSupplement` |
 | 后台 · 反馈 / 修改（`NamecardManageDialog`，4xl） | 同上壳，`feedback` 有无区分两个入口 | `CardMediaGallery`（只允许排序/删除） | `CardFields required={false}` + 账号归属、名片状态、版本状态、理由；资料/状态/归属有变动时理由必填 | `updateAdminNamecard`、`deleteAdminNamecard`、`resolveAdminNamecardFeedback` |

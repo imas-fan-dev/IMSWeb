@@ -10,11 +10,33 @@ pub struct NativeGlassColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum NativeGlassTabItem {
+    Route {
+        route: String,
+        #[serde(rename = "lucideIcon")]
+        lucide_icon: String,
+        title: String,
+    },
+    Action {
+        action: NativeGlassTabAction,
+        title: String,
+        menu: Option<NativeExchangeMenuLabels>,
+    },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct NativeGlassTabItem {
-    pub route: String,
-    pub lucide_icon: String,
-    pub title: String,
+pub enum NativeGlassTabAction {
+    Exchange,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NativeExchangeMenuLabels {
+    pub qr: String,
+    pub nfc: String,
+    pub group: String,
+    pub close: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -28,7 +50,10 @@ pub struct ConfigureOptions {
     pub items: Vec<NativeGlassTabItem>,
     #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
-    pub selected_index: usize,
+    pub selected_index: i32,
+    pub current_route: String,
+    pub route_key: Option<String>,
+    pub account_badge: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -41,7 +66,10 @@ pub struct UpdateOptions {
     pub interaction_blocked: bool,
     #[serde(default)]
     pub selected_color: Option<NativeGlassColor>,
-    pub selected_index: Option<usize>,
+    pub selected_index: Option<i32>,
+    pub current_route: Option<String>,
+    pub route_key: Option<String>,
+    pub account_badge: Option<String>,
 }
 
 /// Admission policy for the App-owned back gesture. Native code never decides

@@ -1,7 +1,6 @@
 import { expect, test } from "./fixtures/test"
 
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 const guangdongImageUrl = "/uploads/producer-map/guangdong.webp"
 
@@ -44,7 +43,6 @@ const content = {
 }
 
 test.beforeEach(async ({ page, api }) => {
-  installEmptyWikiCatalogMock(api)
   await installAdminAuthMock(page, api, {
     user: {
       username: "producer-map-operator",

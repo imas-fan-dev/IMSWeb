@@ -167,7 +167,6 @@ describe("CommunityExchangeMapSection", () => {
           openOnly: false,
           series: [],
           offices: [],
-          cardCount: 0,
           refreshing: false,
           error: null,
           hasFilters: false,
@@ -180,12 +179,10 @@ describe("CommunityExchangeMapSection", () => {
           onRefresh: noop,
           onOpenFilter: noop,
           onOpenOffices: noop,
-          onOpenCards: noop,
         },
         searchTools: {
           onOpenFilter: noop,
           onOpenOffices: noop,
-          onOpenCards: noop,
           onRefresh: noop,
         },
       })
@@ -209,7 +206,6 @@ describe("CommunityExchangeMapSection", () => {
       searchTools: {
         onOpenFilter: vi.fn(),
         onOpenOffices: vi.fn(),
-        onOpenCards: vi.fn(),
         onRefresh: vi.fn(),
       },
     })
@@ -267,7 +263,6 @@ describe("CommunityExchangeMapSection", () => {
         searchTools: {
           onOpenFilter: vi.fn(),
           onOpenOffices: vi.fn(),
-          onOpenCards: vi.fn(),
           onRefresh: vi.fn(),
         },
       })
@@ -482,7 +477,6 @@ describe("CommunityExchangeMapSection", () => {
         openOnly: false,
         series: [],
         offices: [],
-        cardCount: 0,
         refreshing: false,
         error: null,
         hasFilters: false,
@@ -495,12 +489,10 @@ describe("CommunityExchangeMapSection", () => {
         onRefresh: noop,
         onOpenFilter: noop,
         onOpenOffices: noop,
-        onOpenCards: noop,
       },
       searchTools: {
         onOpenFilter: noop,
         onOpenOffices: noop,
-        onOpenCards: noop,
         onRefresh: noop,
       },
     })
@@ -629,7 +621,7 @@ describe("CommunityExchangeMapSection", () => {
     const status = await screen.findByRole("status")
     expect(status).toHaveAccessibleName("地图暂时不可用")
     expect(
-      screen.getByText("区域地图尚未启用，公开事务所和名片仍可在名录中查看。")
+      screen.getByText("区域地图尚未启用，公开事务所仍可在名录中查看。")
     ).toBeVisible()
     expect(screen.queryByText("Not Found")).not.toBeInTheDocument()
     expect(mapModule.renders).not.toHaveBeenCalled()
@@ -648,7 +640,7 @@ describe("CommunityExchangeMapSection", () => {
     renderSection()
     expect(
       await screen.findByText(
-        "高德地图未授权当前网站，请联系管理员检查域名白名单。公开事务所和名片仍可在名录中查看。"
+        "高德地图未授权当前网站，请联系管理员检查域名白名单。公开事务所仍可在名录中查看。"
       )
     ).toBeVisible()
     expect(screen.getByRole("button", { name: "查看事务所名录" })).toBeVisible()

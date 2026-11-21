@@ -3,7 +3,7 @@
 [返回前端总索引](../../README.md)
 
 本目录面向 Platform 用户，包含登录、注册、密码找回、安全中心，以及个人资料、名片、
-收藏、事务所和认领管理。后台操作员身份由
+名片册、事务所和认领管理。后台操作员身份由
 [AdminLayout](../../layouts/admin-layout.tsx) 与 Backoffice 客户端承担，和本目录分离。
 
 ## 能力与职责地图
@@ -17,7 +17,7 @@
 | 用户维护资料与头像        | [profile](me/profile/)                                                                                                                                                   | 资料表单、头像上传和裁剪                                                               |
 | 用户维护平台展示账号      | [平台账号编辑器](me/platform-accounts-editor.tsx)、[专用平台图标](me/components/platform-account-kind-icon.tsx)                                                          | 只展示已保存项；粘贴主页链接即按模板定位平台，窄屏用底部抽屉查看支持的模板，沿用资料编辑权限 |
 | 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                                     |
-| 用户管理收藏              | [favorites](me/favorites/)                                                                                                                                               | 收藏集合与展示                                                                         |
+| 用户查看名片册与交换记录  | [名片册](me/collection/)、[交换记录](../../components/community/exchange/exchange-history-dialog.tsx)、[离线队列](../../lib/namecards/scan-exchange-queue.ts)             | 筛选与显示设置、服务端历史与本机待重放扫码交换合并展示；pending 复用交换详情窗          |
 | 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗                       |
 | 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
 | 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                                         |
@@ -32,7 +32,7 @@
   用户限制状态会影响编辑，交换写入还受返回的能力开关约束。登录不代表拥有全部编辑能力。
 - Platform 会话归 [platform 组件](../../components/platform/) 与
   [platform-client](../../lib/api/platform-client.ts)；安全与认证请求实现归
-  [platform endpoints](../../lib/api/endpoints/platform/)，名片、事务所、收藏与认领请求归
+  [platform endpoints](../../lib/api/endpoints/platform/)，名片、事务所与认领请求归
   [fudaba endpoints](../../lib/api/endpoints/fudaba/)。页面统一调用
   [API facade](../../lib/api/index.ts)，上述实现链接不作为直接导入入口。
   wire 来源为 [@imsweb/contracts](../../../../../packages/contracts/README.md)。
@@ -54,6 +54,8 @@
 
 - 认证、安全与 App OAuth：[account 单元测试](../../../tests/unit/pages/account/)。
 - 个人工作区与各分区：[account/me 单元测试](../../../tests/unit/pages/account/me/)。
+- 名片册与交换记录：[名片册](../../../tests/unit/pages/account/me/collection/)、
+  [交换记录与离线队列](../../../tests/unit/components/community/exchange/)。
 - 平台账号：[编辑器单元测试](../../../tests/unit/pages/account/me/platform-accounts-editor.test.tsx)，校验目录、逐项请求、取消、失败与限制状态。
 - 浏览器流程：[个人页](../../../tests/e2e/account-personal-pages.spec.ts)、
   [App 帐号](../../../tests/e2e/app-account.spec.ts)、

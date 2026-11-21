@@ -1,14 +1,43 @@
 import {
   adminExchangePath,
+  apiPath,
+  exchangeCardRequestPath,
+  exchangeCardShareCommitPath,
+  exchangeMyCardsLayoutPath,
+  exchangeMyQuickPath,
   exchangePath,
+  exchangeQuickCommitPath,
+  exchangeScanCommitPath,
+  exchangeScanSessionPath,
   mapsPath,
 } from "@imsweb/contracts/paths"
 export { createMapboxNearbySearch } from "./mapbox-place-search"
 import {
   createNamecardFeedbackRequestSchema,
+  namecardCardLayoutRequestSchema,
+  namecardCardLayoutSchema,
+  namecardCardShareLinkSchema,
+  namecardExchangeCommitSchema,
+  namecardExchangeGiftSchema,
+  namecardExchangeResultSchema,
   namecardFeedbackMutationSchema,
+  namecardQuickSettingsSchema,
+  namecardScanSessionRequestSchema,
+  namecardScanSessionSchema,
+  namecardScanSessionStatusResponseSchema,
+  namecardTagCardParamsSchema,
+  namecardTagErrorSchema,
+  namecardTagSuggestFailureSchema,
+  namecardTagSetRequestSchema,
+  namecardTagSetResponseSchema,
+  namecardTagValidateRequestSchema,
+  namecardTagValidateResponseSchema,
+  namecardTagSuggestQuerySchema,
+  namecardTagSuggestResponseSchema,
+  type NamecardCardLayoutRequest,
   type NamecardFeedbackReason,
 } from "@imsweb/contracts/namecards"
+export type { NamecardTagSuggestionPreset } from "@imsweb/contracts/namecards"
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
@@ -29,11 +58,12 @@ import {
   normalizeFudabaOwnerOfficeDetail,
   normalizeFudabaOwnerOfficeList,
   normalizeFudabaSeriesList,
+  normalizeNamecardQuickSettings,
 } from "../../media-urls"
 import { adminApiClient } from "../../admin-client"
 import { apiClient } from "../../client"
 import { bundleAssetClient } from "../../bundle-client"
-import { STABLE_CONTENT_CACHE_FOR } from "../../cache-policy"
+import { STABLE_CONTENT_CACHE_FOR, NO_CLIENT_CACHE } from "../../cache-policy"
 import { parsed } from "../../parsed"
 import { platformApiClient } from "../../platform-client"
 import {
@@ -577,18 +607,6 @@ export type FudabaCardInteractionKind = z.infer<
   typeof fudabaCardInteractionKindSchema
 >
 
-export function getFudabaFavoriteCardPage(input: FudabaCardPageRequest = {}) {
-  return platformApiClient.Get(
-    withQuery(exchangePath("/me/favorites"), cardPageParams(input)),
-    parsed(fudabaCardPageSchema, {
-      errorSchema: fudabaErrorResponseSchema,
-      businessErrorSchema: fudabaErrorResponseSchema,
-      meta: withPlatformAuth(),
-      select: normalizeFudabaCardPage,
-    })
-  )
-}
-
 export function setFudabaCardInteraction(
   cardId: string,
   kind: FudabaCardInteractionKind,
@@ -649,6 +667,214 @@ export function getFudabaOwnerCards() {
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
       select: normalizeFudabaOwnerCardList,
+    })
+  )
+}
+
+/**
+ * 属主清单的布局（分组 / 顺序 / 快速清单），服务端已归一。
+ *
+ * 只影响展示，所以调用方在失败时退化成「只有默认分组」，不要让它拖垮整个工作区。
+ */
+export function getCardLayout() {
+  return platformApiClient.Get(
+    exchangeMyCardsLayoutPath(),
+    parsed(namecardCardLayoutSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * 选卡窗口的候选：自己**全部** `published` 的名片（含 `manual` / `none`），
+ * `selected` 标记它是否在快速交换清单里。
+ *
+ * 带 `target` 或 `targetCard` 时接口叠加对方视角：逐卡 `targetOwns`（对方名片册里
+ * 已有）与顶层 `targetMissingCount`（我有、对方还没有的张数）。目标未知 —— App
+ * 出示二维码之前 —— 就不传，两个字段整份省略。`target` 认 uid / 主页 slug / 账号 ID；
+ * `targetCard` 是目标的公开卡号（名片墙只剩卡号可用）。两者互斥，服务端会拒绝同时传。
+ */
+export function getExchangeCandidates({
+  target,
+  targetCard,
+}: { target?: string; targetCard?: number } = {}) {
+  const query = new URLSearchParams()
+  if (target) query.set("target", target)
+  if (targetCard !== undefined) query.set("targetCard", String(targetCard))
+  const search = query.toString()
+  const path = search
+    ? `${exchangeMyQuickPath()}?${search}`
+    : exchangeMyQuickPath()
+  return platformApiClient.Get(
+    path,
+    parsed(namecardQuickSettingsSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+      select: normalizeNamecardQuickSettings,
+    })
+  )
+}
+
+/**
+ * 整份保存属主清单：布局 + 快速清单 + 批量字段差异，一次原子写（§4.2）。
+ *
+ * 服务端返回归一后的布局（含它分配的 `group.id` 与 `limit`），调用方直接用它覆盖本地草稿，
+ * 不要在前端复算顺序。
+ */
+export function putCardLayout(input: NamecardCardLayoutRequest) {
+  const submission = namecardCardLayoutRequestSchema.parse(input)
+  return platformApiClient.Put(
+    exchangeMyCardsLayoutPath(),
+    submission,
+    parsed(namecardCardLayoutSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/** 一次交换的请求体：本轮幂等锚点 + 我交出的名片编号（0 张也合法）。 */
+export interface ExchangeCommitInput {
+  clientExchangeId: string
+  giveCardNumbers: readonly number[]
+}
+
+/**
+ * 三条交换写路径共用的请求：编号在轮次内复用（离线重放靠同一锚点幂等），
+ * 所以 `clientExchangeId` 由调用方保管，这里只负责按线上契约发出去。
+ *
+ * 目标为 `none` 的卡回 409「这张名片不接受交换」，由调用方直出后端文案。
+ */
+function postExchangeCommit(path: string, input: ExchangeCommitInput) {
+  const submission = namecardExchangeCommitSchema.parse({
+    clientExchangeId: input.clientExchangeId,
+    giveCardNumbers: [...input.giveCardNumbers],
+  })
+  return platformApiClient.Post(
+    path,
+    submission,
+    parsed(namecardExchangeResultSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/** 名片墙 / 主页的详情窗：直接向对方的一张名片发起交换。 */
+export function requestCardExchange(
+  cardNumber: number,
+  input: ExchangeCommitInput
+) {
+  return postExchangeCommit(exchangeCardRequestPath(cardNumber), input)
+}
+
+/** 单卡分享页 `/exchange/card/<slug>`：收下这张卡并把我的名片交出去。 */
+export function commitCardShare(slug: string, input: ExchangeCommitInput) {
+  return postExchangeCommit(exchangeCardShareCommitPath(slug), input)
+}
+
+/** 快速清单分享页 `/exchange/<handle>`：一次收下对方清单里的全部名片。 */
+export function commitQuickExchange(
+  handle: string,
+  input: ExchangeCommitInput
+) {
+  return postExchangeCommit(exchangeQuickCommitPath(handle), input)
+}
+
+/** 单向送片的请求体：字段名是 `cardNumbers`，与其它交换的 `giveCardNumbers` 不同。 */
+export interface GiftCardsInput {
+  clientExchangeId: string
+  cardNumbers: readonly number[]
+}
+
+/**
+ * 他人主页的【发送名片】：把我选中的名片直接放进对方名片册，对方无需确认。
+ *
+ * 路由 `/exchange/users/:accountId/gift` 只有 API 侧的契约（`namecardExchangeGiftSchema`），
+ * 所以路径用 `exchangePath` 拼；响应与其它交换共用 `namecardExchangeResultSchema`。
+ */
+export function giftCards(accountId: string, input: GiftCardsInput) {
+  const submission = namecardExchangeGiftSchema.parse({
+    clientExchangeId: input.clientExchangeId,
+    cardNumbers: [...input.cardNumbers],
+  })
+  return platformApiClient.Post(
+    exchangePath(`users/${encodeURIComponent(accountId)}/gift`),
+    submission,
+    parsed(namecardExchangeResultSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/**
+ * 出示方开一个扫码会话：拿到的 `token` 就是二维码内容，对方扫码后由对方提交。
+ *
+ * 只登记「本轮交出哪几张」，不写交换记录；真正的交换发生在扫码端 commit 时。
+ */
+export function createScanSession(cardNumbers: readonly number[]) {
+  const submission = namecardScanSessionRequestSchema.parse({
+    cardNumbers: [...cardNumbers],
+  })
+  return platformApiClient.Post(
+    exchangeScanSessionPath(),
+    submission,
+    parsed(namecardScanSessionSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformCsrf(),
+    })
+  )
+}
+
+/**
+ * 扫码方提交：把扫到的令牌换成一次交换。
+ *
+ * 出示方在会话里已经登记了要交出的名片，这里只补「我给出哪几张」；
+ * `clientExchangeId` 由调用方保管，重放沿用同一锚点时后端拿回同一条记录。
+ */
+export function commitScanSession(token: string, input: ExchangeCommitInput) {
+  return postExchangeCommit(exchangeScanCommitPath(token), input)
+}
+
+/**
+ * 出示方轮询会话状态（`active` / `expired` / `committed`）。
+ *
+ * 只有创建者能读；`exchangeId` 仅在 `committed` 后给值，前端只需要状态与到期时间。
+ */
+export function getScanSession(token: string) {
+  return platformApiClient.Get(
+    `${exchangeScanSessionPath()}/${encodeURIComponent(token)}`,
+    parsed(namecardScanSessionStatusResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * 属主某张名片的分享短链（懒加载：只在点「分享」时调一次）。
+ *
+ * 只读语义但会为该卡补一行短链（幂等），所以走平台身份、不带 CSRF；
+ * 卡片不存在或不属于自己时 404。
+ */
+export function getCardShareLink(cardNumber: number | string) {
+  return platformApiClient.Get(
+    exchangePath(
+      `/me/cards/${encodeURIComponent(String(cardNumber))}/share-link`
+    ),
+    parsed(namecardCardShareLinkSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
     })
   )
 }
@@ -786,6 +1012,8 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("madeWithAi", String(fields.madeWithAi))
   form.append("visible", String(fields.visible))
   form.append("credits", JSON.stringify(fields.credits))
+  // 标签随保存一起提交，multipart 里是 JSON 字符串；没填就整个省略。
+  if (fields.tags) form.append("tags", JSON.stringify(fields.tags))
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
@@ -888,6 +1116,59 @@ export function replaceFudabaCardMedia(
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformCsrf(),
       select: normalizeFudabaCardMutation,
+    })
+  )
+}
+
+/**
+ * 标签候选（公开）：只回预设标签，名称/别名包含即命中、前缀优先；自由标签
+ * 由用户输入的原文直接创建，所以不进候选。
+ */
+export function getNamecardTagSuggestions(query: string, limit = 8) {
+  const request = namecardTagSuggestQuerySchema.parse({ q: query, limit })
+  const params = new URLSearchParams({ limit: String(request.limit) })
+  if (request.q) params.set("q", request.q)
+  return apiClient.Get(
+    `${apiPath("/cards/tags/suggest")}?${params.toString()}`,
+    parsed(namecardTagSuggestResponseSchema, {
+      errorSchema: namecardTagSuggestFailureSchema,
+      businessErrorSchema: namecardTagSuggestFailureSchema,
+      // 预设会随管理台改名/合并变化，候选不做客户端缓存。
+      cacheFor: NO_CLIENT_CACHE,
+    })
+  )
+}
+
+/**
+ * 墙 / 详情窗的内联标签保存：整组替换、即时生效。这条写入口只要登录会话，
+ * 因此不带 CSRF（见后端路由注释）。
+ */
+export function setNamecardCardTags(cardId: string, tags: readonly string[]) {
+  const params = namecardTagCardParamsSchema.parse({ cardId })
+  const submission = namecardTagSetRequestSchema.parse({ tags })
+  return platformApiClient.Put(
+    exchangePath(`/cards/${encodeURIComponent(params.cardId)}/tags`),
+    submission,
+    parsed(namecardTagSetResponseSchema, {
+      errorSchema: namecardTagErrorSchema,
+      businessErrorSchema: namecardTagErrorSchema,
+      meta: withPlatformAuth(),
+    })
+  )
+}
+
+/**
+ * 标签提交前自检：命中屏蔽词时编辑器即时提示并丢弃草稿。
+ * 匿名可调用，响应只含被命中的原文，不暴露规则。
+ */
+export function validateNamecardTags(names: readonly string[]) {
+  const body = namecardTagValidateRequestSchema.parse({ names })
+  return apiClient.Post(
+    apiPath("/cards/tags/validate"),
+    body,
+    parsed(namecardTagValidateResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
     })
   )
 }

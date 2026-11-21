@@ -1,8 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import type {
-  FudabaCardPage,
-  FudabaOwnerOffice,
-} from "@imsweb/contracts/fudaba"
+import type { FudabaOwnerOffice } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
@@ -341,18 +338,6 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
       await route.fulfill({ json: makeCharacterCatalog() })
     },
     "GET"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/favorites?**",
-    async (route) => {
-      const response = {
-        items: [],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      } satisfies FudabaCardPage
-      await route.fulfill({ status: 200, json: response })
-    },
-    "GET",
-    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",
@@ -699,7 +684,7 @@ test.describe("account personal workspace", () => {
 
     if (isMobile)
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
-    await page.getByRole("link", { name: /^交换名片/ }).click()
+    await page.getByRole("link", { name: /^名片管理/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(
       page.getByLabel("我的名片清单").getByText("浏览器制作人", { exact: true })

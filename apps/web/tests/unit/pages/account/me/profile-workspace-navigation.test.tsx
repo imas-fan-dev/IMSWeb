@@ -56,7 +56,7 @@ describe("ProfileWorkspaceNavigation", () => {
       "href",
       "/account/me/profile"
     )
-    expect(screen.getByRole("link", { name: "交换名片" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "名片管理" })).toHaveAttribute(
       "href",
       "/account/me/namecards"
     )
@@ -76,7 +76,7 @@ describe("ProfileWorkspaceNavigation", () => {
 
   it("accepts only the five supported section identifiers", () => {
     expect(
-      ["profile", "namecards", "favorites", "offices", "claims"].every(
+      ["profile", "namecards", "collection", "offices", "claims"].every(
         isProfileWorkspaceSection
       )
     ).toBe(true)

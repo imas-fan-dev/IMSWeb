@@ -75,7 +75,7 @@ describe("app back tree", () => {
   it.each([
     ["/account/me/profile", "/account/me"],
     ["/account/me/namecards", "/account/me"],
-    ["/account/me/favorites/", "/account/me"],
+    ["/account/me/collection/", "/account/me"],
     ["/account/security", "/account/me"],
     ["/account/security/", "/account/me"],
     ["/account/login", "/account/me"],

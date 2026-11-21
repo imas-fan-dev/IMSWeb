@@ -1,5 +1,10 @@
 import type { CardPage } from "@imsweb/contracts/fudaba"
-import { iconPath, imagePath, publicAssetsPath } from "@imsweb/contracts/paths"
+import {
+  iconPath,
+  imagePath,
+  platformAccountIconPath,
+  publicAssetsPath,
+} from "@imsweb/contracts/paths"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -106,6 +111,77 @@ const cardPage = makeFudabaCardPage()
 const officeDetail = makeFudabaOfficeDetail()
 
 const seriesList = makeFudabaSeriesList()
+
+
+const uploadedMark = `${platformAccountIconPath("deresute")}?v=1`
+
+const platformAccounts = {
+  catalog: [
+    {
+      id: "deresute",
+      name: "デレステ",
+      group: "game" as const,
+      pattern: "^\\d+$",
+      baseUrl: null,
+      color: "#2681c8",
+      icon: "deremas",
+      iconUrl: uploadedMark,
+      displayOrder: 0,
+      enabled: true,
+      uppercase: false,
+    },
+    {
+      id: "qq",
+      name: "QQ",
+      group: "social" as const,
+      pattern: "^\\d+$",
+      baseUrl: null,
+      color: "#12b7f5",
+      icon: "qq",
+      iconUrl: null,
+      displayOrder: 1,
+      enabled: true,
+      uppercase: false,
+    },
+    {
+      id: "bilibili",
+      name: "哔哩哔哩",
+      group: "social" as const,
+      pattern: "^\\d+$",
+      baseUrl: "https://space.bilibili.com",
+      color: "#00a1d6",
+      icon: "bilibili",
+      iconUrl: "https://cdn.simpleicons.org/bilibili",
+      displayOrder: 2,
+      enabled: true,
+      uppercase: false,
+    },
+  ],
+  entries: [{ kindId: "deresute", value: "123456789", username: null }],
+}
+
+const publicProfile = {
+  accountId: "acc-1",
+  uid: 42,
+  pageSlug: null,
+  displayName: "测试制作人",
+  avatarUrl: null,
+  homeCity: null,
+  bio: "",
+  accounts: [
+    {
+      kindId: "deresute",
+      name: "デレステ",
+      group: "game" as const,
+      value: "123456789",
+      username: null,
+      url: null,
+      color: "#2681c8",
+      icon: "deremas",
+      iconUrl: uploadedMark,
+    },
+  ],
+}
 
 // Owner-scoped responses build their URLs with exchangePath(), so the same
 // field names arrive root-relative here.
@@ -321,6 +397,19 @@ describe("media URL normalisation without a configured origin", () => {
 /* The packaged client must reach the API                                     */
 /* -------------------------------------------------------------------------- */
 
+
+  it("keeps uploaded platform marks root-relative for the website", async () => {
+    const media = await loadMediaUrls("", "", "web")
+
+    const accounts = media.normalizeMyPlatformAccounts(platformAccounts)
+    expect(accounts.catalog[0].iconUrl).toBe(uploadedMark)
+    expect(accounts.catalog[1].iconUrl).toBe(null)
+    expect(accounts.catalog[2].iconUrl).toBe("https://cdn.simpleicons.org/bilibili")
+    expect(media.normalizePublicProfile(publicProfile).accounts[0].iconUrl).toBe(
+      uploadedMark
+    )
+  })
+
 describe("media URL normalisation with a configured origin", () => {
   it("absolutises wiki agency icons, idol avatars and story covers", async () => {
     const media = await loadMediaUrls(PACKAGED_ORIGIN)
@@ -488,6 +577,19 @@ describe("media URL normalisation with a configured origin", () => {
     expect(content.regions[0].linkUrl).toBe("https://example.com/gd")
     expect(content.mapSourceUrl).toBe("https://example.com/source")
     expect(content.communities[0].imageUrl).toBe(null)
+  })
+
+
+  it("absolutises uploaded platform marks for the packaged App", async () => {
+    const media = await loadMediaUrls(PACKAGED_ORIGIN)
+
+    const accounts = media.normalizeMyPlatformAccounts(platformAccounts)
+    expect(accounts.catalog[0].iconUrl).toBe(`${PACKAGED_ORIGIN}${uploadedMark}`)
+    expect(accounts.catalog[1].iconUrl).toBe(null)
+    expect(accounts.catalog[2].iconUrl).toBe("https://cdn.simpleicons.org/bilibili")
+    expect(media.normalizePublicProfile(publicProfile).accounts[0].iconUrl).toBe(
+      `${PACKAGED_ORIGIN}${uploadedMark}`
+    )
   })
 
   it("absolutises the community namecard grid", async () => {

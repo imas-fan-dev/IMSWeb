@@ -64,7 +64,6 @@ describe("App search source ownership", () => {
         searchTools={{
           onOpenFilter: () => undefined,
           onOpenOffices: () => undefined,
-          onOpenCards: () => undefined,
           onRefresh: () => undefined,
         }}
       />

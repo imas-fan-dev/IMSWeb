@@ -23,6 +23,10 @@ import {
   NAMECARD_SERIES_LIMIT,
 } from "./namecard-runtime.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
+import {
+  namecardTagListSchema,
+  namecardTagNamesSchema,
+} from "../namecard-tags.js";
 
 import { wikiImageTransformSchema } from "../wiki.js";
 
@@ -141,13 +145,11 @@ export const fudabaCharacterSelectionSchema = z
 export const fudabaCardInteractionsSchema = z
   .object({
     likes: z.number().int().nonnegative(),
-    favorites: z.number().int().nonnegative(),
     viewerLiked: z.boolean(),
-    viewerFavorited: z.boolean(),
   })
   .strict();
 
-export const fudabaCardInteractionKindSchema = z.enum(["like", "favorite"]);
+export const fudabaCardInteractionKindSchema = z.enum(["like"]);
 
 export const namecardReactionEmojiSchema = z.enum(NAMECARD_REACTION_EMOJIS);
 
@@ -510,6 +512,8 @@ export const fudabaOwnerCardSchema = cardContentFieldsSchema
     reviewReason: z.string().nullable(),
     reviewSubmittedAt: timestampSchema.nullable(),
     pendingContent: fudabaPendingCardContentSchema.nullable(),
+    /** 已保存标签：即时生效，不随待审内容变化。 */
+    tags: namecardTagListSchema.optional(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -724,6 +728,10 @@ export const fudabaCardFieldsRequestSchema = cardContentFieldsSchema
       .array(z.number().int().positive())
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
       .refine((ids) => new Set(ids).size === ids.length),
+    /**
+     * 标签随保存一起提交，但即时生效、不进审核载荷；multipart 里是 JSON 字符串。
+     */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict();
 

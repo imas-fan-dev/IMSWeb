@@ -13,6 +13,10 @@ import {
 } from '@/infra/db/repositories/namecard-notification-repository';
 import {
     cardApprovedCopy,
+    cardExchangeAcceptedCopy,
+    cardExchangeDeclinedCopy,
+    cardExchangeExpiredCopy,
+    cardExchangeRequestedCopy,
     cardFeedbackAcceptedCopy,
     cardFeedbackRejectedCopy,
     cardLockedCopy,
@@ -77,6 +81,41 @@ test('the report verdict thanks the reporter and quotes the reason once', () => 
         cardFeedbackRejectedCopy(793, '  信息不符 ').body,
         '您的反馈未被受理，理由：信息不符。'
     );
+});
+
+test('the exchange request names the wanted cards and promises the one-week expiry', () => {
+    assert.deepEqual(cardExchangeRequestedCopy('Alice', [793]), {
+        kind: 'card-exchange-requested',
+        title: '有一笔名片交换在等你确认',
+        body: 'Alice 希望交换您的名片 #793，一周内不处理将自动过期。'
+    });
+    assert.equal(
+        cardExchangeRequestedCopy('Alice', [786, 788]).body,
+        'Alice 希望交换您的名片 #786、#788，一周内不处理将自动过期。'
+    );
+    // 前 3 个点名，更多的以「等 N 张」收尾；卡号后面不再重复「名片」二字。
+    assert.equal(
+        cardExchangeRequestedCopy('Alice', [786, 788, 790, 792, 794]).body,
+        'Alice 希望交换您的名片 #786、#788、#790 等 5 张，一周内不处理将自动过期。'
+    );
+});
+
+test('the exchange outcome tells the initiator who decided and whether it went through', () => {
+    assert.deepEqual(cardExchangeAcceptedCopy('Alice'), {
+        kind: 'card-exchange-accepted',
+        title: '名片交换已完成',
+        body: 'Alice 已同意了您的交换申请，本次名片交换完成。'
+    });
+    assert.deepEqual(cardExchangeDeclinedCopy('Alice'), {
+        kind: 'card-exchange-declined',
+        title: '对方婉拒了这次交换',
+        body: 'Alice 拒绝了您的交换申请，本次名片交换失败。'
+    });
+    assert.deepEqual(cardExchangeExpiredCopy('Alice'), {
+        kind: 'card-exchange-expired',
+        title: '名片交换请求已过期',
+        body: 'Alice 未及时处理您的交换申请，本次名片交换自动关闭。'
+    });
 });
 
 async function seedAccount(database: ManagedSqlDatabase): Promise<void> {

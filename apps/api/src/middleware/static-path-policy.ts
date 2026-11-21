@@ -47,7 +47,7 @@ export function isManifestControlledSiteContentPath(requestUrl: unknown): boolea
 }
 
 export function isSensitiveRequestPath(requestUrl: unknown): boolean {
-    if (isManifestControlledSiteContentPath(requestUrl)) return false;
+    if (requestUrl === '/robots.txt' || isManifestControlledSiteContentPath(requestUrl)) return false;
     const segments = getRequestPathSegments(requestUrl);
     if (!segments) return true;
 

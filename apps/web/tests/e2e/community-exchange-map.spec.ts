@@ -1,7 +1,12 @@
 import AxeBuilder from "@axe-core/playwright"
 import { api, expect, test } from "./fixtures/test"
 
-import { installBrowserIconMock } from "./fixtures/homepage"
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import {
+  installPlatformOAuthProvidersMock,
+  installPlatformSessionMock,
+  platformOAuthProviderFixtures,
+} from "./fixtures/platform-auth"
 
 const series = {
   items: [
@@ -87,33 +92,6 @@ const mapOffices = [
   },
 ]
 
-const card = {
-  id: "card-1",
-  producerName: "春香P",
-  seriesCodes: ["765"],
-  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
-  frontImageUrl: "/brand/series/wall/765pro.webp",
-  backImageUrl: "/brand/series/wall/cinderella-girls.webp",
-  accent: "#f34e6c",
-  bio: "上海地区制作人",
-  tradeNote: "现场交换同系列名片",
-  exchangeMode: "manual",
-  madeOn: null,
-  groupName: null,
-  producerReading: null,
-  isOriginal: false,
-  madeWithAi: false,
-  visible: true,
-  credits: [],
-  createdAt: "2026-08-02T08:00:00.000Z",
-  interactions: {
-    likes: 12,
-    favorites: 4,
-    viewerLiked: false,
-    viewerFavorited: false,
-  },
-}
-
 test.beforeEach(async ({ page, api }, testInfo) => {
   test.skip(
     testInfo.project.name === "firefox-desktop" &&
@@ -128,16 +106,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       ["http:", "https:"].includes(url.protocol) &&
       !["127.0.0.1", "localhost"].includes(url.hostname),
     (route) => route.abort("blockedbyclient")
-  )
-  await installBrowserIconMock(api)
-  await api.mockRoute(
-    "/api/community/exchange/cards/card-1/reactions",
-    (route) =>
-      route.fulfill({
-        json: { success: true, cardId: "card-1", reactions: [] },
-      }),
-    "GET",
-    { min: 0, max: 1 }
   )
   await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
@@ -163,19 +131,6 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       await route.fulfill({
         json: {
           items: [directoryOffice],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      })
-    },
-    "GET",
-    { min: 1, max: 4 }
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [card],
           pageInfo: { hasNextPage: false, nextCursor: null },
         },
       })
@@ -536,7 +491,7 @@ test.describe("community exchange map", () => {
   )
 
   test(
-    "fills the public workspace with a responsive map and keeps both directories reachable",
+    "fills the public workspace with a responsive map and keeps the office directory reachable",
     {
       tag: "@mobile",
     },
@@ -984,8 +939,7 @@ test.describe("community exchange map", () => {
       await expect(
         directory.getByRole("link", { name: "上海周末交换事务所" })
       ).toBeVisible()
-      await page.getByRole("tab", { name: "名片" }).click()
-      await expect(page.getByText("春香P", { exact: true })).toBeVisible()
+      await expect(directory.getByRole("tablist")).toHaveCount(0)
 
       const accessibility = await new AxeBuilder({ page }).analyze()
       expect(accessibility.violations).toEqual([])
@@ -1004,7 +958,7 @@ test.describe("community exchange map", () => {
   )
 
   test(
-    "falls back to the directory without hiding cards when config fails",
+    "keeps the office directory available when map config fails",
     {
       tag: "@firefox",
     },
@@ -1101,16 +1055,7 @@ test.describe("community exchange map", () => {
           })
         }
       }
-      await fallbackDirectory.getByRole("tab", { name: "名片" }).click()
-      await expect(
-        fallbackDirectory.getByText("春香P", { exact: true })
-      ).toBeVisible()
-      await fallbackDirectory
-        .getByRole("button", { name: "查看春香P的名片正面" })
-        .click()
-      await expect(page.getByRole("dialog")).toBeVisible()
-      await page.keyboard.press("Escape")
-      await fallbackDirectory.getByRole("tab", { name: "事务所" }).click()
+      await expect(fallbackDirectory.getByRole("tablist")).toHaveCount(0)
       await fallbackDirectory
         .getByRole("link", { name: "上海周末交换事务所" })
         .click()
@@ -1212,6 +1157,7 @@ test.describe("map first-use guide", () => {
 test("offers office creation at a right-clicked position and keyboard-selected map center @mobile", async ({
   page,
   api,
+  isMobile,
 }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await api.mockRoute(
@@ -1232,6 +1178,19 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     "GET",
     { min: 1, max: 5 }
   )
+  installEmptyWikiCatalogMock(api)
+  // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
+  // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
+  await installPlatformSessionMock(
+    api,
+    { success: false, code: "PLATFORM_SESSION_INVALID" },
+    { status: 401, times: { min: 0, max: 4 } }
+  )
+  await installPlatformOAuthProvidersMock(
+    api,
+    { min: 0, max: 2 },
+    platformOAuthProviderFixtures
+  )
   await page.goto("/community/exchange")
   const surface = page.locator("[data-exchange-office-map]")
   await expect(surface).toHaveAttribute("data-map-state", "ready")
@@ -1249,15 +1208,31 @@ test("offers office creation at a right-clicked position and keyboard-selected m
   await expect(
     page.getByRole("button", { name: "在此创建事务所" })
   ).toHaveCount(0)
-  await page.getByRole("button", { name: "更多地图工具" }).click()
+  const tools = page.getByRole("button", { name: "更多地图工具" })
+  await tools.click()
   await page.getByRole("menuitem", { name: "选择位置创建事务所" }).click()
+  await expect(
+    page.getByText("点击地图选择事务所位置", { exact: true })
+  ).toBeVisible()
+  // 菜单关闭后会把焦点交还给触发按钮，等它完成再聚焦地图。
+  await expect(tools).toBeFocused()
   await canvas.focus()
+  await expect(canvas).toBeFocused()
   await page.keyboard.press("Enter")
   await expect(
     page.getByRole("button", { name: "在此创建事务所" })
   ).toBeVisible()
   await page.getByRole("button", { name: "在此创建事务所" }).click()
-  await expect(page).toHaveURL(/\/account\/me\/offices\?create=[\w-]+$/)
+  if (isMobile) {
+    await expect(page).toHaveURL(/\/account\/me\/offices\?create=[\w-]+$/)
+  } else {
+    // 桌面端创建事务所要先登录：返回地址里带着 create 意图（见
+    // account-office-auth-return.spec.ts）。登录页会读会话与 OAuth 供应商，
+    // 这里按匿名放行，避免把「未注册请求」误报成失败。
+    await expect(page).toHaveURL(
+      /\/account\/login\?returnTo=%2Faccount%2Fme%2Foffices%3Fcreate%3D[\w-]+$/
+    )
+  }
   expect(
     await page.evaluate(
       () =>

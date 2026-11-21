@@ -223,6 +223,51 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     SHARED_TARGETS,
     "spa"
   ),
+  // 分享页：动态路径拿不到预渲染，逐卡 OGP 由 API 的 HTML 出口注入（design §3.4）。
+  // Web 上是**独立页面**（`standalone` 不套站点页眉/页脚/浮窗）；App 目标仍留在 App 外壳里，
+  // 那边靠外壳提供返回与 Tab 栏，独立渲染会把用户困在页面里。
+  route(
+    "exchange/card/:slug",
+    "pages/exchange/card-share-page.tsx",
+    "standalone",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/card/:slug",
+    "pages/exchange/card-share-page.tsx",
+    "public",
+    APP_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/scan/:token",
+    "pages/exchange/scan-share-page.tsx",
+    "standalone",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/scan/:token",
+    "pages/exchange/scan-share-page.tsx",
+    "public",
+    APP_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/:handle",
+    "pages/exchange/quick-share-page.tsx",
+    "standalone",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/:handle",
+    "pages/exchange/quick-share-page.tsx",
+    "public",
+    APP_TARGET,
+    "spa"
+  ),
   route(
     "community/cards",
     "pages/community/community-cards-page.tsx",
@@ -394,7 +439,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
         tab: "account",
         parent: "/account/me",
         private: true,
-        sections: ["profile", "namecards", "favorites", "offices", "claims"],
+        sections: ["profile", "namecards", "collection", "offices", "claims"],
       },
     }
   ),
@@ -509,6 +554,7 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     WEB_TARGET,
     "spa"
   ),
+  route("tags", "pages/admin/tags/index.tsx", "admin", WEB_TARGET, "spa"),
   route(
     "site-packages",
     "pages/admin/site-packages/index.tsx",

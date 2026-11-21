@@ -141,26 +141,26 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 402,
-      mountedMethodPaths: 303,
-      noInputRoutes: 99,
-      requestCarriers: 400,
+      mountedRegistrations: 426,
+      mountedMethodPaths: 326,
+      noInputRoutes: 100,
+      requestCarriers: 428,
       policies: {
-        reject: 89,
-        "accept-and-project": 210,
+        reject: 107,
+        "accept-and-project": 220,
         passthrough: 17,
         "non-object-applicable": 84,
       },
-      responses: { total: 840, json: 781, nonJson: 59 },
+      responses: { total: 872, json: 806, nonJson: 66 },
       unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
-      mountedMethodPaths: 289, carriers: 367, reject: 82, acceptAndProject: 184,
+      mountedMethodPaths: 294, carriers: 373, reject: 86, acceptAndProject: 186,
       passthrough: 17, nonObjectApplicable: 84,
     });
     assert.deepEqual(current.reconciliation.baselineCompatible, {
-      mountedMethodPaths: 289, requestCarriers: 367,
-      policies: { reject: 82, "accept-and-project": 184, passthrough: 17, "non-object-applicable": 84 },
+      mountedMethodPaths: 294, requestCarriers: 373,
+      policies: { reject: 86, "accept-and-project": 186, passthrough: 17, "non-object-applicable": 84 },
     });
     assert.deepEqual(current.reconciliation.explicitAdminAdditions, [
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject", actualCarriers: 1 },
@@ -170,6 +170,26 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogGroupKindRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/group-kind", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogBindingRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/wiki-bindings", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileImageParamsSchema", kind: "param", method: "GET", path: "/api/admin/catalog/profile-images/:kind/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagFreeQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/free", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPromoteRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/promote", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlockRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/block", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetMergeRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/blocklist/:id/remove-matches", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

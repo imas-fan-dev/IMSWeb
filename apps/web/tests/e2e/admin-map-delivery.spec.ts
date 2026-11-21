@@ -7,14 +7,12 @@ import {
 } from "@imsweb/contracts/fudaba"
 import { expect, test } from "./fixtures/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
 test("switches regional search with a fixed Mapbox basemap to one source and preserves provider configurations @mobile", async ({
   page,
   api,
 }, testInfo) => {
   await installAdminAuthMock(page, api, { user: { adminRole: "super_admin" } })
-  installEmptyWikiCatalogMock(api)
   let current: FudabaMapDeliverySnapshot = {
     sources: [
       {

@@ -15,15 +15,12 @@ import {
   type EventPage,
 } from "@imsweb/contracts/events"
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaMapQuerySchema,
   fudabaOfficePageSchema,
   fudabaOfficeQuerySchema,
   fudabaSeriesListSchema,
-  type FudabaCardPage,
   type FudabaMapConfig,
   type FudabaMapOfficeList,
   type FudabaOfficePage,
@@ -69,10 +66,6 @@ const emptyExchangeOffices = {
   items: [],
   pageInfo: { hasNextPage: false, nextCursor: null },
 } satisfies FudabaOfficePage
-const emptyExchangeCards = {
-  items: [],
-  pageInfo: { hasNextPage: false, nextCursor: null },
-} satisfies FudabaCardPage
 const exchangeMapConfig = {
   provider: "maplibre",
   search: { provider: "nominatim" },
@@ -111,7 +104,6 @@ export type SeededPublicApiRegistration = {
     | "/api/chronicle"
     | "/api/community-posts/spotlight"
     | "/api/community/content"
-    | "/api/community/exchange/cards"
     | "/api/community/exchange/map/config"
     | "/api/community/exchange/map/offices"
     | "/api/community/exchange/offices"
@@ -228,18 +220,6 @@ function installExchangeOfficesMock(api: ApiDispatcher, times: ApiTimes) {
   })
 }
 
-function installExchangeCardsMock(api: ApiDispatcher, times: ApiTimes) {
-  api.expect({
-    name: "deterministic public exchange cards",
-    method: "GET",
-    path: exchangePath("/cards"),
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
-    times,
-    handle: () => ({ status: 200, json: emptyExchangeCards }),
-  })
-}
-
 function installExchangeMapConfigMock(api: ApiDispatcher, times: ApiTimes) {
   api.expect({
     name: "deterministic public exchange map config",
@@ -286,8 +266,6 @@ export function installSeededPublicApis(
       installSpotlightMock(api, times)
     } else if (path === "/api/community/content") {
       installCommunityContentMock(api, times)
-    } else if (path === "/api/community/exchange/cards") {
-      installExchangeCardsMock(api, times)
     } else if (path === "/api/community/exchange/map/config") {
       installExchangeMapConfigMock(api, times)
     } else if (path === "/api/community/exchange/map/offices") {
