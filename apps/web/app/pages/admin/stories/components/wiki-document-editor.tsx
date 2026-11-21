@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 
+import { adminTextareaClass } from "~/components/admin/admin-ui"
 import { Button } from "~/components/ui/button"
 import { Textarea } from "~/components/ui/textarea"
 import type { WikiDocumentWarning, WikiStoryCoverAsset } from "~/lib/api"
@@ -222,7 +223,7 @@ export function WikiDocumentEditor({
               event.preventDefault()
               uploadFirstImage(files)
             }}
-            className="min-h-96 rounded-none border-0 font-mono text-xs/6 focus-visible:ring-0"
+            className={cn(adminTextareaClass, "min-h-96")}
             spellCheck={false}
           />
         </section>

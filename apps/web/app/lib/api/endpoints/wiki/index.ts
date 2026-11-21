@@ -5,6 +5,7 @@ import {
   adminWikiPath,
   wikiPath,
 } from "@imsweb/contracts/paths"
+import { isApiError } from "../../api-error"
 import { parsed } from "../../parsed"
 import { adminApiClient } from "../../admin-client"
 import {
@@ -56,10 +57,11 @@ import {
   wikiStoryCoverAssetMutationSchema,
   wikiStoryCoverAssetsSchema,
   wikiStoryLinkDeleteResultSchema,
+  wikiRevisionConflictResponseSchema,
   wikiStorySourceCatalogSchema,
   wikiStorySourcePlatformMutationSchema,
+  type WikiAdminSaveEntryDocumentRequest,
   type WikiAdminStory,
-  type WikiContentMode,
   type WikiEntityImageKind,
   type WikiImageTransform,
   type WikiStoryCoverPresentationPolicy,
@@ -119,6 +121,7 @@ export {
   type WikiAdminEntryDocumentMediaUpload,
   type WikiAdminEntryDocumentSave,
   type WikiAdminEntryDocumentPreview,
+  type WikiAdminSaveEntryDocumentRequest,
   type WikiPublicStories,
   type WikiPublicStoryCard,
   type WikiPublicStoryCategory,
@@ -288,6 +291,18 @@ export function getAdminWikiStoryCoverAssets(agencyId: number) {
   )
 }
 
+/**
+ * Current server revision carried by a `409` optimistic-lock response.
+ *
+ * The wire layer owns the conflict payload shape, so callers never re-derive
+ * `revision` from a raw error payload by hand.
+ */
+export function wikiRevisionConflictRevision(error: unknown): number | null {
+  if (!isApiError(error) || error.status !== 409) return null
+  const conflict = wikiRevisionConflictResponseSchema.safeParse(error.payload)
+  return conflict.success ? (conflict.data.revision ?? null) : null
+}
+
 /** Enhanced Markdown documents: read, compile-only preview, save, and media. */
 export function getAdminWikiEntryDocument(entryId: number) {
   return adminApiClient.Get(
@@ -315,14 +330,10 @@ export function previewAdminWikiEntryDocument(input: {
   )
 }
 
-export function saveAdminWikiEntryDocument(input: {
-  entryId: number
-  contentMode: WikiContentMode
-  sourceMarkdown: string
-  expectedRevision: number
-  summary?: string
-}) {
-  const body: Record<string, unknown> = {
+export function saveAdminWikiEntryDocument(
+  input: { entryId: number } & WikiAdminSaveEntryDocumentRequest
+) {
+  const body: WikiAdminSaveEntryDocumentRequest = {
     contentMode: input.contentMode,
     sourceMarkdown: input.sourceMarkdown,
     expectedRevision: input.expectedRevision,

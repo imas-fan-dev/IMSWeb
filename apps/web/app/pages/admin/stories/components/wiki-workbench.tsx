@@ -7,6 +7,7 @@ import {
   Settings2Icon,
   UserRoundIcon,
 } from "lucide-react"
+import { useCallback, useRef, useState } from "react"
 import { useLocation } from "react-router"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
@@ -56,6 +57,24 @@ import { StoryCharacterSelector } from "./story-character-selector"
 
 export function WikiWorkbench() {
   const location = useLocation()
+  const dirtyDraftRef = useRef(false)
+  const [pendingEntryChange, setPendingEntryChange] = useState<{
+    run: () => void
+  } | null>(null)
+  const reportDraftDirty = useCallback((dirty: boolean) => {
+    dirtyDraftRef.current = dirty
+  }, [])
+  // Switching entries unmounts the document workspace, so an unsaved draft would
+  // be discarded without a word. Every entry-changing action goes through this
+  // guard, which keeps the same confirm-then-continue semantics as the mode
+  // switch.
+  const guardEntryChange = useCallback((run: () => void) => {
+    if (dirtyDraftRef.current) {
+      setPendingEntryChange({ run })
+      return
+    }
+    run()
+  }, [])
   const {
     catalog,
     catalogLoading,
@@ -93,11 +112,21 @@ export function WikiWorkbench() {
     setSelection,
   } = useWikiWorkbenchState()
 
+  const applyCharacterTarget = async (target: {
+    projectId: number
+    entryId: number
+  }) => {
+    await refreshCatalog()
+    setSelection(target.projectId, target.entryId)
+    setMobileExplorerOpen(false)
+    reloadStories()
+  }
+
   const explorer = selectedAgency ? (
     <WikiHierarchyExplorer
       agency={selectedAgency}
       selectedIdolId={selectedIdol?.id ?? null}
-      onSelectIdol={chooseIdol}
+      onSelectIdol={(idol) => guardEntryChange(() => chooseIdol(idol))}
     />
   ) : null
 
@@ -110,12 +139,11 @@ export function WikiWorkbench() {
         actions={
           <>
             <StoryCharacterSelector
-              onSelected={async (target) => {
-                await refreshCatalog()
-                setSelection(target.projectId, target.entryId)
-                setMobileExplorerOpen(false)
-                reloadStories()
-              }}
+              onSelected={async (target) =>
+                guardEntryChange(() => {
+                  void applyCharacterTarget(target)
+                })
+              }
             />
             <Button
               type="button"
@@ -180,7 +208,9 @@ export function WikiWorkbench() {
                 value: String(agency.id),
               }))}
               value={selectedAgency ? String(selectedAgency.id) : ""}
-              onValueChange={(value) => chooseAgency(String(value))}
+              onValueChange={(value) =>
+                guardEntryChange(() => chooseAgency(String(value)))
+              }
             >
               <SelectTrigger id="wiki-workbench-agency" className="w-full">
                 <SelectValue>
@@ -289,6 +319,7 @@ export function WikiWorkbench() {
                   categories={stories?.categories ?? []}
                   cards={stories?.cards ?? []}
                   coverAssets={coverAssets}
+                  onDraftDirtyChange={reportDraftDirty}
                   structured={
                     storiesError ? (
                       <div className="p-4">
@@ -397,6 +428,24 @@ export function WikiWorkbench() {
           <div className="min-h-0 flex-1 overflow-y-auto">{explorer}</div>
         </SheetContent>
       </Sheet>
+
+      <ConfirmActionDialog
+        open={pendingEntryChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingEntryChange(null)
+        }}
+        title="放弃未保存的文档草稿？"
+        description="当前内容页有未保存的增强 Markdown 改动，切换内容页会丢弃这些改动。结构化卡片、分类与来源数据不受影响。"
+        submitting={false}
+        confirmLabel="仍然切换"
+        cancelLabel="留在当前条目"
+        variant="default"
+        onConfirm={() => {
+          const pending = pendingEntryChange
+          setPendingEntryChange(null)
+          pending?.run()
+        }}
+      />
 
       {selectedAgency && selectedIdol && storyEditor ? (
         <StoryEditorDialog

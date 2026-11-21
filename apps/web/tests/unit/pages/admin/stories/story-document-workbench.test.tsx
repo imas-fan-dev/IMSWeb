@@ -244,7 +244,8 @@ type RecordedRequest = {
 }
 
 type WorkbenchRoutes = {
-  document?: () => Response | Promise<Response>
+  catalog?: unknown
+  document?: (entryId: number) => Response | Promise<Response>
   preview?: (body: { sourceMarkdown: string }) => Response | Promise<Response>
   save?: (body: {
     contentMode: string
@@ -267,7 +268,7 @@ function installWorkbenchFetch(routes: WorkbenchRoutes = {}) {
     }
     requests.push({ method, pathname: url.pathname, body })
     if (method === "GET" && url.pathname === "/api/admin/wiki/catalog") {
-      return Promise.resolve(jsonResponse(catalog))
+      return Promise.resolve(jsonResponse(routes.catalog ?? catalog))
     }
     if (
       method === "GET" &&
@@ -287,10 +288,16 @@ function installWorkbenchFetch(routes: WorkbenchRoutes = {}) {
     if (method === "GET" && url.pathname === "/api/admin/wiki/stories") {
       return Promise.resolve(jsonResponse(stories))
     }
-    if (url.pathname === "/api/admin/wiki/entries/10/document") {
+    const entryDocument = /^\/api\/admin\/wiki\/entries\/(\d+)\/document$/.exec(
+      url.pathname
+    )
+    if (entryDocument) {
+      const entryId = Number(entryDocument[1])
       if (method === "GET") {
         return Promise.resolve(
-          routes.document ? routes.document() : jsonResponse(documentPayload())
+          routes.document
+            ? routes.document(entryId)
+            : jsonResponse(documentPayload())
         )
       }
       if (method === "PUT" && routes.save) {
@@ -299,16 +306,20 @@ function installWorkbenchFetch(routes: WorkbenchRoutes = {}) {
         )
       }
     }
+    const entryDocumentChild =
+      /^\/api\/admin\/wiki\/entries\/(\d+)\/document\/(preview|media)$/.exec(
+        url.pathname
+      )
     if (
       method === "POST" &&
-      url.pathname === "/api/admin/wiki/entries/10/document/preview" &&
+      entryDocumentChild?.[2] === "preview" &&
       routes.preview
     ) {
       return Promise.resolve(routes.preview(body as { sourceMarkdown: string }))
     }
     if (
       method === "POST" &&
-      url.pathname === "/api/admin/wiki/entries/10/document/media" &&
+      entryDocumentChild?.[2] === "media" &&
       routes.media
     ) {
       return Promise.resolve(
@@ -336,6 +347,21 @@ async function typeAtEnd(
   element.focus()
   element.setSelectionRange(element.value.length, element.value.length)
   await user.type(element, text)
+}
+
+function catalogWithSecondIdol() {
+  const second = structuredClone(catalog)
+  const agency = second.agencies[0]
+  const template = agency.idols[0]
+  agency.idols.push({
+    ...template,
+    id: 11,
+    name: "如月千早",
+    folderName: "kisara_chihaya",
+    color: "#7f9bd6",
+    groupIds: [],
+  })
+  return second
 }
 
 function renderWorkbench() {
@@ -522,8 +548,21 @@ describe("Wiki document workbench", () => {
     expect(sourceValue()).toContain(':::card-grid{layout="grid" cols="3"}')
     expect(sourceValue()).toContain(':::card{title="【卡片标题】"}')
 
+    await user.click(screen.getByRole("button", { name: "插入提示框" }))
+    expect(sourceValue()).toContain(':::callout{type="tip" title="提示"}')
+
     await user.click(screen.getByRole("button", { name: "插入折叠块" }))
     expect(sourceValue()).toContain(':::details{title="剧透折叠"}')
+
+    await user.click(screen.getByRole("button", { name: "插入选项卡" }))
+    expect(sourceValue()).toContain(":::tabs")
+    expect(sourceValue()).toContain(':::tab{title="选项卡 1"}')
+
+    await user.click(screen.getByRole("button", { name: "插入来源链接" }))
+    expect(sourceValue()).toContain(':::links{title="来源"}')
+    expect(sourceValue()).toContain(
+      "- [](https://www.bilibili.com/video/BV1xx411c7mD)"
+    )
 
     await user.click(screen.getByRole("combobox", { name: "插入分类嵌入" }))
     await user.click(await screen.findByRole("option", { name: "主线" }))
@@ -730,6 +769,43 @@ describe("Wiki document workbench", () => {
       await screen.findByRole("button", { name: "恢复我的草稿" })
     )
     expect(sourceValue()).toBe("## 服务器版本\n本地草稿")
+  })
+
+  it("asks before switching to another entry while the draft is unsaved", async () => {
+    installWorkbenchFetch({
+      catalog: catalogWithSecondIdol(),
+      document: (entryId) =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: entryId === 10 ? "## 条目十\n" : "## 条目十一\n",
+            revision: 1,
+          })
+        ),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    const source = await screen.findByRole("textbox", { name: "文档源码" })
+    expect(source).toHaveValue("## 条目十\n")
+    await typeAtEnd(user, source, "未保存的补充")
+
+    await user.click(screen.getByRole("button", { name: "如月千早" }))
+    const guard = await screen.findByRole("alertdialog", {
+      name: "放弃未保存的文档草稿？",
+    })
+    await user.click(
+      within(guard).getByRole("button", { name: "留在当前条目" })
+    )
+    expect(sourceValue()).toBe("## 条目十\n未保存的补充")
+
+    await user.click(screen.getByRole("button", { name: "如月千早" }))
+    await user.click(await screen.findByRole("button", { name: "仍然切换" }))
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "文档源码" })).toHaveValue(
+        "## 条目十一\n"
+      )
+    )
   })
 
   it("persists a switch back to structured mode", async () => {

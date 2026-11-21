@@ -172,6 +172,14 @@ const compiledDocument: WikiPublicStoryDocument = {
       imageUrl: "/brand/imsweb-logo.webp",
       presentationPolicy: "contain",
     },
+    {
+      type: "media",
+      asset: { kind: "doc", id: 88 },
+      caption: "上传的截图",
+      fit: "cover",
+      imageUrl: "/brand/imsweb-logo.webp",
+      presentationPolicy: "inherit",
+    },
   ],
 }
 
@@ -449,6 +457,15 @@ test.describe("wiki document workbench", () => {
         )
       )
       .toBeGreaterThan(0)
+    const modernUpload = page.getByRole("img", { name: "上传的截图" })
+    await expect(modernUpload).toBeVisible()
+    await expect
+      .poll(() =>
+        modernUpload.evaluate(
+          (image) => (image as HTMLImageElement).naturalWidth
+        )
+      )
+      .toBeGreaterThan(0)
 
     // ... and on the Classic public page, with the restored public cache
     // cleared so the classic render proves its own request.
@@ -462,6 +479,119 @@ test.describe("wiki document workbench", () => {
     await expect(page.getByRole("heading", { name: "观看顺序" })).toBeVisible()
     await expect(page.getByText("【第一话】")).toBeVisible()
     await expect(page.getByRole("img", { name: "通用主线封面" })).toBeVisible()
+    await expect(page.getByRole("img", { name: "上传的截图" })).toBeVisible()
+  })
+
+  test("creates a document page for an entry that never had one and publishes it", async ({
+    page,
+  }) => {
+    const saves: Array<{
+      contentMode: string
+      sourceMarkdown: string
+      expectedRevision: number
+    }> = []
+    const createdDocument: WikiPublicStoryDocument = {
+      version: 1,
+      headings: [{ id: "新建导览", level: 2, text: "新建导览" }],
+      availableTags: [],
+      blocks: [
+        {
+          type: "heading",
+          level: 2,
+          id: "新建导览",
+          children: [{ type: "text", value: "新建导览" }],
+        },
+        {
+          type: "paragraph",
+          children: [{ type: "text", value: "首次发布的文档。" }],
+        },
+        { type: "storyCategory", categoryName: "主线", collapsed: false },
+        {
+          type: "media",
+          asset: { kind: "doc", id: 88 },
+          caption: "上传的截图",
+          fit: "cover",
+          imageUrl: "/brand/imsweb-logo.webp",
+          presentationPolicy: "inherit",
+        },
+      ],
+    }
+    await installWorkbenchMocks(page, {
+      // A freshly created entry: no stored document, revision 0.
+      contentMode: "structured",
+      sourceMarkdown: "",
+      revision: 0,
+      onSave: async (route, body) => {
+        saves.push(body as (typeof saves)[number])
+        await route.fulfill({
+          status: 200,
+          json: {
+            status: "success",
+            contentMode: "document",
+            revision: 1,
+            document: createdDocument,
+            warnings: [],
+          },
+        })
+      },
+    })
+
+    await page.goto("/admin/stories?agencyId=6&idolId=6")
+    await expect(
+      page.getByRole("button", { name: "结构化卡片模式" })
+    ).toHaveAttribute("aria-pressed", "true")
+    await page.getByRole("button", { name: "增强 Markdown 文档模式" }).click()
+
+    const source = page.getByLabel("文档源码", { exact: true })
+    await expect(source).toHaveValue("")
+    await source.click()
+    await source.pressSequentially("## 新建导览\n\n首次发布的文档。\n", {
+      delay: 10,
+    })
+    await page.getByLabel("选择图片文件").setInputFiles({
+      name: "created.webp",
+      mimeType: "image/webp",
+      buffer: Buffer.from([1, 2, 3]),
+    })
+    await expect(source).toHaveValue(/::media\{asset="doc:88"\}/)
+
+    await page.getByRole("button", { name: "保存文档" }).click()
+    await expect(page.getByText("已保存")).toBeVisible()
+    expect(saves).toHaveLength(1)
+    expect(saves[0]?.expectedRevision).toBe(0)
+    expect(saves[0]?.contentMode).toBe("document")
+    expect(saves[0]?.sourceMarkdown).toContain("## 新建导览")
+
+    // The compiled document the save produced is what the public pages serve.
+    installEmptyWikiCatalogMock(api, { min: 0, max: 4 })
+    api.mockRoute(
+      "**/api/wiki/stories?**",
+      (route) =>
+        route.fulfill({
+          status: 200,
+          json: { ...publicStories, document: createdDocument },
+        }),
+      "GET",
+      { min: 2, max: 4 }
+    )
+
+    await page.goto(
+      `/story?agency=${encodeURIComponent("闪耀色彩")}&idol=${encodeURIComponent("樱木真乃")}`
+    )
+    await expect(page.getByRole("heading", { name: "新建导览" })).toBeVisible()
+    await expect(page.getByText("首次发布的文档。")).toBeVisible()
+    await expect(page.getByText("【第一话】")).toBeVisible()
+    await expect(page.getByRole("img", { name: "上传的截图" })).toBeVisible()
+
+    await page.evaluate(() => {
+      window.localStorage.clear()
+      window.sessionStorage.clear()
+    })
+    await page.goto(
+      `/story/classic?agency=${encodeURIComponent("闪耀色彩")}&idol=${encodeURIComponent("樱木真乃")}`
+    )
+    await expect(page.getByRole("heading", { name: "新建导览" })).toBeVisible()
+    await expect(page.getByRole("img", { name: "上传的截图" })).toBeVisible()
   })
 
   test("keeps the draft and offers recovery when saving conflicts", async ({

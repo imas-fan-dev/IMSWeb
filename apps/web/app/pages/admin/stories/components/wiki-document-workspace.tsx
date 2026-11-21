@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 import { RefreshCwIcon } from "lucide-react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -8,6 +14,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import {
   saveAdminWikiEntryDocument,
   uploadAdminWikiEntryDocumentMedia,
+  wikiRevisionConflictRevision,
   type WikiContentMode,
   type WikiDocumentMediaItem,
   type WikiStoryCoverAsset,
@@ -17,8 +24,8 @@ import { useDocumentPreview, useWikiEntryDocument } from "./wiki-document-hooks"
 import { WikiDocumentEditor } from "./wiki-document-editor"
 import {
   DOCUMENT_MODE_LABELS,
-  conflictRevision,
   documentCategoryOptions,
+  documentDraftIsDirty,
   type DocumentEntryMode,
 } from "./wiki-document-model"
 
@@ -29,6 +36,8 @@ type SaveState = {
   /** Server revision reported by a `409`, or `null` when there is no conflict. */
   conflict: number | null
 }
+
+const NO_DIRTY_REPORT = () => undefined
 
 const IDLE_SAVE: SaveState = {
   saving: false,
@@ -52,6 +61,7 @@ export function WikiDocumentWorkspace({
   categories,
   cards,
   coverAssets,
+  onDraftDirtyChange,
   structured,
 }: {
   entryId: number
@@ -61,6 +71,11 @@ export function WikiDocumentWorkspace({
   cards: readonly { category: string }[]
   /** Agency shared covers the toolbar can embed as `cover:<id>`. */
   coverAssets: readonly WikiStoryCoverAsset[]
+  /**
+   * Reports whether the document draft differs from the stored document, so the
+   * page can confirm before an entry switch would discard it.
+   */
+  onDraftDirtyChange?: (dirty: boolean) => void
   structured: ReactNode
 }) {
   const { data, error, loading, reload, applySave } =
@@ -98,9 +113,13 @@ export function WikiDocumentWorkspace({
     [data]
   )
 
+  const reportDraftDirty = onDraftDirtyChange ?? NO_DIRTY_REPORT
   const storedMode: DocumentEntryMode = data?.contentMode ?? "structured"
   const mode = selectedMode ?? storedMode
-  const dirty = source !== (data?.sourceMarkdown ?? "")
+  const dirty = documentDraftIsDirty(data, source)
+  useEffect(() => {
+    reportDraftDirty(dirty)
+  }, [dirty, reportDraftDirty])
   const categoryOptions = useMemo(
     () => documentCategoryOptions(categories, cards),
     [cards, categories]
@@ -133,7 +152,7 @@ export function WikiDocumentWorkspace({
         setDiscardedDraft(null)
         setSave({ saving: false, saved: true, error: null, conflict: null })
       } catch (failure) {
-        const conflict = conflictRevision(failure)
+        const conflict = wikiRevisionConflictRevision(failure)
         setSave({
           saving: false,
           saved: false,

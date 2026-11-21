@@ -104,11 +104,6 @@ export function documentMediaSnippet(input: {
   return `::media{${attributes.join(" ")}}`
 }
 
-export type DocumentInsertResult = {
-  source: string
-  caret: number
-}
-
 /**
  * Inserts one block snippet at the caret, keeping a blank line between the new
  * block and its neighbours so the compiler never reads a directive glued to the
@@ -119,7 +114,7 @@ export function insertDocumentSnippet(
   selectionStart: number,
   selectionEnd: number,
   snippet: string
-): DocumentInsertResult {
+): { source: string; caret: number } {
   const start = Math.max(0, Math.min(selectionStart, source.length))
   const end = Math.max(start, Math.min(selectionEnd, source.length))
   const before = source.slice(0, start)
@@ -194,10 +189,6 @@ export function conflictRevision(error: unknown) {
   return typeof revision === "number" && Number.isInteger(revision)
     ? revision
     : null
-}
-
-export function isRevisionConflict(error: unknown) {
-  return isApiError(error) && error.status === 409
 }
 
 /** Warning rows sorted by source line so the panel mirrors the document. */

@@ -96,6 +96,7 @@ import type {
   WikiDocumentBlock,
   WikiPublicCatalog,
   WikiPublicStories,
+  WikiPublicStoryDocument,
   WikiRandomBackground,
   WikiRandomIdol,
   WikiStoryCoverAssets,
@@ -349,9 +350,13 @@ export function normalizeWikiAdminEntryDocument(
   }
 }
 
-export function normalizeWikiAdminEntryDocumentSave(
-  response: WikiAdminEntryDocumentSave
-): WikiAdminEntryDocumentSave {
+/**
+ * Save and preview share one compiled-AST projection: both return the same
+ * `wikiPublicStoryDocument` the public pages render.
+ */
+function normalizeAdminDocumentResponse<
+  T extends { document: WikiPublicStoryDocument },
+>(response: T): T {
   return {
     ...response,
     document: {
@@ -361,17 +366,11 @@ export function normalizeWikiAdminEntryDocumentSave(
   }
 }
 
-export function normalizeWikiAdminEntryDocumentPreview(
-  response: WikiAdminEntryDocumentPreview
-): WikiAdminEntryDocumentPreview {
-  return {
-    ...response,
-    document: {
-      ...response.document,
-      blocks: normalizeDocumentBlocks(response.document.blocks),
-    },
-  }
-}
+export const normalizeWikiAdminEntryDocumentSave =
+  normalizeAdminDocumentResponse<WikiAdminEntryDocumentSave>
+
+export const normalizeWikiAdminEntryDocumentPreview =
+  normalizeAdminDocumentResponse<WikiAdminEntryDocumentPreview>
 
 export function normalizeWikiAdminEntryDocumentMediaUpload(
   response: WikiAdminEntryDocumentMediaUpload
