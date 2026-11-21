@@ -50,7 +50,7 @@ import {
   deleteFudabaCardPlacement,
   getFudabaOffice,
   getFudabaOwnerCards,
-  getFudabaSeries,
+  getFudabaOfficeSeries,
   getPlatformProfile,
   isApiError,
   saveFudabaCardPlacement,
@@ -165,7 +165,7 @@ function CommunityOfficePageContent() {
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
         getFudabaOffice(officeSlug).send(),
-        getFudabaSeries().send(),
+        getFudabaOfficeSeries().send(),
       ])
       if (requestGeneration.current !== generation) return
       if (officeResult.status === "rejected") throw officeResult.reason

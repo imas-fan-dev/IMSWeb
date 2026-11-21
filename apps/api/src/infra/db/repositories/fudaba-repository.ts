@@ -168,11 +168,11 @@ const OFFICE_REVIEW_SELECT = `SELECT ${OWNER_OFFICE_COLUMNS},
     LEFT JOIN platform_email_credentials owner_email ON owner_email.account_id=office.owner_account_id
     LEFT JOIN backoffice_accounts reviewer ON reviewer.id=office.reviewed_by`;
 /**
- * Series a card may name. `其他` has no wiki entry by design, so wiki rollout
- * state cannot be the only gate; anything unreleased stays out via the flag.
+ * An explicit project setting wins. Unset projects retain the legacy Wiki
+ * rule, including the built-in 「其他」 option for ordinary namecard tagging.
  */
 const cardSeriesEligibility = (alias: string): string =>
-    `(${alias}.wiki_enabled OR ${alias}.code='namecard-other')`;
+    `COALESCE(${alias}.namecard_enabled, ${alias}.wiki_enabled OR ${alias}.code='namecard-other')`;
 
 const CARD_COLUMNS = `id, card_number, owner_account_id, producer_name,
     legacy_card_id, origin,
@@ -1680,7 +1680,11 @@ export class SqlFudabaRepository implements FudabaRepository {
         return this.listSeries();
     }
 
-    private async listSeries(): Promise<FudabaPublicSeriesRecord[]> {
+    async listOfficeSeries(): Promise<FudabaPublicSeriesRecord[]> {
+        return this.listSeries('series.wiki_enabled');
+    }
+
+    private async listSeries(eligibility = cardSeriesEligibility('series')): Promise<FudabaPublicSeriesRecord[]> {
         const rows = await queryAll<FudabaPublicSeriesRow>(
             this.database,
             `SELECT series.id, series.code, series.name_cn AS display_name,
@@ -1698,7 +1702,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON office_owner.id=office.owner_account_id
               AND office_owner.status IN ('active', 'restricted')
               AND office_owner.deleted_at IS NULL
-             WHERE ${cardSeriesEligibility("series")}
+             WHERE ${eligibility}
              GROUP BY series.id, series.code, series.name_cn, series.color,
                       series.display_order, series.icon_object_key,
                       series.icon_fit, series.icon_focal_x, series.icon_focal_y,
@@ -2061,7 +2065,9 @@ export class SqlFudabaRepository implements FudabaRepository {
             const placeholders = input.seriesCodes.map(() => "?").join(", ");
             conditions.push(
                 `EXISTS (SELECT 1 FROM fudaba_card_series entry
+                         JOIN agencies series ON series.code=entry.series_code
                          WHERE entry.card_id=card.id
+                           AND ${cardSeriesEligibility('series')}
                            AND entry.series_code IN (${placeholders}))`,
             );
             parameters.push(...input.seriesCodes);
@@ -4310,8 +4316,8 @@ export class SqlFudabaRepository implements FudabaRepository {
             if (typeof candidate !== 'string' || !candidate) continue;
             const agency = await queryOne<{ code: string }>(
                 database,
-                `SELECT code FROM agencies WHERE code=? AND wiki_enabled=?`,
-                [candidate, this.bindBoolean(true)],
+                `SELECT code FROM agencies series WHERE code=? AND ${cardSeriesEligibility('series')}`,
+                [candidate],
             );
             if (agency) return candidate;
         }
@@ -4383,7 +4389,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                ON account.id=? AND account.status='active'
               AND account.deleted_at IS NULL
              JOIN agencies series
-               ON series.code=? AND series.wiki_enabled=?
+               ON series.code=? AND ${cardSeriesEligibility('series')}
              LEFT JOIN fudaba_cards target
                ON target.id=? AND target.owner_account_id=account.id
               AND target.deleted_at IS NULL
@@ -4408,7 +4414,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                 input.updatedAt,
                 input.claimantAccountId,
                 seriesCode,
-                this.bindBoolean(true),
                 input.targetCardId,
                 input.legacyCardId,
                 input.targetCardId,
@@ -5509,7 +5514,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                                 AND account.deleted_at IS NULL
                                JOIN agencies series
                                  ON series.code=claim.series_code
-                                AND series.wiki_enabled=?
+                                AND ${cardSeriesEligibility('series')}
                                WHERE claim.id=?
                            )
                            AND NOT EXISTS (
@@ -5536,7 +5541,6 @@ export class SqlFudabaRepository implements FudabaRepository {
                                 input.media!.accent,
                                 input.reviewedAt,
                                 input.claimId,
-                                this.bindBoolean(true),
                                 input.claimId,
                             )
                             .run<FudabaCardRow>();

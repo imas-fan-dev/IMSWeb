@@ -438,6 +438,7 @@ test.describe("app navigation", () => {
     )
     for (const path of [
       "/api/community/exchange/me/series",
+      "/api/community/exchange/me/office-series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
     ]) {

@@ -11,6 +11,7 @@ import { OfficeLocationWorkspace } from "~/pages/account/me/offices/office-locat
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
+  series: vi.fn(),
   detail: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("~/lib/api", async (original) => ({
   ...(await original<typeof import("~/lib/api")>()),
   getFudabaOwnerOffices: () => ({ send: mocks.list }),
+  getFudabaOfficeSeries: () => ({ send: mocks.series }),
   getFudabaOwnerOffice: (id: string) => ({ send: () => mocks.detail(id) }),
   createFudabaOffice: (input: unknown, key: string) => ({
     send: () => mocks.create(input, key),
@@ -120,7 +122,6 @@ function mount(
 ) {
   return render(
     <OfficeLocationWorkspace
-      series={[makeFudabaSeries()]}
       homeCity="上海"
       readOnly={false}
       onWriteClosed={vi.fn()}
@@ -136,6 +137,7 @@ async function open(index = 0) {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.series.mockResolvedValue({ items: [makeFudabaSeries()] })
   mocks.list.mockResolvedValue({ items: [office, second] })
   mocks.detail.mockImplementation(async (id: string) => ({
     office: id === second.id ? second : office,
@@ -190,7 +192,6 @@ it("opens a map creation intent only when writable and preserves the initial poi
   view.rerender(
     <OfficeLocationWorkspace
       initialTarget={initialTarget}
-      series={[makeFudabaSeries()]}
       homeCity="上海"
       readOnly={false}
       onWriteClosed={vi.fn()}
@@ -208,7 +209,6 @@ it("opens a map creation intent only when writable and preserves the initial poi
   view.rerender(
     <OfficeLocationWorkspace
       initialTarget={initialTarget}
-      series={[makeFudabaSeries()]}
       homeCity="上海"
       readOnly={false}
       onWriteClosed={vi.fn()}
@@ -218,7 +218,6 @@ it("opens a map creation intent only when writable and preserves the initial poi
   view.rerender(
     <OfficeLocationWorkspace
       initialTarget={{ kind: "wgs84", position: [121.5, 31.2] }}
-      series={[makeFudabaSeries()]}
       homeCity="上海"
       readOnly={false}
       onWriteClosed={vi.fn()}

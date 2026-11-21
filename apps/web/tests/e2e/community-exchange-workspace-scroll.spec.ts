@@ -11,7 +11,7 @@ test("merges range offices with their count while retaining the portrait search 
   )
   await installBrowserIconMock(api)
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) =>
       route.fulfill({
         json: {

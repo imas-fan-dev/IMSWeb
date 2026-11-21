@@ -79,6 +79,7 @@ export function createHandleListAdminWikiCatalog<E extends Env>(
             name: agency.name_cn,
             color: agency.color,
             wikiEnabled: agency.wiki_enabled,
+            namecardEnabled: agency.namecard_enabled,
             bannerTitle: agency.banner_title,
             displayOrder: agency.display_order,
             layoutRevision: agency.layout_revision,

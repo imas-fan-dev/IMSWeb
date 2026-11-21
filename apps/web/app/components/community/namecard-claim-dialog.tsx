@@ -37,12 +37,12 @@ import {
 import {
   createFudabaLegacyCardClaim,
   getFudabaOwnerCards,
-  getWikiCatalog,
+  getFudabaOwnerSeries,
   isApiError,
   type FudabaCardClaim,
   type FudabaOwnerCard,
   type Namecard,
-  type WikiPublicCatalog,
+  type FudabaSeries,
 } from "~/lib/api"
 
 const NEW_CARD_VALUE = "__new__"
@@ -59,7 +59,7 @@ export function NamecardClaimDialog({
   onSubmitted: (claim: FudabaCardClaim) => void
 }) {
   const platform = useOptionalPlatformSession()
-  const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
+  const [catalog, setCatalog] = useState<FudabaSeries[] | null>(null)
   // 提交前只改预览；审核通过时服务端才真正旋转。
   const [rotations, setRotations] = useState<Record<number, number>>({})
   const mediaSlots = useMemo(
@@ -78,10 +78,13 @@ export function NamecardClaimDialog({
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
     let active = true
-    void Promise.all([getWikiCatalog().send(), getFudabaOwnerCards().send()])
+    void Promise.all([
+      getFudabaOwnerSeries().send(),
+      getFudabaOwnerCards().send(),
+    ])
       .then(([catalogResult, cardsResult]) => {
         if (!active) return
-        setCatalog(catalogResult)
+        setCatalog(catalogResult.items)
         setOwnerCards(cardsResult.items)
         setLoadError(false)
       })
@@ -102,11 +105,7 @@ export function NamecardClaimDialog({
       ? { ...draft, producerName: sessionName }
       : draft
 
-  const series = (catalog?.agencies ?? []).map((agency) => ({
-    code: agency.code,
-    displayName: agency.name,
-    color: agency.color,
-  }))
+  const series = catalog ?? []
   // 只有已通过审核的名片才能作为绑定目标。
   const bindable = ownerCards.filter(
     (item) => item.publicationStatus === "published"

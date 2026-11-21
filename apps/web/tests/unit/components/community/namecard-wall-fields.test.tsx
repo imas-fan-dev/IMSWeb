@@ -21,8 +21,8 @@ import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 const apiMocks = vi.hoisted(() => ({
   sendCharacterCatalog: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
-  sendWikiCatalog: vi.fn(),
-  getWikiCatalog: vi.fn(),
+  sendOwnerSeries: vi.fn(),
+  getFudabaOwnerSeries: vi.fn(),
   sendOwnerCards: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
 }))
@@ -41,7 +41,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
-    getWikiCatalog: apiMocks.getWikiCatalog,
+    getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
   }
 })
@@ -180,13 +180,13 @@ beforeEach(() => {
   apiMocks.getNamecardCharacterCatalog.mockReturnValue({
     send: apiMocks.sendCharacterCatalog,
   })
-  apiMocks.sendWikiCatalog.mockResolvedValue({
-    agencies: [
-      { code: "765", name: "765PRO ALLSTARS", color: "#f34e6c" },
-      { code: "cg", name: "CINDERELLA GIRLS", color: "#2681c8" },
+  apiMocks.sendOwnerSeries.mockResolvedValue({
+    items: [
+      { code: "765", displayName: "765PRO ALLSTARS", color: "#f34e6c" },
+      { code: "cg", displayName: "CINDERELLA GIRLS", color: "#2681c8" },
     ],
   })
-  apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendWikiCatalog })
+  apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendOwnerSeries })
   apiMocks.sendOwnerCards.mockResolvedValue({ items: [] })
   apiMocks.getFudabaOwnerCards.mockReturnValue({
     send: apiMocks.sendOwnerCards,

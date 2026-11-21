@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
 vi.mock("~/lib/api", async (original) => ({
   ...(await original<typeof import("~/lib/api")>()),
-  getFudabaSeries: () => ({ send: mocks.series }),
+  getFudabaOfficeSeries: () => ({ send: mocks.series }),
   getFudabaOfficePage: (params: unknown) => {
     mocks.officeRequest(params)
     return { send: mocks.offices }

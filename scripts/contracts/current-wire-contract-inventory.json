@@ -3,42 +3,42 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "763663b5046e5022bbb57bf1eff68158258ef9f8842906a73e958785793663f3",
+    "semanticDigest": "f1b9dbdd090097ba875b673f824a4ef55fa9c3eafa10aba448e63989ce1f98ad",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 294,
-    "carriers": 373,
-    "reject": 86,
+    "mountedMethodPaths": 296,
+    "carriers": 375,
+    "reject": 88,
     "acceptAndProject": 186,
     "passthrough": 17,
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 408,
-    "mountedMethodPaths": 309,
+    "mountedRegistrations": 410,
+    "mountedMethodPaths": 311,
     "noInputRoutes": 99,
-    "requestCarriers": 407,
+    "requestCarriers": 409,
     "policies": {
-      "reject": 94,
+      "reject": 96,
       "accept-and-project": 212,
       "passthrough": 17,
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 864,
-      "json": 798,
+      "total": 866,
+      "json": 800,
       "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 294,
-      "requestCarriers": 373,
+      "mountedMethodPaths": 296,
+      "requestCarriers": 375,
       "policies": {
-        "reject": 86,
+        "reject": 88,
         "accept-and-project": 186,
         "passthrough": 17,
         "non-object-applicable": 84
@@ -206,7 +206,7 @@
       "/api/cards": 6,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 66,
+      "/api/community": 68,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -2999,7 +2999,7 @@
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "carriers": [
         {
           "kind": "query",
@@ -3823,7 +3823,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/list-admin-catalog.ts#anonymous:8b051a15b19d33a1:71cdc4bb:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/list-admin-catalog.ts#anonymous:5a1397441b00e060:71cdc4bb:0",
       "carriers": [
         {
           "kind": "no-input",
@@ -4979,6 +4979,37 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+          "kind": "json",
+          "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/offices/routes.ts"
@@ -5231,6 +5262,37 @@
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
       "handlerSymbol": "handleListFudabaOwnerSeries",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+          "kind": "json",
+          "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "carriers": [
         {
           "kind": "query",
@@ -9091,7 +9153,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "carriers": [
         {
           "kind": "param",
@@ -17288,7 +17350,7 @@
     {
       "method": "GET",
       "path": "/api/admin/community/exchange/office-series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -18033,6 +18095,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "handlerSymbol": "handleListFudabaOwnerOffices",
       "kind": "query",
@@ -18171,6 +18250,23 @@
       "method": "GET",
       "path": "/api/community/exchange/me/series",
       "handlerSymbol": "handleListFudabaOwnerSeries",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -19769,7 +19865,7 @@
     {
       "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -19786,7 +19882,7 @@
     {
       "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -24191,7 +24287,7 @@
     {
       "method": "GET",
       "path": "/api/admin/community/exchange/office-series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
       "kind": "json",
       "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
@@ -24958,6 +25054,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+      "kind": "json",
+      "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "handlerSymbol": "handleListFudabaOwnerOffices",
       "file": "apps/api/src/domains/community/fudaba/offices/handlers/list-owner-offices.ts",
@@ -25080,6 +25184,14 @@
       "method": "GET",
       "path": "/api/community/exchange/me/series",
       "handlerSymbol": "handleListFudabaOwnerSeries",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+      "kind": "json",
+      "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
       "kind": "json",
       "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"

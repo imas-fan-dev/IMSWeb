@@ -90,7 +90,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     "discovers an exchange office"
   )
   await api.mockRoute(
-    "**/api/community/exchange/series",
+    "**/api/community/exchange/office-series",
     async (route) => {
       await route.fulfill({ json: series })
     },

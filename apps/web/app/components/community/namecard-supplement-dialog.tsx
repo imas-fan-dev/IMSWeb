@@ -29,10 +29,10 @@ import {
 } from "~/components/ui/dialog"
 import {
   createFudabaCardSupplement,
-  getWikiCatalog,
+  getFudabaOwnerSeries,
   isApiError,
   type Namecard,
-  type WikiPublicCatalog,
+  type FudabaSeries,
 } from "~/lib/api"
 
 /**
@@ -51,7 +51,7 @@ export function NamecardSupplementDialog({
   onSubmitted: () => void
 }) {
   const platform = useOptionalPlatformSession()
-  const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
+  const [catalog, setCatalog] = useState<FudabaSeries[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   // 调用方按名片挂 key，换卡即重挂，草稿自然回到起点。
   const [draft, setDraft] = useState<WallCardDraft | null>(() =>
@@ -70,11 +70,11 @@ export function NamecardSupplementDialog({
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
     let active = true
-    void getWikiCatalog()
+    void getFudabaOwnerSeries()
       .send()
       .then((result) => {
         if (!active) return
-        setCatalog(result)
+        setCatalog(result.items)
         setLoadError(false)
       })
       .catch(() => {
@@ -88,11 +88,7 @@ export function NamecardSupplementDialog({
   /** 提交时用来算出「改了哪几处」的基线，永远取墙上的现值。 */
   const live = card ? wallCardDraftFromCard(card) : null
 
-  const series = (catalog?.agencies ?? []).map((agency) => ({
-    code: agency.code,
-    displayName: agency.name,
-    color: agency.color,
-  }))
+  const series = catalog ?? []
   const authenticated = platform.status === "authenticated"
   const restricted = platform.status === "restricted"
   const changed = Boolean(

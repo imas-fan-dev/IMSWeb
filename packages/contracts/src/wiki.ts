@@ -97,6 +97,7 @@ export const wikiAdminAgencySchema = exactJsonResponse({
   name: z.string(),
   color: z.string(),
   wikiEnabled: z.boolean(),
+  namecardEnabled: z.boolean().nullable().optional(),
   bannerTitle: z.string(),
   displayOrder: z.number().int().nonnegative(),
   layoutRevision: z.number().int().nonnegative(),
@@ -244,6 +245,7 @@ export const wikiAgencyMutationResultSchema = wikiMutationResultSchema.extend({
     name: z.string(),
     color: z.string(),
     wikiEnabled: z.boolean(),
+    namecardEnabled: z.boolean().nullable().optional(),
     bannerTitle: z.string(),
     displayOrder: z.number().int().nonnegative(),
     layoutRevision: z.number().int().nonnegative(),
@@ -608,10 +610,12 @@ const wikiSourceRequestSchema = legacyStripRequestObject({
 export const createWikiAgencyRequestSchema = legacyStripRequestObject({
   code: wikiText.catch(""), name: wikiText.catch(""), color: wikiText.catch(""),
   bannerTitle: wikiOptionalText, wikiEnabled: z.boolean().optional(),
+  namecardEnabled: z.boolean().nullable().optional(),
 })
 export const updateWikiAgencyRequestSchema = legacyStripRequestObject({
   name: wikiOptionalText, color: wikiOptionalText, bannerTitle: wikiOptionalText,
   wikiEnabled: z.boolean().optional(),
+  namecardEnabled: z.boolean().nullable().optional(),
 })
 export const createWikiGroupRequestSchema = legacyStripRequestObject({
   code: wikiText, name: wikiText, color: wikiText,

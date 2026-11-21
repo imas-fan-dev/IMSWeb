@@ -137,6 +137,7 @@ async function installAccountMocks(
   )
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
   ]) {
     await api.mock(
