@@ -99,14 +99,14 @@ function sortItems(timeLabel: string) {
  * 名片册的筛选控件区（PRD §2 / §4）。
  *
  * 受控：所有取值来自 `value`，改动一律回传 `onChange`，控件自己不记状态
- * （高级筛选面板的展开与收拢是本组件的界面状态，不进查询）。名片墙复用同一份
- * 组件时用 `timeLabel` 把「交换时间」换成「创建时间」。
+ * （高级筛选面板的展开与收拢是本组件的界面状态，不进查询）。名片墙使用独立的排序控件。
  */
 export function NamecardFilterBar({
   id = "namecard-filters",
   value,
   onChange,
   timeLabel = "交换时间",
+  hideSort = false,
   series,
   catalog,
   catalogLoading = false,
@@ -117,8 +117,9 @@ export function NamecardFilterBar({
   id?: string
   value: NamecardFilterValue
   onChange: (next: NamecardFilterValue) => void
-  /** 排序里「交换时间」那一条的文案；名片墙传「创建时间」。 */
+  /** 默认排序控件里时间选项的文案。 */
   timeLabel?: string
+  hideSort?: boolean
   series: readonly SeriesOption[]
   catalog: NamecardCharacterCatalog | null
   catalogLoading?: boolean
@@ -215,55 +216,57 @@ export function NamecardFilterBar({
           </Field>
         ) : null}
 
-        <div className="flex items-end gap-2">
-          <Field className="min-w-0">
-            <FieldLabel htmlFor={`${id}-sort`}>排序方式</FieldLabel>
-            <Select
-              items={sortItems(timeLabel)}
-              value={value.sort}
+        {!hideSort && (
+          <div className="flex items-end gap-2">
+            <Field className="min-w-0">
+              <FieldLabel htmlFor={`${id}-sort`}>排序方式</FieldLabel>
+              <Select
+                items={sortItems(timeLabel)}
+                value={value.sort}
+                disabled={disabled}
+                onValueChange={(next) => changeSort(String(next))}
+              >
+                <SelectTrigger id={`${id}-sort`} className="w-full min-w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectGroup>
+                    {sortItems(timeLabel).map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
               disabled={disabled}
-              onValueChange={(next) => changeSort(String(next))}
+              aria-label={
+                value.dir === "desc"
+                  ? "当前降序，切换为升序"
+                  : "当前升序，切换为降序"
+              }
+              title={value.dir === "desc" ? "降序" : "升序"}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  dir: value.dir === "desc" ? "asc" : "desc",
+                })
+              }
             >
-              <SelectTrigger id={`${id}-sort`} className="w-full min-w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectGroup>
-                  {sortItems(timeLabel).map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 shrink-0"
-            disabled={disabled}
-            aria-label={
-              value.dir === "desc"
-                ? "当前降序，切换为升序"
-                : "当前升序，切换为降序"
-            }
-            title={value.dir === "desc" ? "降序" : "升序"}
-            onClick={() =>
-              onChange({
-                ...value,
-                dir: value.dir === "desc" ? "asc" : "desc",
-              })
-            }
-          >
-            {value.dir === "desc" ? (
-              <ArrowDownWideNarrowIcon aria-hidden="true" />
-            ) : (
-              <ArrowDownNarrowWideIcon aria-hidden="true" />
-            )}
-          </Button>
-        </div>
+              {value.dir === "desc" ? (
+                <ArrowDownWideNarrowIcon aria-hidden="true" />
+              ) : (
+                <ArrowDownNarrowWideIcon aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+        )}
 
         <Button
           type="button"

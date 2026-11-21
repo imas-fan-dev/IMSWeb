@@ -36,6 +36,7 @@ import {
 import type {
   NamecardCollectionDirection,
   NamecardCollectionSort,
+  NamecardWallSort,
 } from "@imsweb/contracts/namecards"
 import { NAMECARD_REACTION_EMOJIS } from "@imsweb/contracts/fudaba/runtime"
 
@@ -163,7 +164,8 @@ export function getPublicCard(cardNumber: number) {
  * 墙不认 owner / includeOwn / includeHidden。
  */
 export interface NamecardWallListFilters {
-  sort?: "created" | "name" | "series" | "date"
+  sort?: NamecardWallSort
+  seed?: string
   dir?: NamecardCollectionDirection
   q?: string
   series?: readonly string[]
@@ -190,7 +192,11 @@ function namecardWallSearch(
     size: String(size),
   })
   if (filters.sort) params.set("sort", filters.sort)
-  if (filters.dir) params.set("dir", filters.dir)
+  if (filters.sort === "random") {
+    if (filters.seed) params.set("seed", filters.seed)
+  } else if (filters.dir) {
+    params.set("dir", filters.dir)
+  }
   const q = filters.q?.trim()
   if (q) params.set("q", q)
   for (const code of filters.series ?? []) params.append("series", code)

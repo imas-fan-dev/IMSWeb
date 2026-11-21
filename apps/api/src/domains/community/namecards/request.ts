@@ -35,6 +35,7 @@ export interface NamecardListQuery {
     size: number;
     /** 墙上没有交换时间：`created` 用名片创建时间。 */
     sort: NamecardWallSort;
+    seed?: string;
     dir: NamecardCollectionDirection;
     q: string | null;
     series: string[];
@@ -251,7 +252,8 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
     const isSwitch = (item: unknown) =>
         item === true || item === "true" || item === "1";
     const sort: NamecardWallSort =
-        query.sort === "name" || query.sort === "series" || query.sort === "date"
+        query.sort === "random" || query.sort === "name" ||
+        query.sort === "series" || query.sort === "date"
             ? query.sort
             : "created";
     // 缺省方向与名片册同一规则：创建时间与制作日期倒序，其余正序。
@@ -269,6 +271,9 @@ export function validateNamecardListQuery(value: unknown): NamecardListQuery {
             Math.max(1, legacyPaginationValue(query.size, DEFAULT_PAGE_SIZE))
         ),
         sort,
+        ...(sort === "random" && typeof query.seed === "string"
+            ? { seed: query.seed }
+            : {}),
         dir,
         q: wallQueryText(query.q),
         series: wallQueryTextList(query.series),

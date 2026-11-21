@@ -172,7 +172,7 @@ function ListLocation() {
   return <div aria-label="列表地址">{useLocation().search}</div>
 }
 
-function renderPage(entry = "/community/cards?page=1&size=12") {
+function renderPage(entry = "/community/cards?page=1&size=12&sort=created") {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <CommunityCardsPage />
@@ -187,6 +187,7 @@ function renderPage(entry = "/community/cards?page=1&size=12") {
 const baseWallFilters = {
   sort: "created",
   dir: "desc",
+  seed: undefined,
   q: undefined,
   series: [] as string[],
   group: undefined,
@@ -476,6 +477,9 @@ describe("CommunityCardsPage", () => {
         expect.objectContaining({ tags: ["偶像"] })
       )
     )
+    const filters = screen.getByRole("button", { name: "筛选（已应用）" })
+    expect(filters).toHaveAttribute("aria-expanded", "false")
+    await user.click(filters)
     expect(
       screen.getByRole("button", { name: "移除标签筛选 偶像" })
     ).toBeVisible()
@@ -1670,12 +1674,18 @@ describe("CommunityCardsPage", () => {
     }
   )
 
-  it("renders the shared filter bar with the wall's sort label and no owner filter", async () => {
+  it("keeps filters collapsed by default, without hiding the wall order", async () => {
+    const user = userEvent.setup()
     renderPage()
 
+    const toggle = screen.getByRole("button", { name: "筛选" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("textbox", { name: "制作人名称" })).toBeNull()
     expect(
       screen.getByRole("combobox", { name: "排序方式" })
-    ).toHaveTextContent("创建时间")
+    ).toHaveTextContent("最新发布")
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
     expect(screen.queryByLabelText("所属用户")).not.toBeInTheDocument()
     expect(
       screen.getByRole("textbox", { name: "制作人名称" })
@@ -1690,9 +1700,10 @@ describe("CommunityCardsPage", () => {
       total: 80,
       totalPage: 7,
     })
-    renderPage("/community/cards?page=3&size=12")
+    renderPage("/community/cards?page=3&size=12&sort=created")
     await screen.findByRole("button", { name: "查看制作人名片 42 背面" })
 
+    await user.click(screen.getByRole("button", { name: "筛选" }))
     await user.click(screen.getByRole("button", { name: /高级筛选/ }))
     await user.type(screen.getByLabelText("制作人名称"), "春香")
     await waitFor(
@@ -1741,6 +1752,7 @@ describe("CommunityCardsPage", () => {
 
     expect(await screen.findByText("还没有公开名片")).toBeVisible()
 
+    await user.click(screen.getByRole("button", { name: "筛选" }))
     await user.type(screen.getByLabelText("制作人名称"), "春香")
 
     expect(await screen.findByText("没有符合条件的名片")).toBeVisible()
@@ -1808,7 +1820,7 @@ describe("CommunityCardsPage", () => {
       total: 24,
       totalPage: 2,
     })
-    renderPage("/community/cards?page=1&size=12&filter=recent")
+    renderPage("/community/cards?page=1&size=12&filter=recent&sort=created")
     const next = await screen.findByRole("button", { name: "下一页" })
     expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled()
     expect(screen.getByRole("spinbutton", { name: "跳至" })).toHaveValue(1)
@@ -1865,7 +1877,9 @@ describe("CommunityCardsPage", () => {
       const user = userEvent.setup()
       const initialSize = size === 12 ? 24 : 12
       apiMocks.sendPage.mockResolvedValue(pageResult())
-      renderPage(`/community/cards?page=3&size=${initialSize}&filter=recent`)
+      renderPage(
+        `/community/cards?page=3&size=${initialSize}&filter=recent&sort=created`
+      )
       const select = await screen.findByRole("combobox", { name: "每页显示" })
       await user.clear(screen.getByRole("spinbutton", { name: "跳至" }))
       await user.type(screen.getByRole("spinbutton", { name: "跳至" }), "5")
@@ -1902,7 +1916,7 @@ describe("CommunityCardsPage", () => {
       total: 48,
       totalPage: 4,
     })
-    renderPage("/community/cards?page=2&size=12")
+    renderPage("/community/cards?page=2&size=12&sort=created")
     const navigation = await screen.findByRole("navigation", {
       name: "名片分页",
     })
@@ -1958,9 +1972,76 @@ describe("CommunityCardsPage", () => {
     }
   )
 
+  it("appends a batch with the same seed, retries in place, and resets on reshuffle", async () => {
+    const user = userEvent.setup()
+    apiMocks.sendPage
+      .mockResolvedValueOnce({ ...pageResult([42]), totalPage: 2 })
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ ...pageResult([42, 43]), totalPage: 2 })
+      .mockResolvedValueOnce({ ...pageResult([44]), totalPage: 1 })
+    renderPage("/community/cards")
+    const first = await screen.findByRole("button", {
+      name: "查看制作人名片 42 正面",
+    })
+    const params = () =>
+      new URLSearchParams(screen.getByLabelText("列表地址").textContent ?? "")
+    const seed = params().get("seed")
+    expect(seed).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(apiMocks.getNamecardPage).toHaveBeenCalledExactlyOnceWith(
+      1,
+      12,
+      expect.objectContaining({ sort: "random", seed })
+    )
+    expect(
+      screen.getByRole("combobox", { name: "排序方式" })
+    ).toHaveTextContent("随机发现")
+    expect(screen.queryByRole("navigation", { name: "名片分页" })).toBeNull()
+    expect(screen.getByRole("button", { name: "筛选" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    )
+
+    await user.click(screen.getByRole("button", { name: "加载更多名片" }))
+    const retry = await screen.findByRole("button", { name: "重试加载更多" })
+    expect(first).toBeVisible()
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      2,
+      12,
+      expect.objectContaining({ sort: "random", seed })
+    )
+    await user.click(retry)
+    expect(
+      await screen.findByRole("button", { name: "查看制作人名片 43 正面" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "查看制作人名片 42 正面" })).toBe(
+      first
+    )
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      2,
+      12,
+      expect.objectContaining({ sort: "random", seed })
+    )
+    expect(params().get("page")).toBe("1")
+    expect(screen.getByText("已浏览完本轮名片")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "换个顺序" }))
+    expect(
+      await screen.findByRole("button", { name: "查看制作人名片 44 正面" })
+    ).toBeVisible()
+    expect(first).not.toBeInTheDocument()
+    expect(params().get("seed")).not.toBe(seed)
+    expect(apiMocks.getNamecardPage).toHaveBeenLastCalledWith(
+      1,
+      12,
+      expect.objectContaining({ sort: "random", seed: params().get("seed") })
+    )
+  })
+
   it("reads page and size from the URL", async () => {
     render(
-      <MemoryRouter initialEntries={["/community/cards?page=3&size=24"]}>
+      <MemoryRouter
+        initialEntries={["/community/cards?page=3&size=24&sort=created"]}
+      >
         <CommunityCardsPage />
       </MemoryRouter>
     )
@@ -2027,7 +2108,7 @@ describe("CommunityCardsPage", () => {
     })
 
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/community/cards?sort=created"]}>
         <CommunityCardsPage />
       </MemoryRouter>
     )

@@ -103,6 +103,25 @@ describe('namecard wall queries', () => {
         );
     });
 
+    postgresTest('random order is stable across batches and respects wall filters', async () => {
+        const { publish, list, numbers } = await wallFixture();
+        const matching = [];
+        for (let index = 0; index < 8; index++) {
+            matching.push(await publish(`wall-random-${index}`, { groupName: 'Shuffle' }));
+        }
+        await publish('wall-random-other');
+        await publish('wall-random-hidden', { groupName: 'Shuffle', visible: false });
+
+        const query = { sort: 'random', seed: 'round-one', groupName: 'Shuffle' } as const;
+        const order = await numbers(query);
+        assert.deepEqual(new Set(order), new Set(matching));
+        assert.deepEqual(await numbers(query), order);
+        assert.notDeepEqual(await numbers({ ...query, seed: 'round-two' }), order);
+        assert.deepEqual(await numbers({ ...query, limit: 4 }), order.slice(0, 4));
+        assert.deepEqual(await numbers({ ...query, limit: 4, offset: 4 }), order.slice(4));
+        assert.equal((await list({ ...query, limit: 4 })).total, matching.length);
+    });
+
     postgresTest('sorts by the name metadata and keeps symbols last', async () => {
         const { publish, numbers } = await wallFixture();
         const english = await publish('wall-name-english', {

@@ -29,7 +29,7 @@ test.describe("namecard mobile browsing", () => {
         reactionReads: 12,
         reactionWrites: 1,
       })
-      await page.goto("/community/cards?page=1&size=12")
+      await page.goto("/community/cards?page=1&size=12&sort=created")
       await applyNamecardSafeArea(page)
       const front = page.getByRole("button", { name: "查看制作人名片 1 正面" })
       await expect(front).toBeVisible()
@@ -172,7 +172,7 @@ test.describe("namecard mobile browsing", () => {
     )
     const release = browsing.holdReactions(1)
     try {
-      await page.goto("/community/cards?page=1&size=12")
+      await page.goto("/community/cards?page=1&size=12&sort=created")
       await expectNamecardGalleryGeometry(page)
       const cards = page.locator("[data-namecard-item]")
       // 辅助校验会把第三张滚动到视口中央，比较位置时必须用文档坐标。
@@ -240,7 +240,7 @@ test.describe("namecard mobile browsing", () => {
       { cards: 1, reactionReads: 12, reactionWrites: 0 }
     )
     await page.setViewportSize({ width: 402, height: 874 })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     const first = page.locator("[data-namecard-item]").first()
     const summary = first.getByLabel("名片反应摘要")
     await expect(summary.getByRole("button", { name: /次反应$/ })).toHaveCount(
@@ -330,7 +330,7 @@ test.describe("namecard mobile browsing", () => {
       ),
       { cards: 1, reactionReads: 48, reactionWrites: 0 }
     )
-    await page.goto("/community/cards?page=1&size=48")
+    await page.goto("/community/cards?page=1&size=48&sort=created")
     const cards = page.locator("[data-namecard-item]")
     await expect(cards).toHaveCount(48)
     await expect(
@@ -382,11 +382,11 @@ test.describe("namecard mobile browsing", () => {
       reactionReads: 26,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     await expectNamecardPaginationGeometry(page)
     await attachNamecardScreenshot(page, testInfo, "compact-pagination")
     await page.getByRole("button", { name: "下一页", exact: true }).click()
-    await expect(page).toHaveURL(/page=2&size=12$/)
+    await expect(page).toHaveURL(/page=2&size=12&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 13 正面" })
     ).toBeInViewport()
@@ -400,7 +400,7 @@ test.describe("namecard mobile browsing", () => {
     ).toBeDisabled()
     await input.fill("3")
     await input.press("Enter")
-    await expect(page).toHaveURL(/page=3&size=12$/)
+    await expect(page).toHaveURL(/page=3&size=12&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 25 正面" })
     ).toBeInViewport()
@@ -409,7 +409,7 @@ test.describe("namecard mobile browsing", () => {
     ).toBeDisabled()
     await page.getByRole("combobox", { name: "每页显示" }).click()
     await page.getByRole("option", { name: "48 张", exact: true }).click()
-    await expect(page).toHaveURL(/page=1&size=48$/)
+    await expect(page).toHaveURL(/page=1&size=48&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 1 正面" })
     ).toBeInViewport()
@@ -429,7 +429,7 @@ test.describe("namecard mobile browsing", () => {
       reactionReads: 12,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     const original = page.getByRole("button", {
       name: "查看制作人名片 12 背面",
     })
@@ -442,7 +442,7 @@ test.describe("namecard mobile browsing", () => {
       detail.getByRole("button", { name: /[上下]一张名片/ })
     ).toHaveCount(0)
     await expect(detail.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
-    await expect(page).toHaveURL(/page=1&size=12$/)
+    await expect(page).toHaveURL(/page=1&size=12&sort=created$/)
     expect(browsing.requests).toEqual([1])
 
     const previewTrigger = detail.getByRole("button", {
@@ -473,7 +473,7 @@ test.describe("namecard mobile browsing", () => {
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(scrollY, 0)
-    await expect(page).toHaveURL(/page=1&size=12$/)
+    await expect(page).toHaveURL(/page=1&size=12&sort=created$/)
     expect(browsing.requests).toEqual([1])
   })
 })

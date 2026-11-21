@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "./fixtures/test"
+import { expectRandomNamecardFeed } from "./fixtures/random-namecard-feed"
 
 import {
   applyNamecardSafeArea,
@@ -14,6 +15,21 @@ import {
   mockNamecardBrowsing,
 } from "./fixtures/namecard-browsing"
 
+test("loads more random cards on App page scroll", async ({
+  page,
+  api,
+}, testInfo) => {
+  const fixture = await mockNamecardBrowsing(page, api, 24, undefined, {
+    cards: 2,
+    reactionReads: { min: 24, max: 48 },
+    reactionWrites: 0,
+  })
+  await page.goto("/community/cards")
+  await applyNamecardSafeArea(page)
+  await expectRandomNamecardFeed(page, testInfo)
+  expect(fixture.requests).toEqual([1, 2])
+})
+
 test.describe("app namecard browsing", () => {
   test("scrolls focused pagination clear of the fixed App navigation", async ({
     page,
@@ -24,7 +40,7 @@ test.describe("app namecard browsing", () => {
       reactionReads: 12,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=2&size=12")
+    await page.goto("/community/cards?page=2&size=12&sort=created")
     await applyNamecardSafeArea(page)
     await expectNamecardPaginationGeometry(page)
     const pagination = page.getByRole("navigation", { name: "名片分页" })
@@ -70,7 +86,7 @@ test.describe("app namecard browsing", () => {
       reactionReads: 24,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     await expect(page.locator("html")).toHaveAttribute("data-app-target", "app")
     await applyNamecardSafeArea(page)
     await expect(
@@ -122,7 +138,7 @@ test.describe("app namecard browsing", () => {
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(scrollY, 0)
-    await expect(page).toHaveURL(/page=1&size=12$/)
+    await expect(page).toHaveURL(/page=1&size=12&sort=created$/)
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
     await expect(page.getByRole("button", { name: "新建名片" })).toBeVisible()
     await page.evaluate(() => document.documentElement.classList.add("dark"))
@@ -131,7 +147,7 @@ test.describe("app namecard browsing", () => {
     await expectNamecardPaginationHitTargets(page)
     await attachNamecardScreenshot(page, testInfo, "app-pagination")
     await page.getByRole("button", { name: "下一页", exact: true }).click()
-    await expect(page).toHaveURL(/page=2&size=12$/)
+    await expect(page).toHaveURL(/page=2&size=12&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 13 正面" })
     ).toBeVisible()
@@ -152,7 +168,7 @@ test.describe("app namecard browsing", () => {
       reactionReads: 24,
       reactionWrites: 1,
     })
-    await page.goto("/community/cards?page=2&size=12")
+    await page.goto("/community/cards?page=2&size=12&sort=created")
     await applyNamecardSafeArea(page)
     const first = page.locator("[data-namecard-item]").first()
     await expect(first.locator("time")).toHaveText("09-01 16:00")
@@ -188,7 +204,7 @@ test.describe("app namecard browsing", () => {
     await expectNamecardPaginationHitTargets(page)
     await pagination.getByRole("combobox", { name: "每页显示" }).click()
     await page.getByRole("option", { name: "24 张" }).click()
-    await expect(page).toHaveURL(/page=1&size=24$/)
+    await expect(page).toHaveURL(/page=1&size=24&sort=created$/)
     await expect(first).toBeVisible()
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
     await expect(page.locator("[data-app-floating-actions]")).toBeVisible()

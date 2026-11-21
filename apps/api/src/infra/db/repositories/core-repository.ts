@@ -433,7 +433,7 @@ function compareFirstCharacters(
 function compareCollectionRows(
     a: NamecardSortView,
     b: NamecardSortView,
-    sort: NamecardCollectionSortRecord | NamecardWallSortRecord,
+    sort: NamecardCollectionSortRecord | Exclude<NamecardWallSortRecord, 'random'>,
     direction: 'asc' | 'desc'
 ): number {
     const factor = direction === 'desc' ? -1 : 1;
@@ -1328,9 +1328,23 @@ export class SqlCoreRepository implements NamecardRepository {
             const matched = content.matches(view);
             return invert ? !matched : matched;
         });
-        filtered.sort((left, right) =>
-            compareCollectionRows(left, right, sort, direction)
-        );
+        if (sort === 'random') {
+            const seed = input.seed;
+            if (!seed) throw new TypeError('Random namecard wall order requires a seed');
+            // 在分页前为每张候选卡算一次排序键；同一 seed 不依赖请求时序或页码。
+            const ranks = new Map(filtered.map(({ cardNumber }) => [
+                cardNumber,
+                createHash('sha256').update(`${seed}:${cardNumber}`).digest('hex')
+            ]));
+            filtered.sort((left, right) =>
+                compareText(ranks.get(left.cardNumber)!, ranks.get(right.cardNumber)!) ||
+                compareNumber(left.cardNumber, right.cardNumber)
+            );
+        } else {
+            filtered.sort((left, right) =>
+                compareCollectionRows(left, right, sort, direction)
+            );
+        }
         const page = filtered.slice(input.offset, input.offset + input.limit);
         return {
             total: filtered.length,

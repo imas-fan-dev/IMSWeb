@@ -47,6 +47,10 @@
 公开名片浏览、登录后认领、游客投稿回执与撤回凭据各有边界；个人资料修改与交换写入也分别判断能力。
 相邻页面共享展示与会话，不代表共享全部操作权限。
 
+名片墙默认使用「随机发现」；[名片墙排序控件](pages/community/components/namecard-wall-order.tsx)
+始终可见，内容筛选默认折叠，收起不清空条件。排序与种子随地址保留，后端先筛选和排序，
+再分批返回公开名片。随机模式随页面滚动加载，其他排序保留分页。
+
 名片墙维护进度与前三名贡献由 [wall-insights-panel](pages/community/components/wall-insights-panel.tsx)
 展示；[完整贡献榜弹窗](pages/community/components/wall-contributors-dialog.tsx) 独立按页加载，
 请求统一归 [community](lib/api/endpoints/community.ts)，回归见

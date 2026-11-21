@@ -11,6 +11,24 @@ import { expect, test } from "./fixtures/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeNamecard, makeNamecardPage } from "./fixtures/namecards"
+import { expectRandomNamecardFeed } from "./fixtures/random-namecard-feed"
+import { mockNamecardBrowsing } from "./fixtures/namecard-browsing"
+
+test(
+  "loads more random cards on page scroll",
+  { tag: "@mobile" },
+  async ({ page, api, isMobile }, testInfo) => {
+    if (isMobile) await page.setViewportSize({ width: 320, height: 568 })
+    const fixture = await mockNamecardBrowsing(page, api, 24, undefined, {
+      cards: 2,
+      reactionReads: { min: 24, max: 48 },
+      reactionWrites: 0,
+    })
+    await page.goto("/community/cards")
+    await expectRandomNamecardFeed(page, testInfo)
+    expect(fixture.requests).toEqual([1, 2])
+  }
+)
 
 test.describe("namecard pagination", () => {
   test(
@@ -45,7 +63,7 @@ test.describe("namecard pagination", () => {
         handle: () => ({ status: 200, json: {} }),
       })
 
-      await page.goto("/community/cards?page=1&size=12")
+      await page.goto("/community/cards?page=1&size=12&sort=created")
       const admin = page.getByRole("link", { name: "返回管理工作台" })
       const create = page.getByRole("button", { name: "新建名片" })
       const back = page.getByRole("button", { name: "返回顶部" })
@@ -134,7 +152,7 @@ test.describe("namecard pagination", () => {
       2
     )
 
-    await page.goto("/community/cards")
+    await page.goto("/community/cards?sort=created")
 
     await expect(page.getByText("第 1 / 7 页，共 80 张")).toBeVisible()
     await page.getByRole("combobox", { name: "每页显示" }).click()

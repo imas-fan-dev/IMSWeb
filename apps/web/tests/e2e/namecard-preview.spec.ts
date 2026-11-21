@@ -39,7 +39,9 @@ test.describe("namecard preview", () => {
     page,
   }) => {
     await page.goto("/community/cards")
-    await expect(page).toHaveURL(/\/community\/cards\?page=1&size=12$/)
+    await expect(page).toHaveURL(
+      /\/community\/cards\?page=1&size=12&sort=random&seed=[A-Za-z0-9_-]+$/
+    )
 
     // 墙上轮播按公开卡号命名（这张是 #1）；详情窗/预览的可访问名仍用记录 id 42。
     const frontTrigger = page.getByRole("button", {
