@@ -275,7 +275,7 @@ export default function CommunityCardsPage() {
   const page = pageFromSearchParam(searchParams.get("page"))
   const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
   const sort =
-    namecardWallSortSchema.safeParse(searchParams.get("sort")).data ?? "random"
+    namecardWallSortSchema.safeParse(searchParams.get("sort")).data ?? "created"
   const seed = namecardWallSeedSchema.safeParse(searchParams.get("seed")).data
   const rawDir = searchParams.get("dir")
   const dir: NamecardCollectionDirection =

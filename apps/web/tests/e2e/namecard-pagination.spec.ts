@@ -24,7 +24,7 @@ test(
       reactionReads: { min: 24, max: 48 },
       reactionWrites: 0,
     })
-    await page.goto("/community/cards")
+    await page.goto("/community/cards?sort=random")
     await expectRandomNamecardFeed(page, testInfo)
     expect(fixture.requests).toEqual([1, 2])
   }
@@ -129,6 +129,9 @@ test.describe("namecard pagination", () => {
         const url = new URL(route.request().url())
         const currentPage = Number(url.searchParams.get("page"))
         const pageSize = Number(url.searchParams.get("size"))
+        expect(url.searchParams.get("sort")).toBe("created")
+        expect(url.searchParams.get("dir")).toBe("desc")
+        expect(url.searchParams.has("seed")).toBe(false)
 
         const response = makeNamecardPage(
           // 墙上的可访问名跟随公开卡号：第 N 页只有第 N 张。
@@ -152,8 +155,11 @@ test.describe("namecard pagination", () => {
       2
     )
 
-    await page.goto("/community/cards?sort=created")
+    await page.goto("/community/cards")
 
+    await expect(
+      page.getByRole("combobox", { name: "排序方式" })
+    ).toContainText("最新发布")
     await expect(page.getByText("第 1 / 7 页，共 80 张")).toBeVisible()
     await page.getByRole("combobox", { name: "每页显示" }).click()
     await page.getByRole("option", { name: "24 张" }).click()

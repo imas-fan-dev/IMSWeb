@@ -24,7 +24,7 @@ test("loads more random cards on App page scroll", async ({
     reactionReads: { min: 24, max: 48 },
     reactionWrites: 0,
   })
-  await page.goto("/community/cards")
+  await page.goto("/community/cards?sort=random")
   await applyNamecardSafeArea(page)
   await expectRandomNamecardFeed(page, testInfo)
   expect(fixture.requests).toEqual([1, 2])
@@ -40,8 +40,11 @@ test.describe("app namecard browsing", () => {
       reactionReads: 12,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=2&size=12&sort=created")
+    await page.goto("/community/cards?page=2&size=12")
     await applyNamecardSafeArea(page)
+    await expect(
+      page.getByRole("combobox", { name: "排序方式" })
+    ).toContainText("最新发布")
     await expectNamecardPaginationGeometry(page)
     const pagination = page.getByRole("navigation", { name: "名片分页" })
     await pagination.getByRole("spinbutton", { name: "跳至" }).fill("3")

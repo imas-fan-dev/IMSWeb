@@ -1674,6 +1674,42 @@ describe("CommunityCardsPage", () => {
     }
   )
 
+  it.each(["/community/cards", "/community/cards?sort=unknown"])(
+    "defaults to newest first with numbered pagination at %s",
+    async (entry) => {
+      apiMocks.sendPage.mockResolvedValue(pageResult())
+      renderPage(entry)
+
+      expect(
+        await screen.findByRole("navigation", { name: "名片分页" })
+      ).toBeVisible()
+      expect(
+        screen.getByRole("combobox", { name: "排序方式" })
+      ).toHaveTextContent("最新发布")
+      expect(apiMocks.getNamecardPage).toHaveBeenCalledExactlyOnceWith(
+        1,
+        12,
+        baseWallFilters
+      )
+      expect(screen.getByLabelText("列表地址")).not.toHaveTextContent("seed=")
+    }
+  )
+
+  it.each([
+    ["name", "desc"],
+    ["created", "asc"],
+  ])("honors explicit %s sorting in %s order", async (sort, dir) => {
+    apiMocks.sendPage.mockResolvedValue(pageResult())
+    renderPage(`/community/cards?sort=${sort}&dir=${dir}`)
+
+    await screen.findByRole("navigation", { name: "名片分页" })
+    expect(apiMocks.getNamecardPage).toHaveBeenCalledExactlyOnceWith(1, 12, {
+      ...baseWallFilters,
+      sort,
+      dir,
+    })
+  })
+
   it("keeps filters collapsed by default, without hiding the wall order", async () => {
     const user = userEvent.setup()
     renderPage()
@@ -1979,7 +2015,7 @@ describe("CommunityCardsPage", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce({ ...pageResult([42, 43]), totalPage: 2 })
       .mockResolvedValueOnce({ ...pageResult([44]), totalPage: 1 })
-    renderPage("/community/cards")
+    renderPage("/community/cards?sort=random")
     const first = await screen.findByRole("button", {
       name: "查看制作人名片 42 正面",
     })
