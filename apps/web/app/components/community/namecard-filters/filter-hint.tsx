@@ -1,4 +1,5 @@
 import { InfoIcon } from "lucide-react"
+import { useState } from "react"
 
 import {
   Tooltip,
@@ -13,6 +14,9 @@ import { cn } from "~/lib/utils"
  *
  * 触发器是带 `tabIndex` 的 span，不是按钮——它只解释文案，不执行动作，
  * 所以不抢 tab 顺序里的按钮语义，键盘聚焦时同样弹出。
+ *
+ * 触摸端不能只靠 hover/focus：移动浏览器点非表单元素往往不给焦点，
+ * 所以点击也和工具栏的分享提示一样，受控地打开一次。
  */
 export function FilterHint({
   label,
@@ -23,14 +27,17 @@ export function FilterHint({
   children: string
   className?: string
 }) {
+  const [open, setOpen] = useState(false)
   return (
     <TooltipProvider>
-      <Tooltip>
+      <Tooltip open={open} onOpenChange={setOpen}>
         <TooltipTrigger
+          closeOnClick={false}
           render={
             <span
               role="img"
               tabIndex={0}
+              onClick={() => setOpen(true)}
               aria-label={`${label}说明：${children}`}
               className={cn(
                 "inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
