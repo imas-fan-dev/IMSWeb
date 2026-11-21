@@ -12,6 +12,11 @@ export function cardSharePath(slug: string): string {
   return `/exchange/card/${encodeURIComponent(slug)}`
 }
 
+/** 扫码落地页路径：一次性交换二维码的内容由它拼出。 */
+export function scanSharePath(token: string): string {
+  return `/exchange/scan/${encodeURIComponent(token)}`
+}
+
 /** 快速交换清单的分享页路径；`handle` 可以是 uid、主页地址或账号 ID。 */
 export function quickSharePath(handle: string): string {
   return `/exchange/${encodeURIComponent(handle)}`

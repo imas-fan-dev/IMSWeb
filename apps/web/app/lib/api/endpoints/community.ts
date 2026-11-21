@@ -8,6 +8,7 @@ import {
   exchangeMyHistoryPath,
   exchangePath,
   exchangeQuickPath,
+  exchangeScanLandingPath,
   namecardPath,
 } from "@imsweb/contracts/paths"
 import {
@@ -22,6 +23,7 @@ import {
   namecardExchangeHistoryQuerySchema,
   namecardListErrorResponseSchema,
   namecardQuickExchangeSchema,
+  namecardScanLandingSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
   publicNamecardResponseSchema,
@@ -366,6 +368,24 @@ export function getCardSharePage(slug: string) {
       select: (payload) => ({
         ...payload,
         card: normalizeNamecard(payload.card),
+      }),
+    })
+  )
+}
+
+/**
+ * 扫码落地页：出示方、本次名片与状态。已用 / 过期时 `cards` 为空；
+ * 自己打开自己的码回 `own-card`。
+ */
+export function getScanLandingPage(token: string) {
+  return apiClient.Get(
+    exchangeScanLandingPath(token),
+    parsed(namecardScanLandingSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      select: (payload) => ({
+        ...payload,
+        cards: payload.cards.map(normalizeNamecard),
       }),
     })
   )

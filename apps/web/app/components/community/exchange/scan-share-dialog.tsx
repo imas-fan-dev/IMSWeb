@@ -18,22 +18,25 @@ import {
   SheetTitle,
 } from "~/components/ui/sheet"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
+import { namecardDateTimeLabel } from "~/lib/namecards/dates"
 import {
   drawQrCode,
   qrMatrix,
   QR_CANVAS_SIZE,
+  scanShareLinkFor,
 } from "~/pages/account/me/namecards/card-share-model"
 
 import { useScanShare } from "./use-scan-share"
 
 const SCAN_SHARE_TITLE = "扫码交换"
 const SCAN_SHARE_DESCRIPTION = "让对方扫码，收下你选中的名片。"
-const SCAN_SHARE_WAITING_TITLE = "等待对方扫码"
+/** 一次性 + 有效期：二维码上方最醒目的一行。 */
+const SCAN_SHARE_WAITING_TITLE = "此二维码仅可交换一次"
 const SCAN_SHARE_WAITING_DESCRIPTION =
   "请让对方在 App 里打开【名片交换】，选择【扫码】扫描这个二维码。"
 
 /**
- * 出示侧扫码交换面板：二维码内容就是一次性令牌，轮询到对方提交后给成功提示。
+ * 出示侧扫码交换面板：二维码内容是 `/exchange/scan/<token>` 站点链接，轮询到对方提交后给成功提示。
  *
  * 内容只在 `open` 为真时挂载：关闭即卸载，回到选卡窗口再进就是一次全新的会话。
  */
@@ -46,10 +49,16 @@ function ScanShareBody({
 }) {
   const share = useScanShare({ cardNumbers })
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const matrix = useMemo(
-    () => (share.token ? qrMatrix(share.token) : null),
+  // 二维码内容是站点链接：任何扫码器都能看出这是什么、属于哪个站点。
+  const link = useMemo(
+    () => (share.token ? scanShareLinkFor(share.token) : null),
     [share.token]
   )
+  const matrix = useMemo(() => (link ? qrMatrix(link) : null), [link])
+  const expiresLabel = namecardDateTimeLabel(share.expiresAt)
+  const waitingTitle = expiresLabel
+    ? `${SCAN_SHARE_WAITING_TITLE}，有效期至 ${expiresLabel}`
+    : SCAN_SHARE_WAITING_TITLE
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -109,7 +118,7 @@ function ScanShareBody({
         className="size-56 rounded-lg border bg-white"
       />
       <div className="space-y-1 text-center">
-        <p className="text-sm font-medium">{SCAN_SHARE_WAITING_TITLE}</p>
+        <p className="text-sm font-medium text-warning">{waitingTitle}</p>
         <p className="text-xs text-muted-foreground">
           {SCAN_SHARE_WAITING_DESCRIPTION}
         </p>

@@ -303,7 +303,19 @@ export function createHonoApp<
     app.get("/exchange/card/:slug", handleExchangeSharePage);
     app.get("/exchange/:handle", handleExchangeSharePage);
 
-    app.notFound(handleApplicationNotFound);
+    // 扫码落地页不索引：令牌是私下出示的凭据，不能被搜索结果和预览缓存。
+    app.notFound(async (c) => {
+        const response = await handleApplicationNotFound(c);
+        if (!/^\/exchange\/scan\/[0-9a-f]{64}\/?$/i.test(c.req.path)) {
+            return response;
+        }
+        const headers = new Headers(response.headers);
+        headers.set('X-Robots-Tag', 'noindex, nofollow');
+        return new Response(response.body, {
+            status: response.status,
+            headers,
+        });
+    });
 
     app.onError((error, c) => {
         const candidate = Number(

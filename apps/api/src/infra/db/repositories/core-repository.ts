@@ -813,6 +813,13 @@ function toNamecardReviewStatus(
 }
 
 
+/** BIGINT[] 从 pg 回来是字符串数组：会话记录统一收成数字。 */
+function normalizeScanSessionRow(
+    row: NamecardScanSessionRecord
+): NamecardScanSessionRecord {
+    return { ...row, card_numbers: row.card_numbers.map(Number) };
+}
+
 export class SqlCoreRepository implements NamecardRepository {
     private initialized?: Promise<void>;
     private readonly tagRepository: SqlNamecardTagRepository;
@@ -5012,20 +5019,21 @@ export class SqlCoreRepository implements NamecardRepository {
     async findScanSession(
         tokenHash: string
     ): Promise<NamecardScanSessionRecord | null> {
-        return queryOne<NamecardScanSessionRecord>(
+        const row = await queryOne<NamecardScanSessionRecord>(
             this.database,
             `SELECT id, account_id, card_numbers, expires_at, consumed_at,
                     consumed_by_exchange_id
                FROM public.namecard_scan_sessions WHERE token_hash=?`,
             [tokenHash]
         );
+        return row ? normalizeScanSessionRow(row) : null;
     }
 
     async findOwnedScanSession(
         tokenHash: string,
         accountId: string
     ): Promise<NamecardScanSessionRecord | null> {
-        return queryOne<NamecardScanSessionRecord>(
+        const row = await queryOne<NamecardScanSessionRecord>(
             this.database,
             `SELECT id, account_id, card_numbers, expires_at, consumed_at,
                     consumed_by_exchange_id
@@ -5033,6 +5041,7 @@ export class SqlCoreRepository implements NamecardRepository {
               WHERE token_hash=? AND account_id=?`,
             [tokenHash, accountId]
         );
+        return row ? normalizeScanSessionRow(row) : null;
     }
 
 }

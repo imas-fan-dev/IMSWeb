@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "df8afb4a4981e6a0bb37945b25fb7ccfba433c7f6a74babf178919d3c5e8203f",
+    "semanticDigest": "2cd1731ea4b264760a3d2282285bbaa8657b928e02edc30d5e358bc7484a2cb4",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,19 +16,19 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 425,
-    "mountedMethodPaths": 325,
+    "mountedRegistrations": 426,
+    "mountedMethodPaths": 326,
     "noInputRoutes": 100,
-    "requestCarriers": 427,
+    "requestCarriers": 428,
     "policies": {
       "reject": 107,
-      "accept-and-project": 219,
+      "accept-and-project": 220,
       "passthrough": 17,
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 869,
-      "json": 803,
+      "total": 872,
+      "json": 806,
       "nonJson": 66
     },
     "unresolved": 0
@@ -397,6 +397,16 @@
         "carriers": 1,
         "policy": "reject",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardScanTokenParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/community/exchange/scan/:token",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
@@ -406,7 +416,7 @@
       "/api/cards": 8,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 67,
+      "/api/community": 68,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -5879,6 +5889,47 @@
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
           "kind": "json",
           "expression": "result . model satisfies NamecardQuickExchangeResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardScanTokenParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ state , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , owner : owner ? { accountId : session . account_id , uid : owner . uid , pageSlug : owner . page_slug , displayName : owner . display_name , } : null , cards , targetMissingCount , } satisfies NamecardScanLandingResponse"
         }
       ]
     },
@@ -19096,6 +19147,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardScanTokenParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/scan/sessions/:token",
       "handlerSymbol": "handleGetScanSessionStatus",
       "kind": "param",
@@ -26305,6 +26373,30 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
       "kind": "json",
       "expression": "result . model satisfies NamecardQuickExchangeResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ state , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , owner : owner ? { accountId : session . account_id , uid : owner . uid , pageSlug : owner . page_slug , displayName : owner . display_name , } : null , cards , targetMissingCount , } satisfies NamecardScanLandingResponse"
     },
     {
       "method": "GET",

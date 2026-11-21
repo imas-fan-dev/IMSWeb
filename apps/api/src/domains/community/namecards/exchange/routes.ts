@@ -41,6 +41,7 @@ import {
     handleCreateScanSession,
     handleGetScanSessionStatus,
 } from '@/domains/community/namecards/exchange/handlers/scan-sessions';
+import { handleGetScanLandingStatus } from '@/domains/community/namecards/exchange/handlers/scan-landing';
 import {
     handleListCollection,
     handleSetCollectionVisibility,
@@ -85,6 +86,11 @@ const exchangeIdParam = paramSchemaValidator(namecardExchangeIdParamsSchema, {
 });
 const scanTokenParam = paramSchemaValidator(namecardScanTokenParamsSchema, {
     invalidMessage: '二维码无效',
+});
+/** 公开落地页：形状不对与不存在必须是同一句话、同一个 404。 */
+const scanLandingTokenParam = paramSchemaValidator(namecardScanTokenParamsSchema, {
+    invalidMessage: '二维码无效或已失效',
+    invalidStatus: 404,
 });
 const collectionEntryParam = paramSchemaValidator(namecardCollectionEntryParamsSchema, {
     invalidMessage: '名片编号无效',
@@ -213,6 +219,13 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
         scanTokenParam,
         commitBody,
         handleCommitScanSession,
+    );
+    // 扫码方 / 网页落地页：出示方、本次名片与有效期,只在还能交换时给名片。
+    routes.get(
+        '/exchange/scan/:token',
+        optionalPlatformAuth,
+        scanLandingTokenParam,
+        handleGetScanLandingStatus,
     );
 
     // 手动交换的裁决与详情：详情只给参与双方，其它人 404。
