@@ -15,6 +15,7 @@ import type {
     DeleteWikiGroupInput,
     DeleteWikiIdolInput,
     IdolRecord,
+    CreateWikiEntryDocumentMediaInput,
     IdolWithAgencyRecord,
     NewStoryBatchInput,
     NewStoryInput,
@@ -33,6 +34,7 @@ import type {
     WikiBackgroundRecord,
     WikiCategoryRecord,
     WikiEntryContent,
+    WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
@@ -115,6 +117,24 @@ export class SqlStoryRepository implements StoryRepository {
         input: SaveWikiEntryDocumentInput
     ): Promise<WikiEntryDocumentSaveResult> {
         return this.documents.saveWikiEntryDocument(input);
+    }
+
+    listWikiEntryDocumentMedia(
+        entryId: number
+    ): Promise<WikiEntryDocumentMediaRecord[]> {
+        return this.documents.listWikiEntryDocumentMedia(entryId);
+    }
+
+    findWikiEntryDocumentMediaById(
+        id: number
+    ): Promise<WikiEntryDocumentMediaRecord | null> {
+        return this.documents.findWikiEntryDocumentMediaById(id);
+    }
+
+    createWikiEntryDocumentMedia(
+        input: CreateWikiEntryDocumentMediaInput
+    ): Promise<WikiEntryDocumentMediaRecord> {
+        return this.documents.createWikiEntryDocumentMedia(input);
     }
 
     listThemeColors(): Promise<Record<string, string>> {

@@ -28,6 +28,7 @@ export interface WikiEntryDocumentRecord {
 
 export interface SaveWikiEntryDocumentInput {
     entryId: number;
+    projectId: number;
     contentMode: WikiContentMode;
     sourceMarkdown: string;
     document: WikiPublicStoryDocument;
@@ -35,6 +36,28 @@ export interface SaveWikiEntryDocumentInput {
     expectedRevision: number;
     summary: string;
     updatedBy: string | null;
+    /**
+     * Shared cover assets the saved document embeds. The save transaction
+     * reconciles `wiki_entry_document_cover_refs` to exactly this set, so the
+     * usage counter and delete guard always see the current references.
+     */
+    coverAssetIds: readonly number[];
+}
+
+/** One image uploaded for an entry's Enhanced Markdown document (`doc:<id>`). */
+export interface WikiEntryDocumentMediaRecord {
+    id: number;
+    entryId: number;
+    projectId: number;
+    objectKey: string;
+    altText: string;
+}
+
+export interface CreateWikiEntryDocumentMediaInput {
+    entryId: number;
+    projectId: number;
+    objectKey: string;
+    altText: string;
 }
 
 export type WikiEntryDocumentSaveResult =
@@ -66,6 +89,15 @@ export interface WikiDocumentRepository {
     saveWikiEntryDocument(
         input: SaveWikiEntryDocumentInput
     ): Promise<WikiEntryDocumentSaveResult>;
+    listWikiEntryDocumentMedia(
+        entryId: number
+    ): Promise<WikiEntryDocumentMediaRecord[]>;
+    findWikiEntryDocumentMediaById(
+        id: number
+    ): Promise<WikiEntryDocumentMediaRecord | null>;
+    createWikiEntryDocumentMedia(
+        input: CreateWikiEntryDocumentMediaInput
+    ): Promise<WikiEntryDocumentMediaRecord>;
 }
 
 export interface AgencyRecord {

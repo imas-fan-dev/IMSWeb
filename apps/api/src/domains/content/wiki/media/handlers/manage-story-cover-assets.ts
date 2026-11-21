@@ -256,7 +256,9 @@ export function createHandleDeleteWikiStoryCoverAsset<E extends Env>(
             }
             if (result.status === 'in-use') {
                 return wikiJson(
-                    wikiErrorBody(`仍有 ${result.usageCount} 张剧情卡片使用该素材`),
+                    wikiErrorBody(
+                        `仍有 ${result.usageCount} 处引用使用该素材，无法删除`
+                    ),
                     409
                 );
             }

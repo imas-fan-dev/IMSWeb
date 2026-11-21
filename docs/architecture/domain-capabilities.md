@@ -337,11 +337,14 @@ wiki/
   documents/
     routes.ts
     enhanced-markdown-compiler.ts
+    document-assets.ts
     document-request.ts
     handlers/
       get-entry-document.ts
       save-entry-document.ts
       preview-entry-document.ts
+      upload-entry-document-media.ts
+      serve-entry-document-media.ts
   tools/
     handlers/
       parse-bilibili.ts

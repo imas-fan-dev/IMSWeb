@@ -62,6 +62,8 @@ describe('Enhanced Markdown compiler', () => {
                     }
                 ]
             },
+            assetRefs: [],
+            categoryRefs: [],
             plainText: [
                 '观看顺序',
                 '先看 主线，再看 活动，来源见 官方页面。',

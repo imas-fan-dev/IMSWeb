@@ -26,10 +26,11 @@ wiki/
     routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
     handlers/           # 11 个 action
   documents/
-    routes.ts           # 增强 Markdown 文档的读取、保存与预览（/api/admin/wiki/entries/:id/document）
+    routes.ts           # 增强 Markdown 文档的读取、保存、预览、图片上传与读取
     enhanced-markdown-compiler.ts  # 纯函数：Markdown -> 版本化 AST + plainText + 行号告警
     document-request.ts            # 该 capability 的请求模型
-    handlers/           # 3 个 action：读取、保存、预览
+    handlers/           # 5 个 action：读取、保存、预览、上传文档图片、提供文档图片
+  document-assets.ts    # 跨能力共享：`cover:<id>`/`doc:<id>` 引用解析、封面引用选择、公开读 URL 口径
 ```
 
 按实际承载内容归并：剧情目录选项（content-types/source-platforms）与 B 站来源解析

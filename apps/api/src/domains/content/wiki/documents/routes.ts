@@ -1,4 +1,5 @@
 import {
+    adminWikiEntryDocumentMediaPath,
     adminWikiEntryDocumentPath,
     adminWikiEntryDocumentPreviewPath,
 } from '@imsweb/contracts/paths';
@@ -12,6 +13,7 @@ import type { WikiServicesResolver } from '@/domains/content/wiki/handler-suppor
 import { createHandleGetWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/get-entry-document';
 import { createHandlePreviewWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/preview-entry-document';
 import { createHandleSaveWikiEntryDocument } from '@/domains/content/wiki/documents/handlers/save-entry-document';
+import { createHandleUploadWikiEntryDocumentMedia } from '@/domains/content/wiki/documents/handlers/upload-entry-document-media';
 import { wikiValidationErrorBody } from '@/domains/content/wiki/request';
 import {
     jsonSchemaValidator,
@@ -46,6 +48,11 @@ export function registerWikiDocumentRoutes<E extends Env>(
             adminWikiPreviewEntryDocumentRequestSchema,
             jsonOptions,
         ),
-        createHandlePreviewWikiEntryDocument(),
+        createHandlePreviewWikiEntryDocument(resolveServices),
+    );
+    app.post(
+        adminWikiEntryDocumentMediaPath(':entryId'),
+        paramSchemaValidator(adminWikiEntryIdParamsSchema, paramOptions),
+        createHandleUploadWikiEntryDocumentMedia(resolveServices),
     );
 }

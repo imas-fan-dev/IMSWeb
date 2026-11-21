@@ -141,13 +141,13 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 428,
-      mountedMethodPaths: 328,
+      mountedRegistrations: 429,
+      mountedMethodPaths: 329,
       noInputRoutes: 100,
-      requestCarriers: 432,
+      requestCarriers: 433,
       policies: {
         reject: 109,
-        "accept-and-project": 222,
+        "accept-and-project": 223,
         passthrough: 17,
         "non-object-applicable": 84,
       },
@@ -194,6 +194,7 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiSaveEntryDocumentRequestSchema", kind: "json", method: "PUT", path: "/api/admin/wiki/entries/:entryId/document", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiPreviewEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/preview", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/media", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

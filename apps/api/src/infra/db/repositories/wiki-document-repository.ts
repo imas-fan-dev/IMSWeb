@@ -1,7 +1,9 @@
 import type {
+    CreateWikiEntryDocumentMediaInput,
     SaveWikiEntryDocumentInput,
     WikiDocumentRepository,
     WikiEntryContent,
+    WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
@@ -10,8 +12,8 @@ import type {
     WikiContentMode,
     WikiPublicStoryDocument,
 } from '@imsweb/contracts/wiki';
-import type { ManagedSqlDatabase } from '@/infra/db/sql/database';
-import { executeSql, queryOne } from '@/infra/db/sql/query';
+import type { ManagedSqlDatabase, SqlDatabase } from '@/infra/db/sql/database';
+import { executeSql, queryAll, queryOne } from '@/infra/db/sql/query';
 
 const EMPTY_DOCUMENT: WikiPublicStoryDocument = {
     version: 1,
@@ -34,6 +36,9 @@ function asDocument(value: unknown): WikiPublicStoryDocument {
         blocks: document.blocks ?? [],
     };
 }
+
+const MEDIA_COLUMNS = `id, entry_id AS "entryId", project_id AS "projectId",
+                       object_key AS "objectKey", alt_text AS "altText"`;
 
 /** SQL adapter for the Enhanced Markdown document side of a Wiki entry. */
 export class SqlWikiDocumentRepository implements WikiDocumentRepository {
@@ -128,8 +133,7 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
                 `INSERT INTO wiki_entry_documents
                      (entry_id, project_id, source_markdown, compiled_ast,
                       plain_text, revision, updated_by, updated_at)
-                 VALUES (?, (SELECT project_id FROM wiki_entries WHERE id=?),
-                         ?, ?::jsonb, ?, ?, ?, CURRENT_TIMESTAMP)
+                 VALUES (?, ?, ?, ?::jsonb, ?, ?, ?, CURRENT_TIMESTAMP)
                  ON CONFLICT (entry_id) DO UPDATE
                     SET source_markdown=EXCLUDED.source_markdown,
                         compiled_ast=EXCLUDED.compiled_ast,
@@ -139,7 +143,7 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
                         updated_at=CURRENT_TIMESTAMP`,
                 [
                     input.entryId,
-                    input.entryId,
+                    input.projectId,
                     input.sourceMarkdown,
                     JSON.stringify(input.document),
                     input.plainText,
@@ -147,6 +151,7 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
                     input.updatedBy,
                 ]
             );
+            await this.reconcileCoverReferences(database, input);
             await executeSql(
                 database,
                 'UPDATE wiki_entries SET content_mode=? WHERE id=?',
@@ -173,5 +178,69 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
             );
             return { status: 'saved', revision } as const;
         });
+    }
+
+    /**
+     * Rewrites the document's shared cover references to exactly the saved set.
+     *
+     * Runs inside the save transaction: a stale reference would keep a deleted
+     * asset alive, and a missing one would let the asset be deleted while a
+     * document still embeds it.
+     */
+    private async reconcileCoverReferences(
+        database: SqlDatabase,
+        input: SaveWikiEntryDocumentInput
+    ): Promise<void> {
+        await executeSql(
+            database,
+            'DELETE FROM wiki_entry_document_cover_refs WHERE entry_id=?',
+            [input.entryId]
+        );
+        for (const coverAssetId of new Set(input.coverAssetIds)) {
+            await executeSql(
+                database,
+                `INSERT INTO wiki_entry_document_cover_refs
+                     (entry_id, project_id, cover_asset_id)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (entry_id, cover_asset_id) DO NOTHING`,
+                [input.entryId, input.projectId, coverAssetId]
+            );
+        }
+    }
+
+    listWikiEntryDocumentMedia(
+        entryId: number
+    ): Promise<WikiEntryDocumentMediaRecord[]> {
+        return queryAll<WikiEntryDocumentMediaRecord>(
+            this.database,
+            `SELECT ${MEDIA_COLUMNS} FROM wiki_entry_document_media
+              WHERE entry_id=? ORDER BY id`,
+            [entryId]
+        );
+    }
+
+    findWikiEntryDocumentMediaById(
+        id: number
+    ): Promise<WikiEntryDocumentMediaRecord | null> {
+        return queryOne<WikiEntryDocumentMediaRecord>(
+            this.database,
+            `SELECT ${MEDIA_COLUMNS} FROM wiki_entry_document_media WHERE id=?`,
+            [id]
+        );
+    }
+
+    async createWikiEntryDocumentMedia(
+        input: CreateWikiEntryDocumentMediaInput
+    ): Promise<WikiEntryDocumentMediaRecord> {
+        const record = await queryOne<WikiEntryDocumentMediaRecord>(
+            this.database,
+            `INSERT INTO wiki_entry_document_media
+                 (project_id, entry_id, object_key, alt_text)
+             VALUES (?, ?, ?, ?) RETURNING ${MEDIA_COLUMNS}`,
+            [input.projectId, input.entryId, input.objectKey, input.altText]
+        );
+        if (!record)
+            throw new Error('Wiki entry document media was not created');
+        return record;
     }
 }

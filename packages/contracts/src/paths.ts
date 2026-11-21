@@ -206,6 +206,14 @@ export function adminWikiEntryDocumentPreviewPath(
   return adminWikiPath(`entries/${entryId}/document/preview`)
 }
 
+/** Image upload for one entry's document (`doc:<id>` references). */
+export function adminWikiEntryDocumentMediaPath(
+  entryId: string | number
+): string {
+  return adminWikiPath(`entries/${entryId}/document/media`)
+}
+
+
 export function eventChroniclePath(suffix = ""): string {
   return appendPath(EVENT_CHRONICLE_PATH_PREFIX, suffix)
 }

@@ -44,13 +44,12 @@ export class SqlStoryCatalogRepository {
             `SELECT assets.id, assets.agency_id, assets.name, assets.object_key,
                     assets.presentation_policy, assets.display_order,
                     assets.is_active, assets.revision,
-                    COUNT(cards.id) AS usage_count
+                    (SELECT COUNT(*) FROM wiki_story_cards cards
+                      WHERE cards.cover_asset_id=assets.id)
+                    + (SELECT COUNT(*) FROM wiki_entry_document_cover_refs refs
+                        WHERE refs.cover_asset_id=assets.id) AS usage_count
              FROM wiki_story_cover_assets assets
-             LEFT JOIN wiki_story_cards cards ON cards.cover_asset_id=assets.id
              WHERE assets.agency_id=?
-             GROUP BY assets.id, assets.agency_id, assets.name, assets.object_key,
-                      assets.presentation_policy, assets.display_order,
-                      assets.is_active, assets.revision
              ORDER BY assets.display_order, assets.id`,
             [agencyId]
         ).then((rows) => rows.map((row) => ({
@@ -65,13 +64,12 @@ export class SqlStoryCatalogRepository {
             `SELECT assets.id, assets.agency_id, assets.name, assets.object_key,
                     assets.presentation_policy, assets.display_order,
                     assets.is_active, assets.revision,
-                    COUNT(cards.id) AS usage_count
+                    (SELECT COUNT(*) FROM wiki_story_cards cards
+                      WHERE cards.cover_asset_id=assets.id)
+                    + (SELECT COUNT(*) FROM wiki_entry_document_cover_refs refs
+                        WHERE refs.cover_asset_id=assets.id) AS usage_count
              FROM wiki_story_cover_assets assets
-             LEFT JOIN wiki_story_cards cards ON cards.cover_asset_id=assets.id
-             WHERE assets.id=?
-             GROUP BY assets.id, assets.agency_id, assets.name, assets.object_key,
-                      assets.presentation_policy, assets.display_order,
-                      assets.is_active, assets.revision`,
+             WHERE assets.id=?`,
             [id]
         );
         return row ? {
@@ -140,8 +138,10 @@ export class SqlStoryCatalogRepository {
             `DELETE FROM wiki_story_cover_assets
              WHERE id=? AND NOT EXISTS (
                  SELECT 1 FROM wiki_story_cards WHERE cover_asset_id=?
+             ) AND NOT EXISTS (
+                 SELECT 1 FROM wiki_entry_document_cover_refs WHERE cover_asset_id=?
              ) RETURNING object_key`,
-            [id, id]
+            [id, id, id]
         );
         if (deleted) return { status: 'deleted', objectKey: deleted.object_key };
         const refreshed = await this.findStoryCoverAssetById(id);

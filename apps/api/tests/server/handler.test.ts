@@ -258,6 +258,7 @@ import { test } from 'vitest';
             'createHandleUpdateWikiStoryCatalogOption',
             'createHandleUpdateWikiStoryCoverAsset',
             'createHandleUploadWikiAgencyIcon',
+            'createHandleUploadWikiEntryDocumentMedia',
             'createHandleUploadWikiIdolMedia',
             'handleRejectRetiredWikiStaticAsset',
             'handleWikiTest'
@@ -530,7 +531,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 183);
+            assert.equal(Object.values(actual).flat().length, 184);
         });
 
 

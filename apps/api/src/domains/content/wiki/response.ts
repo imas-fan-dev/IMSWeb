@@ -41,6 +41,7 @@ import type {
     WikiPublicSearchEntryContract,
     WikiPublicStoriesContract,
     WikiAdminEntryDocument,
+    WikiAdminEntryDocumentMediaUpload,
     WikiAdminEntryDocumentPreview,
     WikiAdminEntryDocumentSave,
 } from '@imsweb/contracts/wiki';
@@ -97,6 +98,8 @@ export type WikiAdminStoriesResponse = WikiAdminStoriesContract;
 export type WikiAdminEntryDocumentResponse = WikiAdminEntryDocument;
 export type WikiAdminEntryDocumentSaveResponse = WikiAdminEntryDocumentSave;
 export type WikiAdminEntryDocumentPreviewResponse = WikiAdminEntryDocumentPreview;
+export type WikiAdminEntryDocumentMediaUploadResponse =
+    WikiAdminEntryDocumentMediaUpload;
 
 export type WikiJsonResponse =
     | WikiErrorResponse
@@ -126,5 +129,6 @@ export type WikiJsonResponse =
     | WikiAdminEntryDocumentResponse
     | WikiAdminEntryDocumentSaveResponse
     | WikiAdminEntryDocumentPreviewResponse
+    | WikiAdminEntryDocumentMediaUploadResponse
     | WikiRandomBackground
     | WikiRandomIdol;

@@ -6,25 +6,58 @@ import {
 } from '@/domains/content/wiki/handler-support';
 import { requireWikiServices } from '@/domains/content/wiki/service';
 import { compileEnhancedMarkdown } from '@/domains/content/wiki/documents/enhanced-markdown-compiler';
+import {
+    collectWikiDocumentAssetSites,
+    collectWikiDocumentCategorySites,
+    loadWikiDocumentAssetTable,
+    resolveWikiDocumentAssets,
+    wikiDocumentAssetImageUrl,
+} from '@/domains/content/wiki/document-assets';
 import type { WikiEntryDocumentParams } from '@/domains/content/wiki/documents/document-request';
 import type { WikiValidatedInput } from '@/domains/content/wiki/request';
 import type { WikiRouteHandler } from '@/domains/content/wiki/response';
-import type { WikiDocumentWarning } from '@imsweb/contracts/wiki';
 
+/**
+ * Admin read of one entry document.
+ *
+ * The stored AST is re-resolved on every read so the workbench and public pages
+ * share one image-URL policy, and `media` lists the entry's uploads for the
+ * insert-media picker.
+ */
 export function createHandleGetWikiEntryDocument<E extends Env>(
-    resolveServices: WikiServicesResolver<E>,
+    resolveServices: WikiServicesResolver<E>
 ): WikiRouteHandler<E, WikiValidatedInput<'param', WikiEntryDocumentParams>> {
     return async (context) => {
         const services = await resolveServices(context);
-        requireWikiServices(services, ['story']);
+        requireWikiServices(services, ['story', 'storage']);
         const { entryId } = context.req.valid('param');
         const repository = services.story!;
         const entry = await repository.findWikiEntryDocumentTarget(entryId);
         if (!entry) return wikiJson(wikiErrorBody('找不到该内容页'), 404);
-        const stored = await repository.findWikiEntryDocument(entryId);
-        const compiled = stored
-            ? { document: stored.document, warnings: [] as WikiDocumentWarning[] }
-            : await compileEnhancedMarkdown('');
+        const [stored, mediaRecords] = await Promise.all([
+            repository.findWikiEntryDocument(entryId),
+            repository.listWikiEntryDocumentMedia(entryId),
+        ]);
+        const document = stored
+            ? stored.document
+            : (await compileEnhancedMarkdown('')).document;
+        const assetRefs = collectWikiDocumentAssetSites(document);
+        const [assets, imageUrl] = await Promise.all([
+            loadWikiDocumentAssetTable({
+                repository,
+                entryId,
+                projectId: entry.projectId,
+                assetRefs,
+            }),
+            wikiDocumentAssetImageUrl(services.storage!),
+        ]);
+        const resolved = await resolveWikiDocumentAssets({
+            document,
+            assetRefs,
+            categoryRefs: collectWikiDocumentCategorySites(document),
+            assets,
+            imageUrl,
+        });
         return wikiJson({
             status: 'success',
             entry: {
@@ -39,8 +72,18 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
             contentMode: entry.contentMode,
             sourceMarkdown: stored?.sourceMarkdown ?? '',
             revision: stored?.revision ?? 0,
-            document: compiled.document,
-            warnings: compiled.warnings,
+            document: resolved.document,
+            warnings: [],
+            media: await Promise.all(
+                mediaRecords.map(async (record) => ({
+                    id: record.id,
+                    imageUrl: await imageUrl(
+                        { kind: 'doc', id: record.id },
+                        record.objectKey
+                    ),
+                    altText: record.altText,
+                }))
+            ),
         });
     };
 }

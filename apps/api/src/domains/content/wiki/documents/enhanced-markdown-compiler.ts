@@ -1,4 +1,5 @@
 import type {
+    WikiDocumentAssetRef,
     WikiDocumentBlock,
     WikiDocumentCard,
     WikiDocumentCardRatio,
@@ -14,19 +15,40 @@ import type {
 /**
  * Pure server-side Enhanced Markdown compiler.
  *
- * The dialect is CommonMark + GFM plus the `:::` container directives this
- * ticket ships (`:::callout`, `:::details`). Raw HTML is dropped with a line
+ * The dialect is CommonMark + GFM plus the `:::` container directives and the
+ * `::` leaf directives this feature ships. Raw HTML is dropped with a line
  * numbered warning and never reaches the AST, so public clients can render the
  * tree without an HTML sanitiser or `dangerouslySetInnerHTML`.
+ *
+ * Image assets and structured categories are parsed into *references* here: the
+ * compiler never touches the database, so membership is verified by the caller
+ * through `assetRefs` / `categoryRefs` (kept beside the AST together with their
+ * source lines, which the AST itself does not carry).
  *
  * The parser stack is ESM-only, and the API server builds to CommonJS, so the
  * processor is imported lazily once and reused for every compile.
  */
 
+/** One `asset="cover:<id>"` / `asset="doc:<id>"` reference and its source line. */
+export interface WikiDocumentAssetSite {
+    line: number;
+    asset: WikiDocumentAssetRef;
+}
+
+/** One named `::story-category{name="..."}` reference and its source line. */
+export interface WikiDocumentCategorySite {
+    line: number;
+    name: string;
+}
+
 export interface EnhancedMarkdownCompileResult {
     document: WikiPublicStoryDocument;
     plainText: string;
     warnings: WikiDocumentWarning[];
+    /** Image references in document order; resolved against the database later. */
+    assetRefs: WikiDocumentAssetSite[];
+    /** Named category embeddings in document order; verified against the entry. */
+    categoryRefs: WikiDocumentCategorySite[];
 }
 
 /** Structural subset of mdast used by the compiler. */
@@ -155,6 +177,8 @@ function slugify(text: string): string {
 
 class CompileContext {
     readonly warnings: WikiDocumentWarning[] = [];
+    readonly assetRefs: WikiDocumentAssetSite[] = [];
+    readonly categoryRefs: WikiDocumentCategorySite[] = [];
     private readonly usedAnchors = new Set<string>();
 
     warn(line: number, code: string, message: string): void {
@@ -617,6 +641,102 @@ function parseCardTags(value: string | null | undefined): string[] {
     return tags;
 }
 
+/** `asset="cover:<id>"` / `asset="doc:<id>"`. */
+const ASSET_REFERENCE = /^(cover|doc):(\d+)$/;
+
+/**
+ * Parses one image asset reference and records it with its source line.
+ *
+ * Unreadable values warn and resolve to `null`, so the caller either drops the
+ * whole block (`::media`) or keeps a text-only card (`:::card`).
+ */
+function parseAssetReference(
+    node: MarkdownNode,
+    value: string | null | undefined,
+    context: CompileContext,
+): WikiDocumentAssetRef | null {
+    const match = ASSET_REFERENCE.exec((value ?? '').trim());
+    const id = Number(match?.[2]);
+    if (!match || !Number.isSafeInteger(id) || id <= 0) {
+        context.warnAt(
+            node,
+            'invalid-directive',
+            `不支持的图片素材引用：${value ?? ''}`,
+        );
+        return null;
+    }
+    const asset: WikiDocumentAssetRef = {
+        kind: match[1] as WikiDocumentAssetRef['kind'],
+        id,
+    };
+    context.assetRefs.push({ line: lineOf(node), asset });
+    return asset;
+}
+
+/** `::media{asset="..." caption="..." fit="cover|contain"}`. */
+function convertMediaDirective(
+    node: MarkdownNode,
+    attributes: Record<string, string | null>,
+    context: CompileContext,
+): WikiDocumentBlock[] {
+    const asset = parseAssetReference(node, attributes.asset, context);
+    if (!asset) return [];
+    return [
+        {
+            type: 'media',
+            asset,
+            caption: attributes.caption ?? '',
+            fit:
+                parseEnumAttribute(
+                    node,
+                    'media.fit',
+                    attributes.fit,
+                    ['cover', 'contain'] as const,
+                    'cover',
+                    context,
+                ) ?? 'cover',
+            imageUrl: null,
+            presentationPolicy: 'inherit',
+        },
+    ];
+}
+
+/**
+ * `::story-category{name="..." collapsed}` and `::story-categories`.
+ *
+ * A named embedding records its line so the caller can warn when the entry has
+ * no such category; `::story-categories` embeds the whole pool.
+ */
+function convertStoryCategoryDirective(
+    node: MarkdownNode,
+    attributes: Record<string, string | null>,
+    context: CompileContext,
+    all: boolean,
+): WikiDocumentBlock[] {
+    const collapsed = parseCollapsedAttribute(node, attributes, context);
+    if (all) {
+        if (attributes.name !== undefined) {
+            context.warnAt(
+                node,
+                'invalid-directive',
+                '::story-categories 不接受 name 属性',
+            );
+        }
+        return [{ type: 'storyCategory', categoryName: null, collapsed }];
+    }
+    const name = (attributes.name ?? '').trim();
+    if (!name) {
+        context.warnAt(
+            node,
+            'invalid-directive',
+            '::story-category 需要 name 属性',
+        );
+        return [];
+    }
+    context.categoryRefs.push({ line: lineOf(node), name });
+    return [{ type: 'storyCategory', categoryName: name, collapsed }];
+}
+
 function convertCardDirective(
     node: MarkdownNode,
     attributes: Record<string, string | null>,
@@ -627,14 +747,21 @@ function convertCardDirective(
         id: parseCardId(node, attributes.id, context),
         title: attributes.title ?? '',
         subtitle: attributes.subtitle ?? '',
-        fit: parseEnumAttribute(
-            node,
-            'card.fit',
-            attributes.fit,
-            ['cover', 'contain'] as const,
-            'cover',
-            context,
-        ) ?? 'cover',
+        fit:
+            parseEnumAttribute(
+                node,
+                'card.fit',
+                attributes.fit,
+                ['cover', 'contain'] as const,
+                'cover',
+                context,
+            ) ?? 'cover',
+        asset:
+            attributes.asset === undefined
+                ? null
+                : parseAssetReference(node, attributes.asset, context),
+        imageUrl: null,
+        presentationPolicy: 'inherit',
         tags: parseCardTags(attributes.tags),
         links: collectSourceLinks(node, context),
     };
@@ -892,7 +1019,35 @@ function convertBlock(
             );
             return children;
         }
-        case 'leafDirective':
+        case 'leafDirective': {
+            const name = node.name ?? '';
+            const attributes = node.attributes ?? {};
+            if (name === 'media') {
+                return convertMediaDirective(node, attributes, context);
+            }
+            if (name === 'story-category') {
+                return convertStoryCategoryDirective(
+                    node,
+                    attributes,
+                    context,
+                    false,
+                );
+            }
+            if (name === 'story-categories') {
+                return convertStoryCategoryDirective(
+                    node,
+                    attributes,
+                    context,
+                    true,
+                );
+            }
+            context.warnAt(
+                node,
+                'invalid-directive',
+                `暂不支持的指令：${name}`,
+            );
+            return [];
+        }
         case 'textDirective':
             context.warnAt(
                 node,
@@ -987,6 +1142,12 @@ function blockPlainLines(blocks: readonly WikiDocumentBlock[]): string[] {
                     lines.push(...blockPlainLines(tab.children));
                 }
                 break;
+            case 'media':
+                if (block.caption) lines.push(block.caption);
+                break;
+            case 'storyCategory':
+                if (block.categoryName) lines.push(block.categoryName);
+                break;
             default:
                 break;
         }
@@ -1050,5 +1211,7 @@ export async function compileEnhancedMarkdown(
         },
         plainText: blockPlainLines(blocks).join('\n'),
         warnings: context.warnings,
+        assetRefs: context.assetRefs,
+        categoryRefs: context.categoryRefs,
     };
 }

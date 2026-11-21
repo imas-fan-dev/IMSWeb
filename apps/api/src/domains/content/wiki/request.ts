@@ -161,6 +161,7 @@ export interface UploadWikiAgencyIconRequest extends WikiUploadRequest {}
 export interface UploadWikiIdolMediaRequest extends WikiUploadRequest {}
 export interface CreateWikiStoryCoverAssetRequest extends WikiUploadRequest {}
 export interface UpdateWikiStoryCoverAssetRequest extends WikiUploadRequest {}
+export interface UploadWikiEntryDocumentMediaRequest extends WikiUploadRequest {}
 export interface UpdateWikiStoryCardRequest extends WikiUploadRequest {}
 
 export type WikiValidatedInput<
@@ -811,6 +812,10 @@ export const parseUpdateWikiStoryCardRequest = uploadRequest as (
     request: Request,
     services: RuntimeServices,
 ) => Promise<UpdateWikiStoryCardRequest>;
+export const parseUploadWikiEntryDocumentMediaRequest = uploadRequest as (
+    request: Request,
+    services: RuntimeServices,
+) => Promise<UploadWikiEntryDocumentMediaRequest>;
 
 export async function parseDeleteWikiStoryLinkRequest(
     request: Request,

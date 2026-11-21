@@ -16,13 +16,19 @@ import {
     readContractJson,
 } from '../contracts/contract-json';
 import { createPostgresTestDatabase } from '../postgres-test-database';
+import { MemoryObjectStorage } from './fixture';
 
 const CSRF_TOKEN = 'csrf-secret';
 const ACCESS_COOKIE = 'ims_admin_access=backoffice-token';
 
-function storyRepositoryApp(repository: SqlStoryRepository) {
+function storyRepositoryApp(
+    repository: SqlStoryRepository,
+    storage = new MemoryObjectStorage()
+) {
+    storage.publicReadUrlBase = 'https://media.test';
     return createHonoApp(() => ({
         story: repository,
+        storage,
         backofficeTokens: {
             sign: async () => 'backoffice-token',
             verify: async () => ({
@@ -117,6 +123,7 @@ describe('wiki entry document API', () => {
             revision: 0,
             document: { version: 1, headings: [], availableTags: [], blocks: [] },
             warnings: [],
+            media: [],
         });
 
         const preview = await request(app, 'POST', `${documentPath}/preview`, {

@@ -40,6 +40,8 @@ describe('Enhanced Markdown story blocks', () => {
                     }
                 ]
             },
+            assetRefs: [],
+            categoryRefs: [],
             plainText: [
                 '主要来源',
                 '剧情 Bilibili UP主甲 第一话【中字】'
@@ -252,6 +254,9 @@ describe('Enhanced Markdown story blocks', () => {
                                 title: '【初星】',
                                 subtitle: '序章',
                                 fit: 'contain',
+                                asset: null,
+                                imageUrl: null,
+                                presentationPolicy: 'inherit',
                                 tags: ['天海春香', '765PRO'],
                                 links: [
                                     {
@@ -269,6 +274,9 @@ describe('Enhanced Markdown story blocks', () => {
                                 title: '【学马仕】',
                                 subtitle: '',
                                 fit: 'cover',
+                                asset: null,
+                                imageUrl: null,
+                                presentationPolicy: 'inherit',
                                 tags: ['天海春香', '765PRO'],
                                 links: []
                             },
@@ -278,6 +286,9 @@ describe('Enhanced Markdown story blocks', () => {
                                 title: '初',
                                 subtitle: '',
                                 fit: 'cover',
+                                asset: null,
+                                imageUrl: null,
+                                presentationPolicy: 'inherit',
                                 tags: [],
                                 links: []
                             }
@@ -285,6 +296,8 @@ describe('Enhanced Markdown story blocks', () => {
                     }
                 ]
             },
+            assetRefs: [],
+            categoryRefs: [],
             plainText: [
                 'S 卡图鉴',
                 '【初星】 序章',
@@ -427,6 +440,9 @@ describe('Enhanced Markdown story blocks', () => {
                         title: 'A',
                         subtitle: '',
                         fit: 'cover',
+                        asset: null,
+                        imageUrl: null,
+                        presentationPolicy: 'inherit',
                         tags: [],
                         links: []
                     }

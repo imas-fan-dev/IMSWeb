@@ -173,8 +173,8 @@ describe('public Wiki stories document payload', () => {
                 },
             ],
         });
-        // Ticket 01 keeps the legacy card pool visible while a page is in
-        // document mode; embedded `::story-category` filtering is Ticket 02.
-        assert.deepEqual(documentBody.categories, structuredBody.categories);
+        // A document that embeds no `::story-category` renders no structured
+        // pool: the public payload narrows `categories` to the embedded ones.
+        assert.deepEqual(documentBody.categories, []);
     });
 });

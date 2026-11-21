@@ -8,6 +8,11 @@ import {
 } from '@/domains/content/wiki/handler-support';
 import { requireWikiServices } from '@/domains/content/wiki/service';
 import { compileEnhancedMarkdown } from '@/domains/content/wiki/documents/enhanced-markdown-compiler';
+import {
+    loadWikiDocumentAssetTable,
+    resolveWikiDocumentAssets,
+    wikiDocumentAssetImageUrl,
+} from '@/domains/content/wiki/document-assets';
 import type {
     WikiEntryDocumentParams,
     WikiEntryDocumentSaveRequest,
@@ -21,12 +26,20 @@ import type {
 type SaveInput = WikiValidatedInput<'param', WikiEntryDocumentParams> &
     WikiValidatedInput<'json', WikiEntryDocumentSaveRequest>;
 
+/**
+ * Saves one entry document.
+ *
+ * Compilation, asset resolution, the optimistic lock, the revision snapshot,
+ * and the shared cover reference reconciliation all happen here or inside the
+ * repository transaction, so a document never keeps a reference the compiler
+ * rejected.
+ */
 export function createHandleSaveWikiEntryDocument<E extends Env>(
-    resolveServices: WikiServicesResolver<E>,
+    resolveServices: WikiServicesResolver<E>
 ): WikiRouteHandler<E, SaveInput> {
     return async (context) => {
         const services = await resolveServices(context);
-        requireWikiServices(services, ['story']);
+        requireWikiServices(services, ['story', 'storage']);
         const { entryId } = context.req.valid('param');
         const { contentMode, sourceMarkdown, expectedRevision, summary } =
             context.req.valid('json');
@@ -34,15 +47,33 @@ export function createHandleSaveWikiEntryDocument<E extends Env>(
         const entry = await repository.findWikiEntryDocumentTarget(entryId);
         if (!entry) return wikiJson(wikiErrorBody('找不到该内容页'), 404);
         const compiled = await compileEnhancedMarkdown(sourceMarkdown);
+        const [assets, imageUrl] = await Promise.all([
+            loadWikiDocumentAssetTable({
+                repository,
+                entryId,
+                projectId: entry.projectId,
+                assetRefs: compiled.assetRefs,
+            }),
+            wikiDocumentAssetImageUrl(services.storage!),
+        ]);
+        const resolved = await resolveWikiDocumentAssets({
+            document: compiled.document,
+            assetRefs: compiled.assetRefs,
+            categoryRefs: compiled.categoryRefs,
+            assets,
+            imageUrl,
+        });
         const result = await repository.saveWikiEntryDocument({
             entryId,
+            projectId: entry.projectId,
             contentMode,
             sourceMarkdown,
-            document: compiled.document,
+            document: resolved.document,
             plainText: compiled.plainText,
             expectedRevision,
             summary: summary ?? '',
             updatedBy: wikiBackofficeOperator(context) || null,
+            coverAssetIds: resolved.coverAssetIds,
         });
         if (result.status === 'not-found')
             return wikiJson(wikiErrorBody('找不到该内容页'), 404);
@@ -60,14 +91,14 @@ export function createHandleSaveWikiEntryDocument<E extends Env>(
             context,
             services,
             'wiki.document.save',
-            `entry:${entryId}`,
+            `entry:${entryId}`
         );
         return wikiJson({
             status: 'success',
             contentMode,
             revision: result.revision,
-            document: compiled.document,
-            warnings: compiled.warnings,
+            document: resolved.document,
+            warnings: [...compiled.warnings, ...resolved.warnings],
         });
     };
 }

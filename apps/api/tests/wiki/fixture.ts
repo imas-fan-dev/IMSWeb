@@ -15,6 +15,7 @@ import type {
     DeleteStoryGroupInput,
     DeleteWikiCategoryInput,
     DeleteWikiGroupInput,
+    CreateWikiEntryDocumentMediaInput,
     DeleteWikiIdolInput,
     IdolRecord,
     IdolWithAgencyRecord,
@@ -34,6 +35,7 @@ import type {
     UpdateWikiStoryCoverAssetInput,
     WikiCategoryRecord,
     WikiEntryContent,
+    WikiEntryDocumentMediaRecord,
     WikiEntryDocumentRecord,
     WikiEntryDocumentSaveResult,
     WikiEntryDocumentTarget,
@@ -642,6 +644,8 @@ export class MemoryStoryRepository implements StoryRepository {
     }
     documentModes = new Map<number, WikiContentMode>();
     documents = new Map<number, WikiEntryDocumentRecord>();
+    documentMedia: WikiEntryDocumentMediaRecord[] = [];
+    documentCoverRefs = new Map<number, Set<number>>();
     async findWikiEntryDocumentTarget(entryId: number): Promise<WikiEntryDocumentTarget | null> {
         const idol = this.idols.find((row) => row.id === entryId);
         const agency = idol ? this.agencies.find((row) => row.id === idol.agency_id) : undefined;
@@ -684,7 +688,30 @@ export class MemoryStoryRepository implements StoryRepository {
             plainText: input.plainText
         });
         this.documentModes.set(input.entryId, input.contentMode);
+        this.documentCoverRefs.set(input.entryId, new Set(input.coverAssetIds));
         return { status: 'saved' as const, revision };
+    }
+    async listWikiEntryDocumentMedia(entryId: number): Promise<WikiEntryDocumentMediaRecord[]> {
+        return this.documentMedia
+            .filter((record) => record.entryId === entryId)
+            .map((record) => ({ ...record }));
+    }
+    async findWikiEntryDocumentMediaById(id: number): Promise<WikiEntryDocumentMediaRecord | null> {
+        const record = this.documentMedia.find((candidate) => candidate.id === id);
+        return record ? { ...record } : null;
+    }
+    async createWikiEntryDocumentMedia(
+        input: CreateWikiEntryDocumentMediaInput
+    ): Promise<WikiEntryDocumentMediaRecord> {
+        const record: WikiEntryDocumentMediaRecord = {
+            id: Math.max(0, ...this.documentMedia.map((candidate) => candidate.id)) + 1,
+            entryId: input.entryId,
+            projectId: input.projectId,
+            objectKey: input.objectKey,
+            altText: input.altText
+        };
+        this.documentMedia.push(record);
+        return { ...record };
     }
     async listStories(agencyCode: string, idolId: number) {        const agencyIds = new Set(this.agencies.filter((row) => row.code === agencyCode).map((row) => row.id));
         const idolIds = new Set(this.idols.filter((row) => agencyIds.has(row.agency_id)).map((row) => row.id));
@@ -793,13 +820,19 @@ export class MemoryStoryRepository implements StoryRepository {
         this.sourcePlatforms.splice(index, 1);
         return { status: 'deleted' as const };
     }
+    private coverAssetUsage(id: number): number {
+        const cards = new Set(this.stories.filter((story) =>
+            story.cover_asset_id === id
+        ).map((story) => story.card_id));
+        const documents = [...this.documentCoverRefs.values()]
+            .filter((assetIds) => assetIds.has(id)).length;
+        return cards.size + documents;
+    }
     async listStoryCoverAssets(agencyId: number) {
         return this.coverAssets.filter((asset) => asset.agency_id === agencyId)
             .map((asset) => ({
                 ...asset,
-                usage_count: new Set(this.stories.filter((story) =>
-                    story.cover_asset_id === asset.id
-                ).map((story) => story.card_id)).size
+                usage_count: this.coverAssetUsage(asset.id)
             }));
     }
     async findStoryCoverAssetById(id: number) {
@@ -807,9 +840,7 @@ export class MemoryStoryRepository implements StoryRepository {
         if (!asset) return null;
         return {
             ...asset,
-            usage_count: new Set(this.stories.filter((story) =>
-                story.cover_asset_id === asset.id
-            ).map((story) => story.card_id)).size
+            usage_count: this.coverAssetUsage(asset.id)
         };
     }
     async createStoryCoverAsset(input: CreateWikiStoryCoverAssetInput) {
@@ -879,9 +910,7 @@ export class MemoryStoryRepository implements StoryRepository {
     async deleteStoryCoverAsset(id: number) {
         const index = this.coverAssets.findIndex((candidate) => candidate.id === id);
         if (index < 0) return { status: 'not-found' as const };
-        const usageCount = this.cards.filter((card) =>
-            card.cover_asset_id === id
-        ).length;
+        const usageCount = this.coverAssetUsage(id);
         if (usageCount) return { status: 'in-use' as const, usageCount };
         const [asset] = this.coverAssets.splice(index, 1);
         return { status: 'deleted' as const, objectKey: asset!.object_key };

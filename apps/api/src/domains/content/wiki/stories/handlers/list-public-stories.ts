@@ -12,6 +12,13 @@ import {
   toWikiIdolFromRecord,
 } from "@/domains/content/wiki/service";
 import {
+  collectWikiDocumentAssetSites,
+  loadWikiDocumentAssetTable,
+  resolveWikiDocumentAssets,
+  wikiDocumentAssetImageUrl,
+  wikiDocumentCategorySelection,
+} from "@/domains/content/wiki/document-assets";
+import {
   requirePublicObjectUrl,
   resolvePublicObjectUrl,
 } from "@/utils/storage/public-object-url";
@@ -20,6 +27,11 @@ import type {
   WikiValidatedInput,
 } from "@/domains/content/wiki/request";
 import type { WikiRouteHandler } from "@/domains/content/wiki/response";
+import type { RuntimeServices } from "@/ports/runtime-services";
+import type {
+  WikiPublicStoriesContract,
+  WikiPublicStoryDocument,
+} from "@imsweb/contracts/wiki";
 
 export function createHandleListPublicWikiStories<E extends Env>(
   resolveServices: WikiServicesResolver<E>,
@@ -49,13 +61,25 @@ export function createHandleListPublicWikiStories<E extends Env>(
     ]);
     const content = await services.story!.findWikiEntryContent(idolRecord.id);
     const idol = toWikiIdolFromRecord(agency, idolRecord);
-    const categories = aggregateStories(
+    const document = content.contentMode === "document" && content.document
+      ? await resolvePublicWikiDocument(
+          services.story!,
+          services.storage!,
+          idolRecord.id,
+          agency.id,
+          content.document,
+        )
+      : null;
+    const aggregated = aggregateStories(
       storyRows,
       categoryRows,
       agency.name,
       idol.name,
       cardRows,
     );
+    const categories = document
+      ? embeddedStoryCategories(aggregated, document)
+      : aggregated;
     const storyRowsByCard = new Map(cardRows.map((row) => [
       `${row.category}\u0000${row.card_name}`,
       row,
@@ -109,8 +133,53 @@ export function createHandleListPublicWikiStories<E extends Env>(
         entrySubtype: idol.entrySubtype,
       },
       contentMode: content.contentMode,
-      document: content.contentMode === "document" ? content.document : null,
+      document,
       categories: publicCategories,
     });
   };
+}
+
+/**
+ * Resolves the document's image references against live storage.
+ *
+ * Public reads never trust the stored `imageUrl`: replacing a shared cover asset
+ * or deleting an upload must change what readers see without rewriting every
+ * compiled document.
+ */
+async function resolvePublicWikiDocument(
+  repository: NonNullable<RuntimeServices["story"]>,
+  storage: NonNullable<RuntimeServices["storage"]>,
+  entryId: number,
+  projectId: number,
+  document: WikiPublicStoryDocument,
+): Promise<WikiPublicStoryDocument> {
+  const assetRefs = collectWikiDocumentAssetSites(document);
+  const [assets, imageUrl] = await Promise.all([
+    loadWikiDocumentAssetTable({ repository, entryId, projectId, assetRefs }),
+    wikiDocumentAssetImageUrl(storage),
+  ]);
+  const resolved = await resolveWikiDocumentAssets({
+    document,
+    assetRefs,
+    categoryRefs: [],
+    assets,
+    imageUrl,
+  });
+  return resolved.document;
+}
+
+/**
+ * Keeps only the structured categories the document actually embeds.
+ *
+ * `structured` entries keep the full legacy pool; `document` entries return the
+ * embedded ones so the hybrid page renders the pool exactly where the author
+ * placed `::story-category`.
+ */
+function embeddedStoryCategories(
+  categories: WikiPublicStoriesContract["categories"],
+  document: WikiPublicStoryDocument,
+): WikiPublicStoriesContract["categories"] {
+  const selection = wikiDocumentCategorySelection(document);
+  if (selection.all) return categories;
+  return categories.filter((category) => selection.names.includes(category.name));
 }

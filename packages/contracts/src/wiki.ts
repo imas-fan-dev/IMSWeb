@@ -452,6 +452,42 @@ export const wikiDocumentUrlSchema = z
   .string()
   .regex(/^(?:https?:\/\/|\/(?!\/))/i, { message: "unsafe document URL" })
 
+/**
+ * A document image reference: an agency shared cover asset (`cover:<id>`) or an
+ * image uploaded to the entry itself (`doc:<id>`).
+ *
+ * The reference is what the AST stores. Public reads re-resolve it into an
+ * `imageUrl`, so replacing a shared cover asset updates every document that
+ * embeds it without rewriting compiled documents.
+ */
+export const wikiDocumentAssetKindSchema = z.enum(["cover", "doc"])
+
+export type WikiDocumentAssetKind = z.infer<typeof wikiDocumentAssetKindSchema>
+
+export interface WikiDocumentAssetRef {
+  kind: WikiDocumentAssetKind
+  id: number
+}
+
+export const wikiDocumentAssetRefSchema: z.ZodType<WikiDocumentAssetRef> =
+  exactJsonResponse({
+    kind: wikiDocumentAssetKindSchema,
+    id: z.number().int().positive(),
+  })
+
+/**
+ * How a shared cover asset wants its artwork fitted. `inherit` defers to the
+ * block author's `fit`, while `contain` never crops the image.
+ */
+export const wikiDocumentPresentationPolicySchema = z.enum([
+  "inherit",
+  "contain",
+])
+
+export type WikiDocumentPresentationPolicy = z.infer<
+  typeof wikiDocumentPresentationPolicySchema
+>
+
 export type WikiDocumentInline =
   | { type: "text"; value: string }
   | { type: "strong"; children: WikiDocumentInline[] }
@@ -487,8 +523,41 @@ export interface WikiDocumentCard {
   title: string
   subtitle: string
   fit: "cover" | "contain"
+  /** Image reference (`asset="cover:<id>"` / `"doc:<id>"`); `null` when text-only. */
+  asset: WikiDocumentAssetRef | null
+  /** Server-resolved public read URL; `null` while the reference is unresolved. */
+  imageUrl: string | null
+  presentationPolicy: WikiDocumentPresentationPolicy
   tags: string[]
   links: WikiDocumentSourceLink[]
+}
+
+/**
+ * One `::media{asset="cover:<id>"|"doc:<id>" caption="..." fit="..."}` figure.
+ *
+ * `imageUrl` and `presentationPolicy` are resolved on every read, so a replaced
+ * shared cover asset shows its new artwork immediately.
+ */
+export interface WikiDocumentMediaBlock {
+  type: "media"
+  asset: WikiDocumentAssetRef
+  caption: string
+  fit: "cover" | "contain"
+  imageUrl: string | null
+  presentationPolicy: WikiDocumentPresentationPolicy
+}
+
+/**
+ * `::story-category{name="..." collapsed}` / `::story-categories`.
+ *
+ * `categoryName` is `null` for `::story-categories`, which embeds every
+ * category of the entry; the public payload carries the resolved card pools
+ * alongside the document so one round-trip renders the hybrid page.
+ */
+export interface WikiDocumentStoryCategoryBlock {
+  type: "storyCategory"
+  categoryName: string | null
+  collapsed: boolean
 }
 
 export interface WikiDocumentLinksBlock {
@@ -569,6 +638,8 @@ export type WikiDocumentBlock =
   | WikiDocumentLinksBlock
   | WikiDocumentCardGridBlock
   | WikiDocumentTabsBlock
+  | WikiDocumentMediaBlock
+  | WikiDocumentStoryCategoryBlock
 
 export interface WikiDocumentHeading {
   id: string
@@ -667,6 +738,8 @@ export const wikiDocumentBlockSchema: z.ZodType<WikiDocumentBlock> = z.lazy(
         type: z.literal("tabs"),
         items: z.array(wikiDocumentTabSchema),
       }),
+      wikiDocumentMediaBlockSchema,
+      wikiDocumentStoryCategoryBlockSchema,
     ])
 )
 
@@ -686,9 +759,27 @@ export const wikiDocumentCardSchema: z.ZodType<WikiDocumentCard> =
     title: z.string(),
     subtitle: z.string(),
     fit: z.enum(["cover", "contain"]),
+    asset: wikiDocumentAssetRefSchema.nullable(),
+    imageUrl: z.string().nullable(),
+    presentationPolicy: wikiDocumentPresentationPolicySchema,
     tags: z.array(z.string()),
     links: z.array(wikiDocumentSourceLinkSchema),
   })
+
+export const wikiDocumentMediaBlockSchema = exactJsonResponse({
+  type: z.literal("media"),
+  asset: wikiDocumentAssetRefSchema,
+  caption: z.string(),
+  fit: z.enum(["cover", "contain"]),
+  imageUrl: z.string().nullable(),
+  presentationPolicy: wikiDocumentPresentationPolicySchema,
+}) satisfies z.ZodType<WikiDocumentMediaBlock>
+
+export const wikiDocumentStoryCategoryBlockSchema = exactJsonResponse({
+  type: z.literal("storyCategory"),
+  categoryName: z.string().nullable(),
+  collapsed: z.boolean(),
+}) satisfies z.ZodType<WikiDocumentStoryCategoryBlock>
 
 export const wikiDocumentCardGridSchema = exactJsonResponse({
   type: z.literal("cardGrid"),
@@ -757,8 +848,20 @@ export const wikiPublicStoriesSchema = exactJsonResponse({
  *
  * `revision` is the optimistic lock for `PUT`; a stale `expectedRevision`
  * returns `409` with the current value in `wikiRevisionConflictResponseSchema`.
- * Media and revision-summary fields arrive with the tickets that own them.
+ * `media` lists the entry's uploaded document images so the workbench can pick
+ * them without a second request; revision summaries arrive with Ticket 07.
  */
+export const wikiDocumentMediaItemSchema = exactJsonResponse({
+  id: z.number().int().positive(),
+  imageUrl: z.string(),
+  altText: z.string(),
+})
+
+export const adminWikiEntryDocumentMediaUploadSchema = exactJsonResponse({
+  status: z.literal("success"),
+  media: wikiDocumentMediaItemSchema,
+})
+
 export const adminWikiEntryDocumentEntrySchema = exactJsonResponse({
   id: z.number().int().positive(),
   projectId: z.number().int().positive(),
@@ -777,6 +880,7 @@ export const adminWikiEntryDocumentSchema = exactJsonResponse({
   revision: z.number().int().nonnegative(),
   document: wikiPublicStoryDocumentSchema,
   warnings: z.array(wikiDocumentWarningSchema),
+  media: z.array(wikiDocumentMediaItemSchema),
 })
 
 export const adminWikiEntryDocumentSaveSchema = exactJsonResponse({
@@ -1071,6 +1175,10 @@ export type WikiAdminEntryDocumentSave = z.infer<
 >
 export type WikiAdminEntryDocumentPreview = z.infer<
   typeof adminWikiEntryDocumentPreviewSchema
+>
+export type WikiDocumentMediaItem = z.infer<typeof wikiDocumentMediaItemSchema>
+export type WikiAdminEntryDocumentMediaUpload = z.infer<
+  typeof adminWikiEntryDocumentMediaUploadSchema
 >
 export type WikiAdminSaveEntryDocumentRequest = z.infer<
   typeof adminWikiSaveEntryDocumentRequestSchema
