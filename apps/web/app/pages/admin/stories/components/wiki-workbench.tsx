@@ -42,6 +42,7 @@ import { StoryEditorDialog } from "~/pages/admin/stories/components/story-editor
 import { StoryOutline } from "~/pages/admin/stories/components/story-outline"
 import { StorySourceCatalogDialog } from "~/pages/admin/stories/components/story-source-catalog-dialog"
 import { WikiHierarchyExplorer } from "~/pages/admin/stories/components/wiki-hierarchy-explorer"
+import { WikiDocumentWorkspace } from "~/pages/admin/stories/components/wiki-document-workspace"
 import { useWikiWorkbenchState } from "./wiki-workbench-hooks"
 import { errorMessage } from "./wiki-workbench-model"
 import {
@@ -281,74 +282,84 @@ export function WikiWorkbench() {
               <>
                 <IdolSummary agency={selectedAgency} idol={selectedIdol} />
 
-                {storiesError ? (
-                  <div className="p-4">
-                    <Alert>
-                      <AlertTitle>剧情数据加载失败</AlertTitle>
-                      <AlertDescription>
-                        {errorMessage(storiesError)}
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                ) : storiesLoading || !stories ? (
-                  <StoryOutlineSkeleton />
-                ) : (
-                  <StoryOutline
-                    stories={stories}
-                    query={storyQuery}
-                    onQueryChange={setStoryQuery}
-                    expandedCategoryIds={expandedCategoryIds}
-                    onCategoryOpenChange={setCategoryOpen}
-                    onCreateCategory={() =>
-                      setCategoryEditor({ category: null })
-                    }
-                    onCreate={openCreateStory}
-                    onEditCategory={(category) =>
-                      setCategoryEditor({ category })
-                    }
-                    onEditCard={(card) => {
-                      setStoryEditor({
-                        story: card,
-                        defaults: {},
-                        mode: "edit-card",
-                      })
-                    }}
-                    onEdit={(story) =>
-                      setStoryEditor({
-                        story,
-                        defaults: {},
-                        mode: "edit-source",
-                      })
-                    }
-                    onDeleteSource={(story, sourceCount) =>
-                      deleteConfirm.requestAction({
-                        kind: "source",
-                        storyId: story.id,
-                        videoTitle: story.videoTitle,
-                        cardName: story.cardName,
-                        sourceCount,
-                        mediaRevision: story.mediaRevision,
-                      })
-                    }
-                    onDeleteCard={(card) =>
-                      deleteConfirm.requestAction({
-                        kind: "card",
-                        category: card.category,
-                        cardName: card.name,
-                        linkCount: card.stories.length,
-                        revision: card.mediaRevision,
-                      })
-                    }
-                    onDeleteCategory={(category, linkCount) =>
-                      deleteConfirm.requestAction({
-                        kind: "category",
-                        category: category.name,
-                        linkCount,
-                        revision: category.revision ?? 0,
-                      })
-                    }
-                  />
-                )}
+                <WikiDocumentWorkspace
+                  key={selectedIdol.id}
+                  entryId={selectedIdol.id}
+                  entryName={selectedIdol.name}
+                  categories={stories?.categories ?? []}
+                  cards={stories?.cards ?? []}
+                  coverAssets={coverAssets}
+                  structured={
+                    storiesError ? (
+                      <div className="p-4">
+                        <Alert>
+                          <AlertTitle>剧情数据加载失败</AlertTitle>
+                          <AlertDescription>
+                            {errorMessage(storiesError)}
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    ) : storiesLoading || !stories ? (
+                      <StoryOutlineSkeleton />
+                    ) : (
+                      <StoryOutline
+                        stories={stories}
+                        query={storyQuery}
+                        onQueryChange={setStoryQuery}
+                        expandedCategoryIds={expandedCategoryIds}
+                        onCategoryOpenChange={setCategoryOpen}
+                        onCreateCategory={() =>
+                          setCategoryEditor({ category: null })
+                        }
+                        onCreate={openCreateStory}
+                        onEditCategory={(category) =>
+                          setCategoryEditor({ category })
+                        }
+                        onEditCard={(card) => {
+                          setStoryEditor({
+                            story: card,
+                            defaults: {},
+                            mode: "edit-card",
+                          })
+                        }}
+                        onEdit={(story) =>
+                          setStoryEditor({
+                            story,
+                            defaults: {},
+                            mode: "edit-source",
+                          })
+                        }
+                        onDeleteSource={(story, sourceCount) =>
+                          deleteConfirm.requestAction({
+                            kind: "source",
+                            storyId: story.id,
+                            videoTitle: story.videoTitle,
+                            cardName: story.cardName,
+                            sourceCount,
+                            mediaRevision: story.mediaRevision,
+                          })
+                        }
+                        onDeleteCard={(card) =>
+                          deleteConfirm.requestAction({
+                            kind: "card",
+                            category: card.category,
+                            cardName: card.name,
+                            linkCount: card.stories.length,
+                            revision: card.mediaRevision,
+                          })
+                        }
+                        onDeleteCategory={(category, linkCount) =>
+                          deleteConfirm.requestAction({
+                            kind: "category",
+                            category: category.name,
+                            linkCount,
+                            revision: category.revision ?? 0,
+                          })
+                        }
+                      />
+                    )
+                  }
+                />
               </>
             ) : (
               <Empty className="min-h-128 border-0">

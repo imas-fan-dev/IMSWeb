@@ -10,16 +10,19 @@
 
 ## 能力与职责地图
 
-| 参与者与能力 | 关键实现路径 | 职责 |
-| --- | --- | --- |
-| 编辑者进入内容工作台 | [wiki-workbench](components/wiki-workbench.tsx)、[sections](components/wiki-workbench-sections.tsx) | 工作台编排、移动端浏览器承载与操作入口 |
-| 编辑者选择企划和内容页 | [层级浏览](components/wiki-hierarchy-explorer.tsx)、[剧情大纲](components/story-outline.tsx) | 按目录定位内容页，展示与选择剧情分类和卡片 |
-| 编辑者直接使用角色档案 | [角色选择器](components/story-character-selector.tsx) | 按企划档案 ID 复用或建立剧情关联，刷新后用内容条目 ID 定位，不复制人物资料 |
-| 工作台状态维护 | [hooks](components/wiki-workbench-hooks.ts)、[model](components/wiki-workbench-model.ts) | 目录与剧情加载、选择状态、刷新、编辑状态与纯模型 |
-| 编辑者维护剧情卡片与来源 | [剧情编辑器](components/story-editor-dialog.tsx) | 新建或修改卡片、来源信息与图片，关联共享封面 |
-| 编辑者维护分类 | [分类编辑器](components/story-category-editor-dialog.tsx) | 分类资料、归属与编辑反馈 |
-| 编辑者维护内容类型与来源平台 | [来源目录对话框](components/story-source-catalog-dialog.tsx) | 剧情编辑所需的类型和来源目录 |
-| 素材维护者管理封面库 | [素材页](story-cover-assets-page.tsx)、[封面编辑器](components/story-cover-asset-dialog.tsx) | 企划封面素材上传、修改、展示策略与可用状态 |
+| 参与者与能力                              | 关键实现路径                                                                                           | 职责                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| 编辑者进入内容工作台                      | [wiki-workbench](components/wiki-workbench.tsx)、[sections](components/wiki-workbench-sections.tsx)    | 工作台编排、移动端浏览器承载与操作入口                                                |
+| 编辑者选择企划和内容页                    | [层级浏览](components/wiki-hierarchy-explorer.tsx)、[剧情大纲](components/story-outline.tsx)           | 按目录定位内容页，展示与选择剧情分类和卡片                                            |
+| 编辑者切换结构化卡片 / 增强 Markdown 文档 | [文档工作台](components/wiki-document-workspace.tsx)                                                   | 非破坏性双模式切换、未保存改动的二次确认、`409` 冲突的重新加载与覆盖恢复              |
+| 编辑者撰写增强 Markdown                   | [文档编辑器](components/wiki-document-editor.tsx)、[预览与告警](components/wiki-document-sections.tsx) | 左源码右实时预览、防抖服务端编译、按行号定位的编译告警、快捷插入工具栏与粘贴/拖拽传图 |
+| 文档工作台请求状态                        | [文档 hooks](components/wiki-document-hooks.ts)、[文档模型](components/wiki-document-model.ts)         | 文档读取/保存/预览的表单状态、模板片段与行号定位纯函数                                |
+| 编辑者直接使用角色档案                    | [角色选择器](components/story-character-selector.tsx)                                                  | 按企划档案 ID 复用或建立剧情关联，刷新后用内容条目 ID 定位，不复制人物资料            |
+| 工作台状态维护                            | [hooks](components/wiki-workbench-hooks.ts)、[model](components/wiki-workbench-model.ts)               | 目录与剧情加载、选择状态、刷新、编辑状态与纯模型                                      |
+| 编辑者维护剧情卡片与来源                  | [剧情编辑器](components/story-editor-dialog.tsx)                                                       | 新建或修改卡片、来源信息与图片，关联共享封面                                          |
+| 编辑者维护分类                            | [分类编辑器](components/story-category-editor-dialog.tsx)                                              | 分类资料、归属与编辑反馈                                                              |
+| 编辑者维护内容类型与来源平台              | [来源目录对话框](components/story-source-catalog-dialog.tsx)                                           | 剧情编辑所需的类型和来源目录                                                          |
+| 素材维护者管理封面库                      | [素材页](story-cover-assets-page.tsx)、[封面编辑器](components/story-cover-asset-dialog.tsx)           | 企划封面素材上传、修改、展示策略与可用状态                                            |
 
 ## 协作边界
 
@@ -44,7 +47,9 @@
 - 单元测试：[stories](../../../../tests/unit/pages/admin/stories/)，
   [工作台页面](../../../../tests/unit/pages/admin/stories/story-management-page.test.tsx)
   与 [组件测试](../../../../tests/unit/pages/admin/stories/components/) 按职责定位。
-- 浏览器流程：[角色剧情关联](../../../../tests/e2e/admin-catalog.spec.ts)、[封面素材](../../../../tests/e2e/story-cover-assets.spec.ts)。
+- 浏览器流程：[角色剧情关联](../../../../tests/e2e/admin-catalog.spec.ts)、[封面素材](../../../../tests/e2e/story-cover-assets.spec.ts)、
+  [文档工作台](../../../../tests/e2e/story-document-workbench.spec.ts)。
+- 文档工作台单元测试：[story-document-workbench](../../../../tests/unit/pages/admin/stories/story-document-workbench.test.tsx)。
 - 关联阅读回归入口见 [Wiki 阅读测试](../../wiki/README.md)，目录维护流程见
   [idols 测试入口](../idols/README.md)。
 

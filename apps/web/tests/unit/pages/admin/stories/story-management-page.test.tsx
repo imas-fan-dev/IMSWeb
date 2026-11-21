@@ -173,6 +173,32 @@ const stories = {
   stories: [],
 } satisfies WikiAdminStories
 
+function entryDocument(idolId: number, name: string) {
+  return {
+    status: "success",
+    entry: {
+      id: idolId,
+      projectId: 1,
+      projectCode: "765pro",
+      projectName: "765PRO",
+      name,
+      folderName: "amami_haruka",
+      entryKind: "idol",
+    },
+    contentMode: "structured",
+    sourceMarkdown: "",
+    revision: 0,
+    document: {
+      version: 1,
+      headings: [],
+      availableTags: [],
+      blocks: [],
+    },
+    warnings: [],
+    media: [],
+  }
+}
+
 describe("StoryManagementPage", () => {
   it("selects a role profile directly and opens its ungrouped story entry by stable ID", async () => {
     const linkedCatalog = structuredClone(catalog)
@@ -220,6 +246,14 @@ describe("StoryManagementPage", () => {
           agency: { id: 1, code: "765pro", name: "765PRO" },
           assets: [],
         })
+      if (url.pathname === "/api/admin/wiki/entries/10/document")
+        return json(entryDocument(10, "天海春香"))
+      if (url.pathname === "/api/admin/wiki/entries/55/document")
+        return linked
+          ? linkedStoriesReady.then(() =>
+              Response.json(entryDocument(55, "新关联人物"))
+            )
+          : json(entryDocument(55, "新关联人物"))
       if (url.pathname === "/api/admin/wiki/stories")
         return linked
           ? linkedStoriesReady.then(() =>
@@ -286,6 +320,8 @@ describe("StoryManagementPage", () => {
           assets: [],
         })
       }
+      if (url.pathname === "/api/admin/wiki/entries/10/document")
+        return json(entryDocument(10, "天海春香"))
       if (url.pathname === "/api/admin/wiki/stories") return json(stories)
       if (url.pathname === "/api/wiki/delete_story") {
         deleteForms.push(request.body as FormData)

@@ -194,7 +194,14 @@ import {
   sitePackageListSchema,
 } from "@imsweb/contracts/site-packages"
 import {
+  adminWikiEntryDocumentPreviewSchema,
+  adminWikiEntryDocumentSaveSchema,
+  adminWikiEntryDocumentSchema,
+  adminWikiEntryDocumentMediaUploadSchema,
+  adminWikiPreviewEntryDocumentRequestSchema,
+  adminWikiSaveEntryDocumentRequestSchema,
   wikiAdminCatalogSchema,
+  wikiAdminStoriesSchema,
   wikiErrorResponseSchema,
   wikiHttpErrorResponseSchema,
   wikiCatalogQuerySchema,
@@ -204,6 +211,7 @@ import {
   wikiRandomIdolSchema,
   wikiStoriesQuerySchema,
   wikiStoryCoverAssetsSchema,
+  wikiStorySourceCatalogSchema,
 } from "@imsweb/contracts/wiki"
 import {
   eventErrorResponseSchema,
@@ -245,6 +253,16 @@ const platformAvatarMultipartSchema = z
 const multipartFormDataContentTypeSchema = z
   .string()
   .regex(/^multipart\/form-data;\s*boundary=\S+$/i)
+const documentImageMultipartSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (body) =>
+      /content-disposition:\s*form-data;\s*name="image";\s*filename="[^"]+"/i.test(
+        body
+      ),
+    "expected exactly one image multipart field with a filename"
+  )
 
 export type CatalogContract = {
   query?: z.ZodTypeAny
@@ -1340,6 +1358,94 @@ export function resolveApiContract(
     return {
       query: namecardCharacterListQuerySchema,
       responses: { 200: namecardCharacterListSchema, ...protectedErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/admin\/wiki\/entries\/[^/]+\/document$/.test(path)
+  )
+    return {
+      responses: {
+        200: [adminWikiEntryDocumentSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        404: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/admin\/wiki\/entries\/[^/]+\/document$/.test(path)
+  )
+    return {
+      body: adminWikiSaveEntryDocumentRequestSchema,
+      responses: {
+        200: [adminWikiEntryDocumentSaveSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        404: wikiHttpErrorResponseSchema,
+        409: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/admin\/wiki\/entries\/[^/]+\/document\/preview$/.test(path)
+  )
+    return {
+      body: adminWikiPreviewEntryDocumentRequestSchema,
+      responses: {
+        200: [adminWikiEntryDocumentPreviewSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        404: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/admin\/wiki\/entries\/[^/]+\/document\/media$/.test(path)
+  )
+    return {
+      rawBody: {
+        name: "wiki document image multipart request",
+        reason:
+          "FormData is a Web-local non-JSON boundary without a shared request schema",
+        schema: documentImageMultipartSchema,
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        200: [adminWikiEntryDocumentMediaUploadSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        404: wikiHttpErrorResponseSchema,
+        413: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/wiki/stories")
+    return {
+      query: wikiStoriesQuerySchema,
+      responses: {
+        200: [wikiAdminStoriesSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/admin/wiki/story-source-catalog")
+    return {
+      responses: {
+        200: [wikiStorySourceCatalogSchema, wikiErrorResponseSchema],
+        400: wikiHttpErrorResponseSchema,
+        401: wikiHttpErrorResponseSchema,
+        403: wikiHttpErrorResponseSchema,
+        500: wikiHttpErrorResponseSchema,
+      },
     }
   if (method === "GET" && path === "/api/admin/wiki/catalog")
     return {
