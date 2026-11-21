@@ -219,6 +219,20 @@ describe("NamecardFilterBar", () => {
     ).toBeInTheDocument()
   })
 
+  it("opens a checkbox explanation when the hint is tapped", async () => {
+    const user = userEvent.setup()
+    renderBar()
+
+    await user.click(screen.getByRole("button", { name: /高级筛选/ }))
+    // 触摸端点 span 不一定给焦点：点击本身必须能展开说明。
+    await user.click(
+      screen.getByLabelText(/同时包含说明：名片必须包含全部已选角色/)
+    )
+    expect(
+      await screen.findByText("名片必须包含全部已选角色")
+    ).toBeInTheDocument()
+  })
+
   it("keeps the chosen characters inside the input and expands a unit", async () => {
     const user = userEvent.setup()
     const { onChange } = renderBar()
