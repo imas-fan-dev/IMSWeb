@@ -12,6 +12,12 @@ import type {
     WikiPublicStoryDocument,
 } from '@imsweb/contracts/wiki';
 
+import {
+    inferSourceFields,
+    isKnownSourcePlatform,
+    SOURCE_FIELD_SEPARATOR,
+} from '@/domains/content/wiki/documents/source-link-inference';
+
 /**
  * Pure server-side Enhanced Markdown compiler.
  *
@@ -222,19 +228,6 @@ function parseBooleanAttribute(value: string | null | undefined): boolean | null
     return null;
 }
 
-/** Source list field separator: fullwidth `｜` first, halfwidth `|` tolerated. */
-const SOURCE_FIELD_SEPARATOR = /[｜|]/;
-
-/** Source platforms the shorthand `[平台｜UP]` form recognizes. */
-const KNOWN_SOURCE_PLATFORMS = new Set([
-    'bilibili',
-    'bilibili wiki',
-    'bwiki',
-    'acfun',
-    'acfun.cn',
-    '其他来源',
-]);
-
 /**
  * Flattens mdast inline nodes to plain text.
  *
@@ -259,54 +252,6 @@ function markdownInlineText(nodes: readonly MarkdownNode[]): string {
             }
         })
         .join('');
-}
-
-function urlHost(url: string): string | null {
-    try {
-        return new URL(url).hostname.toLowerCase().replace(/\.$/, '');
-    } catch {
-        return null;
-    }
-}
-
-interface InferredSourceFields {
-    contentType: string;
-    sourcePlatform: string;
-    defaultUp: string;
-}
-
-/**
- * Host inference for omitted `[类型｜平台｜UP]` fields.
- *
- * Audit coverage: Bilibili video links are `剧情｜Bilibili`, Biligame wiki links
- * are `Wiki｜bilibili wiki`, and everything else (AcFun included) falls back to
- * `剧情｜其他来源`.
- */
-function inferSourceFields(url: string): InferredSourceFields {
-    const host = urlHost(url);
-    if (host === 'www.bilibili.com' || host === 'bilibili.com') {
-        return {
-            contentType: '剧情',
-            sourcePlatform: 'Bilibili',
-            defaultUp: '未知发布者',
-        };
-    }
-    if (host === 'wiki.biligame.com') {
-        return {
-            contentType: 'Wiki',
-            sourcePlatform: 'bilibili wiki',
-            defaultUp: 'bwiki',
-        };
-    }
-    return {
-        contentType: '剧情',
-        sourcePlatform: '其他来源',
-        defaultUp: '未知发布者',
-    };
-}
-
-function isKnownSourcePlatform(value: string): boolean {
-    return KNOWN_SOURCE_PLATFORMS.has(value.trim().toLowerCase());
 }
 
 /**

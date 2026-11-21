@@ -1146,6 +1146,60 @@ export const adminWikiPreviewEntryDocumentRequestSchema = strictRequestObject({
 })
 
 /**
+ * Structured-to-Markdown export request.
+ *
+ * Both fields are optional because the exporter's own defaults are the
+ * audit-calibrated ones: `stripBrackets` keeps `【…】` card titles and
+ * `collapseThreshold` folds a heavy category after 24 cards. An empty object
+ * therefore asks for the reviewed conversion.
+ */
+export const adminWikiExportStructuredEntryDocumentRequestSchema =
+  strictRequestObject({
+    stripBrackets: z.boolean().optional(),
+    collapseThreshold: z.number().int().min(1).max(500).optional(),
+  })
+
+/**
+ * Data-hygiene findings reported by the exporter.
+ *
+ * Every code names a defect the export worked around instead of dropping
+ * silently: a placeholder subtitle, a repeated URL on one card, a search-page
+ * URL that is not content, a pseudo UP name, two category names that only differ
+ * in separator, or card artwork that only exists as a legacy image file and
+ * therefore cannot be referenced by the document dialect.
+ */
+export const adminWikiExportLintCodeSchema = z.enum([
+  "placeholder-subtitle",
+  "duplicate-url",
+  "non-content-url",
+  "pseudo-up-name",
+  "near-duplicate-category",
+  "unmapped-card-image",
+])
+
+export const adminWikiExportLintWarningSchema = exactJsonResponse({
+  code: adminWikiExportLintCodeSchema,
+  /** Category or card the finding belongs to, so the dialog can group rows. */
+  context: z.string(),
+  message: z.string(),
+})
+
+/** What the export covered, so the dialog can summarise the draft. */
+export const adminWikiExportStructuredStatsSchema = exactJsonResponse({
+  categories: z.number().int().nonnegative(),
+  cards: z.number().int().nonnegative(),
+  links: z.number().int().nonnegative(),
+  collapsedCategories: z.number().int().nonnegative(),
+})
+
+export const adminWikiEntryDocumentExportStructuredSchema = exactJsonResponse({
+  status: z.literal("success"),
+  markdown: z.string(),
+  stats: adminWikiExportStructuredStatsSchema,
+  lintWarnings: z.array(adminWikiExportLintWarningSchema),
+})
+
+/**
  * One requested Bilibili URL and its resolved metadata.
  *
  * A failed link keeps the batch a success: `ok` is false and `error` carries
@@ -1208,6 +1262,21 @@ export type WikiAdminSaveEntryDocumentRequest = z.infer<
 >
 export type WikiAdminPreviewEntryDocumentRequest = z.infer<
   typeof adminWikiPreviewEntryDocumentRequestSchema
+>
+export type WikiAdminExportStructuredEntryDocumentRequest = z.infer<
+  typeof adminWikiExportStructuredEntryDocumentRequestSchema
+>
+export type WikiAdminExportLintCode = z.infer<
+  typeof adminWikiExportLintCodeSchema
+>
+export type WikiAdminExportLintWarning = z.infer<
+  typeof adminWikiExportLintWarningSchema
+>
+export type WikiAdminExportStructuredStats = z.infer<
+  typeof adminWikiExportStructuredStatsSchema
+>
+export type WikiAdminEntryDocumentExportStructured = z.infer<
+  typeof adminWikiEntryDocumentExportStructuredSchema
 >
 export type WikiAdminBilibiliBatchItem = z.infer<
   typeof adminWikiBilibiliBatchItemSchema

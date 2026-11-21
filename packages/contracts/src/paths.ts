@@ -206,6 +206,13 @@ export function adminWikiEntryDocumentPreviewPath(
   return adminWikiPath(`entries/${entryId}/document/preview`)
 }
 
+/** Read-only structured-to-Markdown export sibling of the document path. */
+export function adminWikiEntryDocumentExportStructuredPath(
+  entryId: string | number
+): string {
+  return adminWikiPath(`entries/${entryId}/document/export-structured`)
+}
+
 /** Image upload for one entry's document (`doc:<id>` references). */
 export function adminWikiEntryDocumentMediaPath(
   entryId: string | number
