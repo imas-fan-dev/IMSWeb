@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { adminExchangePath } from '@imsweb/contracts/paths';
+import { NAMECARD_EXCHANGE_PENDING_TTL_MS } from '@imsweb/contracts/namecards/runtime';
 import type { FudabaCardPageWrite } from '@/ports/repositories/fudaba';
 import {
     NAMECARD_ACCENT_FALLBACK,
@@ -8,6 +9,7 @@ import {
 } from '@imsweb/contracts/fudaba/runtime';
 import {
     insertNamecardNotification,
+    refreshNamecardExchangeRequestNotification,
     SqlNamecardNotificationRepository
 } from '@/infra/db/repositories/namecard-notification-repository';
 import {
@@ -15,6 +17,7 @@ import {
     cardApprovedCopy,
     cardExchangeAcceptedCopy,
     cardExchangeDeclinedCopy,
+    cardExchangeExpiredCopy,
     cardExchangeRequestedCopy,
     cardLockedCopy,
     cardRejectedCopy,
@@ -28,7 +31,10 @@ import {
     classifyNamecardReviewRetry,
     planNamecardReview
 } from '@/ports/repositories/fudaba-review-policy';
+import { NamecardCardLayoutError } from '@/ports/repositories/namecards';
 import type {
+    NamecardCardLayoutRecord,
+    NamecardCardLayoutSaveInput,
     PlatformAccountEntryRecord,
     PlatformAccountKindRecord,
     PlatformAccountLinkRecord,
@@ -61,13 +67,18 @@ import type {
     NamecardSubmissionRecord,
     NamecardSubmissionWithHashesRecord,
     NamecardCollectionEntryRecord,
+    NamecardCollectionQueryRecord,
     NamecardCollectionSnapshotRecord,
+    NamecardCollectionSortRecord,
     NamecardExchangeCommitInput,
     NamecardExchangeCommitResult,
     NamecardExchangeDecisionRecord,
+    NamecardExchangeDetailRecord,
     NamecardExchangeRecord,
     NamecardExchangeSkipRecord,
     NamecardScanSessionRecord,
+    NamecardWallQueryRecord,
+    NamecardWallSortRecord,
     PendingCardInput
 } from '@/ports/repositories';
 import type {
@@ -81,12 +92,416 @@ import {
     cardPageObjectKey,
     parseCardPageObjectKey
 } from '@/utils/storage/business-object-keys';
+import { namecardSortKey } from '@/utils/sorting/namecard-sort-key';
 import {
     NAMECARD_COMPAT_ORIGIN,
     NAMECARD_PUBLIC_ORIGIN
 } from '@/infra/db/repositories/namecard-origins';
+import { SqlNamecardTagRepository } from '@/infra/db/repositories/namecard-tag-repository';
+import { normalizeTagKey } from '@/utils/validation/namecard-tags';
 
 type NamecardSubmissionRow = Omit<NamecardSubmissionRecord, 'favorite_characters'>;
+
+/** 名片册条目能带实时投影的原卡状态；其余（`null`/`approving`/…）只能渲染 `snapshot`（doc §5）。 */
+function shelfCardStatus(value: string | null): 'published' | 'hidden' | null {
+    return value === 'published' || value === 'hidden' ? value : null;
+}
+
+/** 快照里的可选文本：缺省与坏值都读成 null。 */
+function snapshotText(value: unknown): string | null {
+    return typeof value === 'string' ? value : null;
+}
+
+/** 排序分桶只有 0..3 四个合法值；旧快照缺省 / 坏值一律「特殊符号垫底」。 */
+function snapshotBucket(value: unknown): 0 | 1 | 2 | 3 {
+    return value === 0 || value === 1 || value === 2 || value === 3 ? value : 3;
+}
+
+/**
+ * 读侧的快照归一：旧快照写在排序元数据与担当角色之前，缺省的键按
+ * 「特殊符号垫底」与空列表补，避免读出 undefined 让排序 / 筛选漂移。
+ */
+function collectionSnapshotRecord(value: unknown): NamecardCollectionSnapshotRecord {
+    const record = (
+        value && typeof value === 'object' ? value : {}
+    ) as Record<string, unknown>;
+    const exchangeMode = record.exchangeMode;
+    return {
+        producerName: snapshotText(record.producerName),
+        producerReading: snapshotText(record.producerReading),
+        sortNameKey: snapshotText(record.sortNameKey) ?? '',
+        sortNameBucket: snapshotBucket(record.sortNameBucket),
+        groupName: snapshotText(record.groupName),
+        madeOn: snapshotText(record.madeOn),
+        bio: snapshotText(record.bio),
+        tradeNote: snapshotText(record.tradeNote),
+        isOriginal: record.isOriginal === true,
+        madeWithAi: record.madeWithAi === true,
+        exchangeMode:
+            exchangeMode === 'auto' || exchangeMode === 'manual'
+                ? exchangeMode
+                : 'none',
+        accent: snapshotText(record.accent),
+        seriesCodes: Array.isArray(record.seriesCodes)
+            ? record.seriesCodes.filter(
+                  (code): code is string => typeof code === 'string'
+              )
+            : [],
+        favoriteCharacterIds: Array.isArray(record.favoriteCharacterIds)
+            ? record.favoriteCharacterIds.filter(
+                  (id): id is number =>
+                      typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+              )
+            : [],
+        credits: Array.isArray(record.credits)
+            ? (record.credits as NamecardCollectionSnapshotRecord['credits'])
+            : []
+    };
+}
+
+/**
+ * 卡主资料的读取口径：`listCollectionOwners`（选择器）与名片册条目的 `owner`
+ * 共用同一套列与账号准入，避免两处 SQL 各写一份慢慢漂移。
+ */
+const COLLECTION_OWNER_OPTIONS_SELECT = `SELECT profile.account_id, profile.uid, profile.page_slug,
+           profile.display_name, profile.avatar_object_key,
+           profile.avatar_external_url, profile.home_city,
+           profile.bio, profile.updated_at
+      FROM owners
+      JOIN platform_profiles profile ON profile.account_id = owners.account_id
+      JOIN platform_accounts account ON account.id = profile.account_id
+     WHERE account.status IN ('active', 'restricted')
+       AND account.deleted_at IS NULL`;
+
+const COLLECTION_OWNER_PROFILE_SELECT = `SELECT profile.account_id, profile.uid, profile.page_slug,
+           profile.display_name, profile.avatar_object_key,
+           profile.avatar_external_url, profile.home_city,
+           profile.bio, profile.updated_at
+      FROM platform_profiles profile
+      JOIN platform_accounts account
+        ON account.id = profile.account_id
+     WHERE account.status IN ('active', 'restricted')
+       AND account.deleted_at IS NULL`;
+
+/**
+ * 名片册列表合并后的原始行：收到的条目与「我自己的名片」投影到同一组列，
+ * 实时卡片列只在原卡行还在时给值，其余从 `snapshot` 回退。
+ */
+interface NamecardCollectionQueryRow {
+    card_number: number | string;
+    obtained_at: string | Date;
+    hidden_at: string | Date | null;
+    snapshot: unknown;
+    own: boolean;
+    live_id: string | null;
+    live_status: string | null;
+    live_producer_name: string | null;
+    live_group_name: string | null;
+    live_made_on: string | null;
+    live_created_at: string | Date | null;
+    live_sort_name_key: string | null;
+    live_sort_name_bucket: number | string | null;
+    live_is_original: boolean | null;
+    live_made_with_ai: boolean | null;
+    live_owner_account_id: string | null;
+}
+
+/** 排序器只读的列：名片册与名片墙共用同一套排序语义。 */
+interface NamecardSortView {
+    cardNumber: number;
+    /** 名片册是交换时间；名片墙没有交换时间，用名片创建时间。 */
+    obtainedAtMs: number;
+    /** 「按企划」的层级：两个及以上企划的卡片整组排在单一企划之后。 */
+    multiSeries: boolean;
+    /** 单一企划的目录位次（`agencies.display_order, code`）；多企划不参与。 */
+    seriesRank: number;
+    /** 单一企划的 code：目录位次相同时按 code 收尾。 */
+    seriesCode: string;
+    /** 每个担当角色的目录排序值；「按企划」取业务分类最小、同分类目录值最小的一项。 */
+    characterKeys: { category: string; order: number }[];
+    /** 0=有月日、1=只有年份、2=没有。精度层级固定，不随升降序翻转（PRD §3.3）。 */
+    madeOnRank: number;
+    /** 日期排序的比较值：`madeOn` 或创建时间回退。 */
+    dateSortValue: string;
+    sortNameKey: string;
+    sortNameBucket: 0 | 1 | 2 | 3;
+}
+
+/** 排序 / 筛选用的归一视图：实时列与快照列在这里已经合成一份。 */
+interface NamecardCollectionViewRow extends NamecardSortView {
+    row: NamecardCollectionQueryRow;
+    own: boolean;
+    snapshot: NamecardCollectionSnapshotRecord;
+    seriesCodes: string[];
+    characterIds: number[];
+    producerName: string | null;
+    groupName: string | null;
+    /** 创作声明：实时列优先，原卡删除后回退快照。 */
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    madeOn: string | null;
+    /** 卡主账号：已收集条目取原卡卡主，`own` 行回退当前用户。 */
+    ownerAccountId: string | null;
+}
+
+/** 名片墙的归一视图：只有实时列，没有交换快照。 */
+interface NamecardWallViewRow extends NamecardSortView {
+    card: NamecardPublicRecord;
+    seriesCodes: string[];
+    characterIds: number[];
+    producerName: string | null;
+    groupName: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+    madeOn: string | null;
+}
+
+function compareText(a: string, b: string): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function compareNumber(a: number, b: number): number {
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** 内容筛选的归一条件：名片册与名片墙共用（范围类开关不在这里）。 */
+interface NamecardContentFilter {
+    q?: string;
+    seriesCodes?: readonly string[];
+    groupName?: string;
+    characterIds?: readonly number[];
+    match?: 'any' | 'all';
+    excludeOther?: boolean;
+    excludeCross?: boolean;
+    declaration?: 'original' | 'ai';
+}
+
+/** 内容筛选读到的列。 */
+interface NamecardContentCandidate {
+    seriesCodes: readonly string[];
+    characterIds: readonly number[];
+    producerName: string | null;
+    groupName: string | null;
+    isOriginal: boolean;
+    madeWithAi: boolean;
+}
+
+/**
+ * 把查询条件预计算成闭包：集合只建一次，筛选逐行调用。
+ * 命中集合只有内容条件；范围条件（所属用户 / 显示开关）在调用方处理。
+ */
+function namecardContentMatcher(filter: NamecardContentFilter): {
+    hasContentFilter: boolean;
+    matches(candidate: NamecardContentCandidate): boolean;
+} {
+    const needle = filter.q?.trim().toLowerCase() ?? '';
+    const groupNeedle = filter.groupName?.trim().toLowerCase() ?? '';
+    const seriesFilter = new Set(filter.seriesCodes ?? []);
+    const characterFilter = new Set(filter.characterIds ?? []);
+    const declaration = filter.declaration ?? null;
+    return {
+        hasContentFilter:
+            filter.excludeCross === true ||
+            seriesFilter.size > 0 ||
+            groupNeedle.length > 0 ||
+            characterFilter.size > 0 ||
+            needle.length > 0 ||
+            declaration !== null,
+        matches(candidate) {
+            // 【不含越境】：企划数是复数的整张排除（PRD §4）。
+            if (filter.excludeCross && candidate.seriesCodes.length > 1) {
+                return false;
+            }
+            if (
+                seriesFilter.size > 0 &&
+                !candidate.seriesCodes.some((code) => seriesFilter.has(code))
+            ) {
+                return false;
+            }
+            if (
+                groupNeedle.length > 0 &&
+                !candidate.groupName?.trim().toLowerCase().includes(groupNeedle)
+            ) {
+                return false;
+            }
+            if (characterFilter.size > 0) {
+                const held = new Set(candidate.characterIds);
+                if (filter.match === 'all') {
+                    for (const characterId of characterFilter) {
+                        if (!held.has(characterId)) return false;
+                    }
+                } else if (
+                    !candidate.characterIds.some((characterId) =>
+                        characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+                // 【不含其他】：担当角色必须全部落在筛选项里（PRD §4）。
+                if (
+                    filter.excludeOther &&
+                    candidate.characterIds.some(
+                        (characterId) => !characterFilter.has(characterId)
+                    )
+                ) {
+                    return false;
+                }
+            }
+            if (needle.length > 0) {
+                // 制作人名称为空时改用团体名称（团体名片的检索口径，PRD §7.1）。
+                const producer = candidate.producerName?.trim() ?? '';
+                const haystack = (producer || candidate.groupName?.trim() || '')
+                    .toLowerCase();
+                if (!haystack.includes(needle)) return false;
+            }
+            // 创作声明与其它内容条件同属命中集合，可被 `invert` 一并取反。
+            if (declaration === 'original' && !candidate.isOriginal) return false;
+            if (declaration === 'ai' && !candidate.madeWithAi) return false;
+            return true;
+        }
+    };
+}
+
+/**
+ * 担当分类的**业务顺序**（PRD §3.2）：idol → staff → rival → mascot → chara →
+ * other，目录里没有的分类垫底。字符串字典序会把 chara 排到 idol 前面，不能直接用。
+ */
+const COLLECTION_CHARACTER_CATEGORY_RANK: Readonly<Record<string, number>> = {
+    idol: 0,
+    staff: 1,
+    rival: 2,
+    mascot: 3,
+    chara: 4,
+    other: 5
+};
+
+function characterCategoryRank(category: string): number {
+    return COLLECTION_CHARACTER_CATEGORY_RANK[category] ?? 6;
+}
+
+/** 「按企划」的第一个担当角色：业务分类最小、同分类里目录排序值最小。 */
+function firstCharacterKey(
+    view: NamecardSortView
+): { category: string; order: number } | null {
+    let best: { category: string; order: number } | null = null;
+    for (const candidate of view.characterKeys) {
+        if (
+            !best ||
+            characterCategoryRank(candidate.category) <
+                characterCategoryRank(best.category) ||
+            (characterCategoryRank(candidate.category) ===
+                characterCategoryRank(best.category) &&
+                candidate.order < best.order)
+        ) {
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+/** 首担当角色的比较；没有担当角色的卡片垫底（与 `dir` 一起翻转到最前）。 */
+function compareFirstCharacters(
+    a: NamecardSortView,
+    b: NamecardSortView
+): number {
+    const left = firstCharacterKey(a);
+    const right = firstCharacterKey(b);
+    if (!left || !right) {
+        if (left) return -1;
+        if (right) return 1;
+        return 0;
+    }
+    return (
+        compareNumber(
+            characterCategoryRank(left.category),
+            characterCategoryRank(right.category)
+        ) || compareNumber(left.order, right.order)
+    );
+}
+
+/**
+ * 名片册 / 名片墙排序（PRD §3）：
+ * - `name` 只用「是否特殊符号」分层（符号永远垫底），其余按同一个拉丁键比较——
+ *   英文名、假名罗马音与中文拼音直接混排；分桶值只用来标记符号。
+ * - `date` 的「没有日期」层级固定垫底；只有比较键跟着 `dir` 翻转。
+ * - `series` 的三层语义：单一企划卡片整组在前、多企划整组在后（层级固定）；
+ *   单企划组内按企划目录顺序（`dir` 翻转），多企划组内不比较企划；两组都用
+ *   首担当角色的业务分类 → 目录排序值（`dir` 翻转）比较，最后按时间兜底。
+ * 兜底与 `created` 用 `obtainedAtMs`：名片册是交换时间，名片墙是名片创建时间。
+ * 除 `series` 外所有排序都以时间、名片编号兜底，保证分页稳定。
+ */
+function compareCollectionRows(
+    a: NamecardSortView,
+    b: NamecardSortView,
+    sort: NamecardCollectionSortRecord | NamecardWallSortRecord,
+    direction: 'asc' | 'desc'
+): number {
+    const factor = direction === 'desc' ? -1 : 1;
+    const tail =
+        compareNumber(a.obtainedAtMs, b.obtainedAtMs) * factor ||
+        compareNumber(a.cardNumber, b.cardNumber) * factor;
+    if (sort === 'name') {
+        const aSymbolic = a.sortNameBucket === 3 ? 1 : 0;
+        const bSymbolic = b.sortNameBucket === 3 ? 1 : 0;
+        return (
+            compareNumber(aSymbolic, bSymbolic) ||
+            compareText(a.sortNameKey, b.sortNameKey) * factor ||
+            tail
+        );
+    }
+    if (sort === 'series') {
+        // 层级不跟着 `dir` 翻转：多企划卡片永远在所有单企划之后。
+        const layer = compareNumber(
+            a.multiSeries ? 1 : 0,
+            b.multiSeries ? 1 : 0
+        );
+        if (layer !== 0) return layer;
+        if (!a.multiSeries) {
+            const catalogue =
+                compareNumber(a.seriesRank, b.seriesRank) * factor ||
+                compareText(a.seriesCode, b.seriesCode) * factor;
+            if (catalogue !== 0) return catalogue;
+        }
+        const characters = compareFirstCharacters(a, b) * factor;
+        if (characters !== 0) return characters;
+        // 兜底同样固定：同一组里永远是更早交换的在前，再按名片编号。
+        return (
+            compareNumber(a.obtainedAtMs, b.obtainedAtMs) ||
+            compareNumber(a.cardNumber, b.cardNumber)
+        );
+    }
+    if (sort === 'date') {
+        const precision = compareNumber(a.madeOnRank, b.madeOnRank);
+        if (precision !== 0) return precision;
+        return compareText(a.dateSortValue, b.dateSortValue) * factor || tail;
+    }
+    return tail;
+}
+
+/** 布局 JSONB 的防御性解析：坏数据按空布局处理，不让一行脏数据把整页打挂。 */
+function cardLayoutFromJson(value: unknown): NamecardCardLayoutRecord {
+    const record = (
+        typeof value === 'string' ? JSON.parse(value) : value
+    ) as Partial<NamecardCardLayoutRecord> | null;
+    const groups = Array.isArray(record?.groups) ? record.groups : [];
+    return {
+        groups: groups
+            .filter(
+                (group) =>
+                    typeof group?.id === 'string' &&
+                    typeof group?.title === 'string' &&
+                    Array.isArray(group?.cardNumbers)
+            )
+            .map((group) => ({
+                id: group.id,
+                title: group.title,
+                cardNumbers: group.cardNumbers.map(Number)
+            })),
+        defaultCardNumbers: Array.isArray(record?.defaultCardNumbers)
+            ? record.defaultCardNumbers.map(Number)
+            : []
+    };
+}
 
 type NamecardLockAuditRow = {
     id: number | string;
@@ -149,6 +564,17 @@ const EXCHANGE_COLUMNS = `id, client_exchange_id, source, status,
     target_card_numbers, initiator_card_numbers, skipped,
     created_at, resolved_at`;
 
+/**
+ * 读取侧的交换投影：超过 TTL 仍 `pending` 的行一律呈现为 `expired`。
+ * 不写库也自洽（过期不是一次用户动作），裁决侧命中时才顺手落成 `expired`。
+ */
+const EXCHANGE_READ_COLUMNS = `id, client_exchange_id, source,
+    CASE WHEN status='pending' AND created_at < now() - interval '7 days'
+         THEN 'expired' ELSE status END AS status,
+    initiator_account_id, target_account_id,
+    target_card_numbers, initiator_card_numbers, skipped,
+    created_at, resolved_at`;
+
 function exchangeRecordFromRow(row: NamecardExchangeRow): NamecardExchangeRecord {
     return {
         id: row.id,
@@ -170,6 +596,19 @@ function exchangeRecordFromRow(row: NamecardExchangeRow): NamecardExchangeRecord
 /** `?` 占位符只认标量，名片号数组写成 PG 的 bigint[] 字面量。 */
 function postgresBigintArray(values: readonly number[]): string {
     return `{${values.map((value) => Math.trunc(value)).join(',')}}`;
+}
+
+/**
+ * 「两次发起有没有差别」的口径：两侧卡号按集合比较，顺序不同不算变化。
+ * 相等才是同一次申请；任一侧变了就用新的内容覆盖旧的待确认记录。
+ */
+function sameExchangeCardNumbers(
+    left: readonly number[],
+    right: readonly number[]
+): boolean {
+    if (left.length !== right.length) return false;
+    const expected = new Set(left.map(Number));
+    return right.every((number) => expected.has(Number(number)));
 }
 
 /** 分享短链与卡片绑定，同一张卡永远得到同一个地址。 */
@@ -259,6 +698,12 @@ type NamecardCardRow = {
     owner_account_id?: string | null;
     review_submitted_at?: string | Date | null;
     created_at: string | Date | null;
+};
+
+/** 墙的候选行：卡片列 + 读侧排序元数据（与名片册排序同源）。 */
+type NamecardWallCardRow = NamecardCardRow & {
+    sort_name_key: string | null;
+    sort_name_bucket: number | string | null;
 };
 
 /**
@@ -370,11 +815,14 @@ function toNamecardReviewStatus(
 
 export class SqlCoreRepository implements NamecardRepository {
     private initialized?: Promise<void>;
+    private readonly tagRepository: SqlNamecardTagRepository;
 
     constructor(
         private readonly database: ManagedSqlDatabase,
         private readonly schema: SqlSchemaStrategy
-    ) {}
+    ) {
+        this.tagRepository = new SqlNamecardTagRepository(database);
+    }
 
     initialize(): Promise<void> {
         this.initialized ??= this.schema.initializeCore(this.database);
@@ -550,9 +998,12 @@ export class SqlCoreRepository implements NamecardRepository {
         content: 'live' | 'submission' = 'submission'
     ): Promise<Array<NamecardSubmissionRow & { favorite_characters: CardFavoriteSelectionRecord[] }>> {
         const ids = rows.map((row) => row.internal_id);
-        const characters = await this.listNamecardFavorites(database, ids);
-        const series = await this.listNamecardSeries(database, ids);
-        const credits = await this.listNamecardCredits(database, ids);
+        const [characters, series, credits, tags] = await Promise.all([
+            this.listNamecardFavorites(database, ids),
+            this.listNamecardSeries(database, ids),
+            this.listNamecardCredits(database, ids),
+            this.tagRepository.listForCards(ids)
+        ]);
         return rows.map((row) => {
             const favoriteCharacters = characters.get(row.internal_id) ?? [];
             const record = this.namecardRecordFromRow(row, content);
@@ -569,6 +1020,7 @@ export class SqlCoreRepository implements NamecardRepository {
                 seriesCode: seriesCodes[0] ?? record.series_code ?? null,
                 series_codes: seriesCodes,
                 credits: credits.get(row.internal_id) ?? [],
+                tags: tags.get(row.internal_id) ?? [],
                 submissionKind: record.submission_kind ?? 'legacy',
                 favoriteCharacters
             };
@@ -655,6 +1107,7 @@ export class SqlCoreRepository implements NamecardRepository {
         const submissionKind = input.submissionKind ?? 'guest';
         const characterIds = input.characterIds ?? [];
         const idPrefix = submissionKind === 'legacy' ? 'legacy' : 'guest';
+        const sort = namecardSortKey(input.producerName ?? null, null);
         return this.database.transaction(async (database) => {
             const characters = await this.validateNamecardSelection(
                 database,
@@ -669,11 +1122,13 @@ export class SqlCoreRepository implements NamecardRepository {
                  )
                  INSERT INTO fudaba_cards
                     (id, card_number, origin, producer_name,
+                     sort_name_key, sort_name_bucket,
                      accent, bio, trade_note,
                      exchange_mode, publication_status, revision,
                      created_at, updated_at)
                  SELECT ? || '-' || allocated.card_number::text, allocated.card_number,
-                        ?, ?, COALESCE(?, '#4f64dd'), ?, NULL,
+                        ?, ?, ?, ?,
+                        COALESCE(?, '#4f64dd'), ?, NULL,
                         'none', 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                  FROM allocated
                  RETURNING id, card_number`,
@@ -681,6 +1136,8 @@ export class SqlCoreRepository implements NamecardRepository {
                     idPrefix,
                     idPrefix,
                     input.producerName ?? null,
+                    sort.key,
+                    sort.bucket,
                     input.accent ?? null,
                     input.bio ?? null
                 ]
@@ -751,6 +1208,127 @@ export class SqlCoreRepository implements NamecardRepository {
             rows,
             'live'
         ) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 名片墙的分页列表：筛选 / 排序与名片册同一套语义，可见性口径与
+     * `listApprovedCards` 相同；墙上没有交换时间，`created` 与排序兜底都用
+     * 名片创建时间。排序键、担当角色与企划目录各批量查一次，不做逐行回库。
+     */
+    async listApprovedCardsPage(
+        input: NamecardWallQueryRecord
+    ): Promise<{ rows: NamecardPublicRecord[]; total: number }> {
+        // 标签筛选在 SQL 里完成：每个词一个 EXISTS，词之间 OR；归一化口径与
+        // 标签写入一致（NFKC + 小写 + 空白折叠）。
+        const tagTerms = (input.tags ?? [])
+            .map((tag) => normalizeTagKey(tag))
+            .filter((tag) => tag !== "");
+        const tagFilter = tagTerms.length
+            ? ` AND (${tagTerms
+                  .map(
+                      () => `EXISTS (
+                          SELECT 1
+                            FROM namecard_tags tag
+                            LEFT JOIN namecard_tag_presets preset
+                              ON preset.id = tag.preset_id
+                            LEFT JOIN namecard_tag_aliases alias
+                              ON alias.preset_id = preset.id
+                           WHERE tag.card_id = fudaba_cards.id
+                             AND (tag.normalized LIKE '%' || ? || '%'
+                                  OR preset.normalized = ?
+                                  OR alias.normalized = ?)
+                      )`
+                  )
+                  .join(" OR ")})`
+            : "";
+        const tagValues = tagTerms.flatMap((tag) => [tag, tag, tag]);
+        const rows = await queryAll<NamecardWallCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS}, sort_name_key, sort_name_bucket
+               FROM fudaba_cards
+              WHERE publication_status='published'
+                AND visible=TRUE
+                AND ${NAMECARD_PUBLIC_ORIGIN}
+                AND deleted_at IS NULL${tagFilter}
+              ORDER BY card_number DESC`,
+            tagValues
+        );
+        const cards = (await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+        const cardIds = rows.map((row) => row.internal_id);
+        const sort = input.sort ?? 'created';
+        // 缺省方向与名片册同一规则：创建时间与制作日期倒序，其余正序。
+        const direction =
+            input.dir ??
+            (sort === 'created' || sort === 'date' ? 'desc' : 'asc');
+        const [favoriteOrders, seriesRanks] = await Promise.all([
+            this.listCollectionFavoriteOrders(this.database, cardIds),
+            // 企划目录顺序只差一次查询；其它排序用不上，别为它多跑一趟。
+            sort === 'series'
+                ? this.listCollectionSeriesRanks(this.database)
+                : Promise.resolve(new Map<string, number>())
+        ]);
+
+        const views = rows.map((row, index): NamecardWallViewRow => {
+            const card = cards[index]!;
+            const favoriteKeys = favoriteOrders.get(row.internal_id) ?? [];
+            const seriesCodes = [...(card.series_codes ?? [])];
+            const madeOn = card.made_on?.trim() || null;
+            const createdAtMs = card.created_at
+                ? new Date(card.created_at).getTime()
+                : 0;
+            const madeOnRank = madeOn === null ? 2 : madeOn.length >= 7 ? 0 : 1;
+            // 多企划不参与目录比较；单一企划（含零企划）按位次排序，
+            // 目录里查不到（或没有企划）的位次垫底，再按 code 收尾。
+            const seriesCode = seriesCodes[0] ?? '';
+            return {
+                card,
+                // 墙上没有交换时间：创建时间同时承担 `created` 与排序兜底。
+                obtainedAtMs: createdAtMs,
+                cardNumber: Number(card.card_number ?? card.id),
+                seriesCodes,
+                multiSeries: seriesCodes.length > 1,
+                seriesRank:
+                    seriesRanks.get(seriesCode) ?? Number.MAX_SAFE_INTEGER,
+                seriesCode,
+                characterIds: favoriteKeys.map(({ id }) => id),
+                characterKeys: favoriteKeys.map(({ category, order }) => ({
+                    category,
+                    order
+                })),
+                producerName: card.producer_name ?? null,
+                groupName: card.group_name ?? null,
+                isOriginal: card.is_original === true,
+                madeWithAi: card.made_with_ai === true,
+                madeOn,
+                madeOnRank,
+                dateSortValue:
+                    madeOnRank < 2
+                        ? (madeOn ?? '')
+                        : new Date(createdAtMs).toISOString(),
+                sortNameKey: row.sort_name_key ?? '',
+                sortNameBucket: snapshotBucket(row.sort_name_bucket)
+            };
+        });
+
+        // 内容条件与名片册共用同一个命中集合；墙没有范围类开关需要排除。
+        const content = namecardContentMatcher(input);
+        const invert = input.invert === true && content.hasContentFilter;
+        const filtered = views.filter((view) => {
+            const matched = content.matches(view);
+            return invert ? !matched : matched;
+        });
+        filtered.sort((left, right) =>
+            compareCollectionRows(left, right, sort, direction)
+        );
+        const page = filtered.slice(input.offset, input.offset + input.limit);
+        return {
+            total: filtered.length,
+            rows: page.map((view) => view.card)
+        };
     }
 
     async findApprovedCard(
@@ -929,38 +1507,6 @@ export class SqlCoreRepository implements NamecardRepository {
         return row?.removed ?? 0;
     }
 
-    async countOwnedPublishedCards(accountId: string): Promise<number> {
-        const row = await queryOne<{ total: number }>(
-            this.database,
-            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM fudaba_cards
-             WHERE owner_account_id=? AND deleted_at IS NULL
-               AND publication_status='published' AND visible`,
-            [accountId]
-        );
-        return row?.total ?? 0;
-    }
-
-    async listOwnedPublishedCards(
-        accountId: string,
-        limit: number,
-        offset: number
-    ): Promise<NamecardPublicRecord[]> {
-        const rows = await queryAll<NamecardCardRow>(
-            this.database,
-            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
-             WHERE owner_account_id=? AND deleted_at IS NULL
-               AND publication_status='published' AND visible
-             ORDER BY card_number DESC
-             LIMIT ? OFFSET ?`,
-            [accountId, limit, offset]
-        );
-        return await this.attachNamecardFavorites(
-            this.database,
-            rows,
-            'live'
-        ) as NamecardPublicRecord[];
-    }
-
     async listAdminCards(limit: number, offset: number, filter?: NamecardAdminFilter): Promise<NamecardSubmissionRecord[]> {
         const where = namecardAdminWhere(filter);
         const rows = await queryAll<NamecardCardRow>(this.database,
@@ -996,10 +1542,11 @@ export class SqlCoreRepository implements NamecardRepository {
         );
         if (!row) return null;
         const cardId = row.internal_id;
-        const [favorites, series, credits] = await Promise.all([
+        const [favorites, series, credits, tags] = await Promise.all([
             this.listNamecardFavorites(this.database, [cardId]),
             this.listNamecardSeries(this.database, [cardId]),
-            this.listNamecardCredits(this.database, [cardId])
+            this.listNamecardCredits(this.database, [cardId]),
+            this.tagRepository.listForCards([cardId])
         ]);
         const live: NamecardDiffSide = {
             producerName: row.producer_name ?? null,
@@ -1037,7 +1584,8 @@ export class SqlCoreRepository implements NamecardRepository {
             lockReason: row.lock_reason ?? null,
             reviewReason: row.review_reason ?? null,
             live,
-            pending: payload ? await this.pendingDiffSide(row, payload) : null
+            pending: payload ? await this.pendingDiffSide(row, payload) : null,
+            tags: tags.get(cardId) ?? []
         };
     }
 
@@ -1444,10 +1992,17 @@ export class SqlCoreRepository implements NamecardRepository {
         // Text columns that the author may clear need a flag instead of
         // COALESCE: a submitted revision is authoritative even when it is empty.
         const hasPayload = payload !== null
+        const nextProducerName =
+            payload?.producer_name ?? row.producer_name ?? null;
+        const nextProducerReading = hasPayload
+            ? payload?.producer_reading ?? null
+            : row.producer_reading ?? null;
+        const sort = namecardSortKey(nextProducerName, nextProducerReading);
         await executeSql(database,
             `UPDATE fudaba_cards
              SET producer_name=?,
                  producer_reading=CASE WHEN ? THEN ? ELSE producer_reading END,
+                 sort_name_key=?, sort_name_bucket=?,
                  bio=CASE WHEN ? THEN ? ELSE bio END,
                  trade_note=CASE WHEN ? THEN ? ELSE trade_note END,
                  made_on=COALESCE(?, made_on), group_name=COALESCE(?, group_name),
@@ -1462,9 +2017,11 @@ export class SqlCoreRepository implements NamecardRepository {
                  revision=revision+1, updated_at=CURRENT_TIMESTAMP
              WHERE id=?`,
             [
-                payload?.producer_name ?? row.producer_name ?? null,
+                nextProducerName,
                 hasPayload,
                 payload?.producer_reading ?? null,
+                sort.key,
+                sort.bucket,
                 hasPayload,
                 payload?.bio ?? null,
                 hasPayload,
@@ -2205,9 +2762,14 @@ export class SqlCoreRepository implements NamecardRepository {
                           favorite_character_ids: [...input.content.favoriteCharacterIds]
                       };
 
+            const sort = namecardSortKey(
+                input.content.producerName,
+                input.content.producerReading
+            );
             const updatedRow = await queryOne<NamecardCardRow>(database,
                 `UPDATE fudaba_cards SET
-                     producer_name=?, producer_reading=?, group_name=?, is_group_card=?, made_on=?,
+                     producer_name=?, producer_reading=?, sort_name_key=?, sort_name_bucket=?,
+                     group_name=?, is_group_card=?, made_on=?,
                      bio=?, trade_note=?, is_original=?, made_with_ai=?,
                      visible=?, exchange_mode=?,
                      publication_status=?, lock_reason=?,
@@ -2220,6 +2782,8 @@ export class SqlCoreRepository implements NamecardRepository {
                 [
                     input.content.producerName,
                     input.content.producerReading,
+                    sort.key,
+                    sort.bucket,
                     input.content.groupName,
                     input.content.isGroupCard ?? current.is_group_card,
                     input.content.madeOn,
@@ -2937,13 +3501,153 @@ export class SqlCoreRepository implements NamecardRepository {
         )) as NamecardPublicRecord[];
     }
 
+    /**
+     * 名片册条目的原卡投影：`published` 与 `hidden`（持有者删卡）都算「行还在」，按最新内容展示；
+     * `locked` 的条目根本不会进列表，`approving` 等状态仍回落到 `snapshot`（doc §5）。
+     */
+    private async loadShelfCards(
+        database: SqlDatabase,
+        cardNumbers: readonly number[]
+    ): Promise<NamecardPublicRecord[]> {
+        const unique = [...new Set(cardNumbers)];
+        if (unique.length === 0) return [];
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<NamecardCardRow>(
+            database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number IN (${placeholders})
+               AND deleted_at IS NULL
+               AND publication_status IN ('published','hidden')
+               AND ${NAMECARD_PUBLIC_ORIGIN}`,
+            unique
+        );
+        return (await this.attachNamecardFavorites(
+            database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 【显示我的名片】的条目投影：`published` 即可（不看名片墙的 origin 门槛），
+     * 因为这里展示的是持有者自己的东西，PRD §6 只要求整卡没有下线。
+     */
+    private async loadOwnCollectionCards(
+        database: SqlDatabase,
+        accountId: string,
+        cardNumbers: readonly number[]
+    ): Promise<NamecardPublicRecord[]> {
+        const unique = [...new Set(cardNumbers)];
+        if (unique.length === 0) return [];
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<NamecardCardRow>(
+            database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+             WHERE card_number IN (${placeholders})
+               AND owner_account_id=?
+               AND deleted_at IS NULL
+               AND publication_status='published'`,
+            [...unique, accountId]
+        );
+        return (await this.attachNamecardFavorites(
+            database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 「按企划」排序要的担当角色目录值：链接顺序照名片上的顺序，
+     * 排序时取 (category, display_order) 最小的一项（PRD §3.2 / Q7）。
+     */
+    private async listCollectionFavoriteOrders(
+        database: SqlDatabase,
+        cardIds: readonly string[]
+    ): Promise<Map<string, { id: number; category: string; order: number }[]>> {
+        const grouped = new Map<
+            string,
+            { id: number; category: string; order: number }[]
+        >();
+        for (const cardId of cardIds) grouped.set(cardId, []);
+        if (cardIds.length === 0) return grouped;
+        const placeholders = cardIds.map(() => '?').join(', ');
+        const rows = await queryAll<{
+            card_id: string;
+            character_id: number | string;
+            category: string;
+            character_order: number | string;
+        }>(
+            database,
+            `SELECT selected.card_id, selected.character_id, character.category,
+                    character.display_order AS character_order
+               FROM fudaba_card_favorite_characters selected
+               JOIN namecard_characters character
+                 ON character.id=selected.character_id
+              WHERE selected.card_id IN (${placeholders})
+              ORDER BY selected.card_id, selected.display_order`,
+            [...cardIds]
+        );
+        for (const row of rows) {
+            grouped.get(String(row.card_id))?.push({
+                id: Number(row.character_id),
+                category: row.category,
+                order: Number(row.character_order)
+            });
+        }
+        return grouped;
+    }
+
+    /**
+     * 企划目录顺序：`code → 位次`，与筛选下拉同源（`agencies.display_order`，
+     * 同序按 code）。整页只查一次，比较器不再逐行回库。
+     */
+    private async listCollectionSeriesRanks(
+        database: SqlDatabase
+    ): Promise<Map<string, number>> {
+        const rows = await queryAll<{ code: string }>(
+            database,
+            'SELECT code FROM agencies ORDER BY display_order, code'
+        );
+        return new Map(rows.map((row, index) => [row.code, index]));
+    }
+
+    /** 快照里的担当角色只剩 id：目录值现查一次，供删除卡参与企划排序。 */
+    private async listCharacterOrders(
+        database: SqlDatabase,
+        characterIds: readonly number[]
+    ): Promise<Map<number, { category: string; order: number }>> {
+        const unique = [...new Set(characterIds)];
+        if (unique.length === 0) return new Map();
+        const placeholders = unique.map(() => '?').join(',');
+        const rows = await queryAll<{
+            id: number | string;
+            category: string;
+            display_order: number | string;
+        }>(
+            database,
+            `SELECT id, category, display_order FROM namecard_characters
+              WHERE id IN (${placeholders})`,
+            [...unique]
+        );
+        return new Map(
+            rows.map((row) => [
+                Number(row.id),
+                { category: row.category, order: Number(row.display_order) }
+            ])
+        );
+    }
+
     /** 名片册留存的那份只读投影。 */
     private collectionSnapshot(
         card: NamecardPublicRecord
     ): NamecardCollectionSnapshotRecord {
+        // 原卡被删除后只剩这份投影，排序依据必须一起带走（PRD §3.4）。
+        const sort = namecardSortKey(card.producer_name, card.producer_reading);
         return {
             producerName: card.producer_name ?? null,
             producerReading: card.producer_reading ?? null,
+            sortNameKey: sort.key,
+            sortNameBucket: sort.bucket,
             groupName: card.group_name ?? null,
             madeOn: card.made_on ?? null,
             bio: card.bio ?? null,
@@ -2956,6 +3660,14 @@ export class SqlCoreRepository implements NamecardRepository {
                     : 'none',
             accent: card.accent ?? null,
             seriesCodes: [...(card.series_codes ?? [])],
+            // 原卡删除后「担当角色」筛选与「按企划」排序只剩这份投影（PRD §4 / §3.2）。
+            favoriteCharacterIds: [
+                ...new Set(
+                    (card.favorite_characters ?? []).map(
+                        (character) => character.character_id
+                    )
+                )
+            ],
             credits: [...(card.credits ?? [])]
         };
     }
@@ -3000,7 +3712,17 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<NamecardExchangeCommitResult> {
         const existing = await this.findExchangeByClientId(input.clientExchangeId);
         if (existing) {
-            return { exchange: existing, idempotent: true, targetMissingCount: 0 };
+            // 幂等命中也要与首次提交同口径：这个数用于「对方还缺我哪几张」的二次确认，
+            // 直接填 0 会让一次重放看起来像对方已经全收下了。
+            return {
+                exchange: existing,
+                idempotent: true,
+                targetMissingCount: await this.countMissingCollectionCardsWith(
+                    this.database,
+                    input.initiatorAccountId,
+                    input.targetAccountId
+                )
+            };
         }
         return this.database.transaction(async (database) => {
             const targetCards = await this.loadExchangeCards(
@@ -3088,6 +3810,49 @@ export class SqlCoreRepository implements NamecardRepository {
                 ? 'pending'
                 : 'completed';
 
+            // 重复发起（doc §7）：同一发起方、同一目标方、仍在一周有效期内的 pending 只有一笔。
+            // 两侧卡号完全没变才算同一次申请（幂等返回）；任一侧变了就用这一次的内容原地覆盖，
+            // 旧内容不该在对方收件箱里堆成第二封。行锁与裁决共用，避免覆盖和同意同时落库；
+            // 过期 pending 不挡路（读取侧它已经是 `expired`）。
+            const targetNumbers = targets.map((card) => card.card_number ?? card.id);
+            const giveNumbers = gives.map((card) => card.card_number ?? card.id);
+            if (input.source !== 'scan' && status === 'pending') {
+                const duplicate = await queryOne<NamecardExchangeRow>(
+                    database,
+                    `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
+                      WHERE initiator_account_id=? AND target_account_id=?
+                        AND status='pending' AND created_at > now() - interval '7 days'
+                      LIMIT 1
+                      FOR UPDATE`,
+                    [input.initiatorAccountId, input.targetAccountId]
+                );
+                if (duplicate) {
+                    const previous = exchangeRecordFromRow(duplicate);
+                    if (
+                        sameExchangeCardNumbers(previous.target_card_numbers, targetNumbers) &&
+                        sameExchangeCardNumbers(previous.initiator_card_numbers, giveNumbers)
+                    ) {
+                        return {
+                            exchange: previous,
+                            idempotent: true,
+                            targetMissingCount: await this.countMissingCollectionCardsWith(
+                                database,
+                                input.initiatorAccountId,
+                                input.targetAccountId
+                            )
+                        };
+                    }
+                    return this.overwritePendingExchange(
+                        database,
+                        input,
+                        duplicate.id,
+                        targetNumbers,
+                        giveNumbers,
+                        skipped
+                    );
+                }
+            }
+
             const inserted = await queryOne<NamecardExchangeRow>(
                 database,
                 `INSERT INTO public.namecard_exchanges
@@ -3105,8 +3870,8 @@ export class SqlCoreRepository implements NamecardRepository {
                     status,
                     input.initiatorAccountId,
                     input.targetAccountId,
-                    postgresBigintArray(targets.map((card) => card.card_number ?? card.id)),
-                    postgresBigintArray(gives.map((card) => card.card_number ?? card.id)),
+                    postgresBigintArray(targetNumbers),
+                    postgresBigintArray(giveNumbers),
                     JSON.stringify(skipped),
                     input.at,
                     status === 'pending' ? null : input.at
@@ -3124,7 +3889,11 @@ export class SqlCoreRepository implements NamecardRepository {
                 return {
                     exchange: exchangeRecordFromRow(winner),
                     idempotent: true,
-                    targetMissingCount: 0
+                    targetMissingCount: await this.countMissingCollectionCardsWith(
+                        database,
+                        input.initiatorAccountId,
+                        input.targetAccountId
+                    )
                 };
             }
             if (status === 'completed') {
@@ -3143,6 +3912,7 @@ export class SqlCoreRepository implements NamecardRepository {
                     recipientAccountId: input.targetAccountId,
                     kind: copy.kind,
                     cardNumber: targets[0]?.card_number ?? null,
+                    exchangeId: input.id,
                     title: copy.title,
                     body: copy.body
                 });
@@ -3166,6 +3936,63 @@ export class SqlCoreRepository implements NamecardRepository {
                 )
             };
         });
+    }
+
+    /**
+     * 用最新一次发起的内容覆盖旧的 pending（doc §7）：交换 id 不变，卡号与跳过记录换新，
+     * `created_at` 刷新（有效期 = created_at + 7 天，因此跟着重置），`resolved_at` 保持空。
+     * 目标方那条请求通知原地刷新——改正文、重新未读、时间刷新，不再多一封。
+     */
+    private async overwritePendingExchange(
+        database: SqlDatabase,
+        input: NamecardExchangeCommitInput,
+        pendingId: string,
+        targetNumbers: readonly number[],
+        giveNumbers: readonly number[],
+        skipped: readonly NamecardExchangeSkipRecord[]
+    ): Promise<NamecardExchangeCommitResult> {
+        const overwritten = await queryOne<NamecardExchangeRow>(
+            database,
+            `UPDATE public.namecard_exchanges
+                SET target_card_numbers=?, initiator_card_numbers=?, skipped=?, created_at=?
+              WHERE id=?
+              RETURNING ${EXCHANGE_COLUMNS}`,
+            [
+                postgresBigintArray(targetNumbers),
+                postgresBigintArray(giveNumbers),
+                JSON.stringify(skipped),
+                input.at,
+                pendingId
+            ]
+        );
+        if (!overwritten) throw new Error('namecard exchange overwrite vanished');
+        const exchange = exchangeRecordFromRow(overwritten);
+        const counterpart = await queryOne<{ display_name: string | null }>(
+            database,
+            `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
+            [input.initiatorAccountId]
+        );
+        const copy = cardExchangeRequestedCopy(
+            counterpart?.display_name?.trim() || '一位制作人',
+            exchange.target_card_numbers
+        );
+        await refreshNamecardExchangeRequestNotification(database, {
+            recipientAccountId: input.targetAccountId,
+            exchangeId: pendingId,
+            cardNumber: exchange.target_card_numbers[0] ?? null,
+            title: copy.title,
+            body: copy.body,
+            at: input.at
+        });
+        return {
+            exchange,
+            idempotent: false,
+            targetMissingCount: await this.countMissingCollectionCardsWith(
+                database,
+                input.initiatorAccountId,
+                input.targetAccountId
+            )
+        };
     }
 
     /** 双向写入名片册；再抽到同一张时恢复显示。 */
@@ -3254,9 +4081,11 @@ export class SqlCoreRepository implements NamecardRepository {
         at: string;
     }): Promise<NamecardExchangeDecisionRecord> {
         return this.database.transaction(async (database) => {
-            const row = await queryOne<NamecardExchangeRow>(
+            const row = await queryOne<NamecardExchangeRow & { stale: boolean }>(
                 database,
-                `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
+                `SELECT ${EXCHANGE_COLUMNS},
+                        (created_at < now() - interval '7 days') AS stale
+                   FROM public.namecard_exchanges
                   WHERE id=? FOR UPDATE`,
                 [input.exchangeId]
             );
@@ -3265,7 +4094,38 @@ export class SqlCoreRepository implements NamecardRepository {
                 return { status: 'not-found' } as const;
             }
             if (row.status !== 'pending') {
-                return { status: 'expired' } as const;
+                return { status: 'expired', stale: false } as const;
+            }
+            // 通知正文承诺「一周内不处理将自动过期」：过期 pending 在这里落成终态，
+            // 满足 `resolved_at IS NULL ⇔ pending` 的 CHECK，然后按过期拒绝这次裁决。
+            if (row.stale) {
+                await executeSql(
+                    database,
+                    `UPDATE public.namecard_exchanges
+                        SET status='expired', resolved_at=?
+                      WHERE id=?`,
+                    [input.at, input.exchangeId]
+                );
+                // 请求通知里承诺过「一周内不处理将自动过期」：这里兑现成一条超时通知，
+                // 与落库同一个事务，`exchange_id` 让发起方能在收件箱里打开详情。
+                const expired = exchangeRecordFromRow(row);
+                const target = await queryOne<{ display_name: string | null }>(
+                    database,
+                    `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
+                    [row.target_account_id]
+                );
+                const copy = cardExchangeExpiredCopy(
+                    target?.display_name?.trim() || '对方'
+                );
+                await insertNamecardNotification(database, {
+                    recipientAccountId: row.initiator_account_id,
+                    kind: copy.kind,
+                    cardNumber: expired.target_card_numbers[0] ?? null,
+                    exchangeId: row.id,
+                    title: copy.title,
+                    body: copy.body
+                });
+                return { status: 'expired', stale: true } as const;
             }
             const exchange = exchangeRecordFromRow(row);
             const status = input.decision === 'accept' ? 'completed' : 'declined';
@@ -3307,21 +4167,16 @@ export class SqlCoreRepository implements NamecardRepository {
                 `SELECT display_name FROM public.platform_profiles WHERE account_id=?`,
                 [input.accountId]
             );
-            const numbers = exchange.target_card_numbers;
+            const counterpartName = counterpart?.display_name?.trim() || '对方';
             const copy =
                 status === 'completed'
-                    ? cardExchangeAcceptedCopy(
-                          counterpart?.display_name?.trim() || '对方',
-                          numbers
-                      )
-                    : cardExchangeDeclinedCopy(
-                          counterpart?.display_name?.trim() || '对方',
-                          numbers
-                      );
+                    ? cardExchangeAcceptedCopy(counterpartName)
+                    : cardExchangeDeclinedCopy(counterpartName);
             await insertNamecardNotification(database, {
                 recipientAccountId: exchange.initiator_account_id,
                 kind: copy.kind,
-                cardNumber: numbers[0] ?? null,
+                cardNumber: exchange.target_card_numbers[0] ?? null,
+                exchangeId: exchange.id,
                 title: copy.title,
                 body: copy.body
             });
@@ -3342,7 +4197,7 @@ export class SqlCoreRepository implements NamecardRepository {
         );
         const rows = await queryAll<NamecardExchangeRow>(
             this.database,
-            `SELECT ${EXCHANGE_COLUMNS} FROM public.namecard_exchanges
+            `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
               WHERE initiator_account_id=? OR target_account_id=?
               ORDER BY created_at DESC, id DESC
               LIMIT ? OFFSET ?`,
@@ -3354,48 +4209,375 @@ export class SqlCoreRepository implements NamecardRepository {
         };
     }
 
-    async listCollection(input: {
+    /** 通知窗口的详情：参与者校验写在 SQL 里，非参与者与不存在的 id 同样回 null。 */
+    async findExchangeDetail(input: {
+        exchangeId: string;
         accountId: string;
-        limit: number;
-        offset: number;
-    }): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
-        const total = await queryOne<{ total: number | string }>(
+    }): Promise<NamecardExchangeDetailRecord | null> {
+        const row = await queryOne<NamecardExchangeRow>(
             this.database,
-            `SELECT COUNT(*) AS total FROM public.namecard_collection_entries
-              WHERE collector_account_id=? AND hidden_at IS NULL`,
-            [input.accountId]
+            `SELECT ${EXCHANGE_READ_COLUMNS} FROM public.namecard_exchanges
+              WHERE id=? AND (initiator_account_id=? OR target_account_id=?)`,
+            [input.exchangeId, input.accountId, input.accountId]
         );
-        const entries = await queryAll<{
-            card_number: number | string;
-            obtained_at: string | Date;
-            hidden_at: string | Date | null;
-            snapshot: unknown;
-        }>(
-            this.database,
-            `SELECT card_number, obtained_at, hidden_at, snapshot
-               FROM public.namecard_collection_entries
-              WHERE collector_account_id=? AND hidden_at IS NULL
-              ORDER BY obtained_at DESC, card_number DESC
-              LIMIT ? OFFSET ?`,
-            [input.accountId, input.limit, input.offset]
+        if (!row) return null;
+        const exchange = exchangeRecordFromRow(row);
+        const [targetCards, initiatorCards, profiles] = await Promise.all([
+            this.loadExchangeCards(this.database, exchange.target_card_numbers),
+            this.loadExchangeCards(this.database, exchange.initiator_card_numbers),
+            queryAll<{ account_id: string; display_name: string | null }>(
+                this.database,
+                `SELECT account_id, display_name FROM public.platform_profiles
+                  WHERE account_id IN (?, ?)`,
+                [exchange.initiator_account_id, exchange.target_account_id]
+            )
+        ]);
+        const names = new Map(
+            profiles.map((profile) => [
+                profile.account_id,
+                profile.display_name?.trim() || '一位制作人'
+            ])
         );
-        const live = await this.loadExchangeCards(
-            this.database,
-            entries.map((entry) => Number(entry.card_number))
-        );
-        const liveByNumber = new Map(
-            live.map((card) => [card.card_number ?? card.id, card])
-        );
+        const active = exchange.status === 'pending' || exchange.status === 'expired';
         return {
-            rows: entries.map((entry) => ({
-                card_number: Number(entry.card_number),
-                obtained_at: entry.obtained_at,
-                hidden_at: entry.hidden_at,
-                card: liveByNumber.get(Number(entry.card_number)) ?? null,
-                snapshot: entry.snapshot as NamecardCollectionSnapshotRecord
-            })),
-            total: Number(total?.total ?? 0)
+            id: exchange.id,
+            source: exchange.source,
+            status: exchange.status,
+            created_at: exchange.created_at,
+            expires_at: active
+                ? new Date(
+                      new Date(exchange.created_at).getTime() +
+                          NAMECARD_EXCHANGE_PENDING_TTL_MS
+                  ).toISOString()
+                : null,
+            initiator: {
+                account_id: exchange.initiator_account_id,
+                display_name:
+                    names.get(exchange.initiator_account_id) ?? '一位制作人'
+            },
+            target: {
+                account_id: exchange.target_account_id,
+                display_name: names.get(exchange.target_account_id) ?? '一位制作人'
+            },
+            target_cards: targetCards,
+            initiator_cards: initiatorCards,
+            skipped: exchange.skipped
         };
+    }
+
+    /**
+     * 名片册列表（PRD §7.1）：收到的条目 + 可选的「我自己的名片」先投影到同一形状，
+     * 再在合并后的集合上统一筛选、排序、分页。
+     *
+     * 条目没有删除操作：`hidden_at` 是「默认不展示」（除非 `includeHidden`），整卡 `locked`
+     * 同样不展示。原卡被后台判决删除（`deleted_at`）或物理删除（`card.id` 置空）后，整条
+     * 不再出现在名片册里——`total` 与分页同步排除。卡片行还在但状态暂不入册（如 `approving`）
+     * 时才用 `snapshot` 投影。
+     */
+    async listCollection(
+        input: NamecardCollectionQueryRecord
+    ): Promise<{ rows: NamecardCollectionEntryRecord[]; total: number }> {
+        const ownerFilter = input.owner?.trim() || null;
+        // 卡主不是自己时，「我的名片」里没有能命中筛选的条目。
+        const includeOwn =
+            input.includeOwn === true &&
+            (ownerFilter === null || ownerFilter === input.accountId);
+        const collectedValues = ownerFilter
+            ? [input.accountId, ownerFilter]
+            : [input.accountId];
+        const collectedSql = `SELECT entry.card_number, entry.obtained_at, entry.hidden_at,
+                entry.snapshot, false AS own,
+                card.id AS live_id, card.publication_status AS live_status,
+                card.producer_name AS live_producer_name,
+                card.group_name AS live_group_name,
+                card.made_on AS live_made_on,
+                card.created_at AS live_created_at,
+                card.sort_name_key AS live_sort_name_key,
+                card.sort_name_bucket AS live_sort_name_bucket,
+                card.is_original AS live_is_original,
+                card.made_with_ai AS live_made_with_ai,
+                card.owner_account_id AS live_owner_account_id
+           FROM public.namecard_collection_entries entry
+           LEFT JOIN fudaba_cards card
+                  ON card.id = entry.card_id AND card.deleted_at IS NULL
+          WHERE entry.collector_account_id=?
+            ${input.includeHidden ? '' : 'AND entry.hidden_at IS NULL'}
+            AND card.id IS NOT NULL
+            ${ownerFilter ? 'AND card.owner_account_id=?' : ''}
+            AND card.publication_status <> 'locked'`;
+        // 自己的名片没有交换时间（PRD §6）：`obtained_at := created_at`，快照 = 当前内容。
+        // 已经收在自己册里的同名卡不再重复计一条。
+        const ownedSql = `SELECT card.card_number, card.created_at AS obtained_at,
+                NULL::timestamptz AS hidden_at, NULL::jsonb AS snapshot, true AS own,
+                card.id AS live_id, card.publication_status AS live_status,
+                card.producer_name AS live_producer_name,
+                card.group_name AS live_group_name,
+                card.made_on AS live_made_on,
+                card.created_at AS live_created_at,
+                card.sort_name_key AS live_sort_name_key,
+                card.sort_name_bucket AS live_sort_name_bucket,
+                card.is_original AS live_is_original,
+                card.made_with_ai AS live_made_with_ai,
+                card.owner_account_id AS live_owner_account_id
+           FROM fudaba_cards card
+          WHERE card.owner_account_id=?
+            AND card.deleted_at IS NULL
+            AND card.publication_status='published'
+            AND NOT EXISTS (
+                SELECT 1 FROM public.namecard_collection_entries held
+                 WHERE held.collector_account_id=card.owner_account_id
+                   AND held.card_number=card.card_number)`;
+        const rows = await queryAll<NamecardCollectionQueryRow>(
+            this.database,
+            includeOwn
+                ? `${collectedSql} UNION ALL ${ownedSql}`
+                : collectedSql,
+            includeOwn
+                ? [...collectedValues, input.accountId]
+                : collectedValues
+        );
+
+        const sort = input.sort ?? 'exchange';
+        const direction =
+            input.dir ?? (sort === 'exchange' || sort === 'date' ? 'desc' : 'asc');
+        const liveIds = rows.flatMap((row) => (row.live_id ? [row.live_id] : []));
+        const [seriesByCard, favoriteOrders, seriesRanks] = await Promise.all([
+            this.listNamecardSeries(this.database, liveIds),
+            this.listCollectionFavoriteOrders(this.database, liveIds),
+            // 企划目录顺序只差一次查询；其它排序用不上，别为它多跑一趟。
+            sort === 'series'
+                ? this.listCollectionSeriesRanks(this.database)
+                : Promise.resolve(new Map<string, number>())
+        ]);
+        const prepared = rows.map((row) => ({
+            row,
+            snapshot: collectionSnapshotRecord(row.snapshot)
+        }));
+        const snapshotCharacters = await this.listCharacterOrders(
+            this.database,
+            prepared.flatMap(({ row, snapshot }) =>
+                row.live_id ? [] : snapshot.favoriteCharacterIds
+            )
+        );
+
+        const views = prepared.map(
+            ({ row, snapshot }): NamecardCollectionViewRow => {
+                const live = row.live_id !== null;
+                const liveFavorites = live
+                    ? (favoriteOrders.get(row.live_id!) ?? [])
+                    : [];
+                const characterKeys = live
+                    ? liveFavorites.map(({ id, category, order }) => ({
+                          id,
+                          category,
+                          order
+                      }))
+                    : snapshot.favoriteCharacterIds.map((id) => {
+                          const catalog = snapshotCharacters.get(id);
+                          // 目录里已经没有这个角色时，筛选仍按 id 生效，排序按分类末尾。
+                          return {
+                              id,
+                              category: catalog?.category ?? '\uffff',
+                              order: catalog?.order ?? Number.MAX_SAFE_INTEGER
+                          };
+                      });
+                const madeOn =
+                    (live ? row.live_made_on : snapshot.madeOn)?.trim() || null;
+                const obtainedAtMs = new Date(row.obtained_at).getTime();
+                const createdMs =
+                    live && row.live_created_at
+                        ? new Date(row.live_created_at).getTime()
+                        : null;
+                const madeOnRank = madeOn === null ? 2 : madeOn.length >= 7 ? 0 : 1;
+                const seriesCodes = live
+                    ? (seriesByCard.get(row.live_id!) ?? [])
+                    : snapshot.seriesCodes;
+                // 多企划不参与目录比较；单一企划（含零企划）按位次排序，
+                // 目录里查不到（或没有企划）的位次垫底，再按 code 收尾。
+                const seriesCode = seriesCodes[0] ?? '';
+                return {
+                    row,
+                    own: row.own === true,
+                    cardNumber: Number(row.card_number),
+                    obtainedAtMs,
+                    snapshot,
+                    seriesCodes,
+                    multiSeries: seriesCodes.length > 1,
+                    seriesRank:
+                        seriesRanks.get(seriesCode) ?? Number.MAX_SAFE_INTEGER,
+                    seriesCode,
+                    characterIds: characterKeys.map((key) => key.id),
+                    characterKeys,
+                    producerName: live
+                        ? row.live_producer_name
+                        : snapshot.producerName,
+                    groupName: live ? row.live_group_name : snapshot.groupName,
+                    // 实时列是唯一真相；只有原卡行已不在时才回退快照。
+                    isOriginal: live
+                        ? row.live_is_original === true
+                        : snapshot.isOriginal,
+                    madeWithAi: live
+                        ? row.live_made_with_ai === true
+                        : snapshot.madeWithAi,
+                    ownerAccountId:
+                        row.live_owner_account_id ??
+                        (row.own ? input.accountId : null),
+                    madeOn,
+                    madeOnRank,
+                    dateSortValue:
+                        madeOnRank < 2
+                            ? (madeOn ?? '')
+                            : new Date(createdMs ?? obtainedAtMs).toISOString(),
+                    sortNameKey: live
+                        ? (row.live_sort_name_key ?? '')
+                        : snapshot.sortNameKey,
+                    sortNameBucket: live
+                        ? snapshotBucket(
+                              row.live_sort_name_bucket === null
+                                  ? null
+                                  : Number(row.live_sort_name_bucket)
+                          )
+                        : snapshot.sortNameBucket
+                };
+            }
+        );
+
+        // 内容筛选的「命中集合」：只有内容条件参与【反向排除】。`owner` /
+        // `includeOwn` / `includeHidden` 与 `locked` / 已删卡在 SQL 与合并阶段处理，
+        // 不属于这里，因此不会被取反。
+        const content = namecardContentMatcher(input);
+        // 没有任何内容条件时【反向排除】等价于不筛：不能把所有行都排除。
+        const invert = input.invert === true && content.hasContentFilter;
+
+        const filtered = views.filter((view) => {
+            const matched = content.matches(view);
+            return invert ? !matched : matched;
+        });
+
+        filtered.sort((left, right) =>
+            compareCollectionRows(left, right, sort, direction)
+        );
+
+        const page = filtered.slice(input.offset, input.offset + input.limit);
+        const pageNumbers = page.map((view) => view.cardNumber);
+        const liveByNumber = new Map(
+            (
+                await this.loadShelfCards(this.database, pageNumbers)
+            ).map((card) => [card.card_number ?? card.id, card])
+        );
+        const ownNumbers = page
+            .filter((view) => view.own)
+            .map((view) => view.cardNumber);
+        for (const card of await this.loadOwnCollectionCards(
+            this.database,
+            input.accountId,
+            ownNumbers
+        )) {
+            liveByNumber.set(card.card_number ?? card.id, card);
+        }
+        // 卡主身份按页批量解析，避免逐条查询。
+        const ownerProfiles = await this.collectionOwnerProfiles(
+            page.flatMap((view) =>
+                view.ownerAccountId ? [view.ownerAccountId] : []
+            )
+        );
+
+        return {
+            total: filtered.length,
+            rows: page.map((view) => {
+                const card = liveByNumber.get(view.cardNumber) ?? null;
+                const ownerProfile = view.ownerAccountId
+                    ? ownerProfiles.get(view.ownerAccountId)
+                    : undefined;
+                return {
+                    card_number: view.cardNumber,
+                    obtained_at: view.row.obtained_at,
+                    hidden_at: view.row.hidden_at,
+                    own: view.own,
+                    owner: ownerProfile
+                        ? {
+                              account_id: ownerProfile.account_id,
+                              uid: String(ownerProfile.uid),
+                              display_name: ownerProfile.display_name
+                          }
+                        : null,
+                    card,
+                    card_status: view.own
+                        ? 'published'
+                        : shelfCardStatus(view.row.live_status),
+                    // 自己的名片没有交换那一刻的快照；投影直接取当前内容，
+                    // 读不到实时行时退回本页已知的元数据（不编造致谢等未读字段）。
+                    snapshot: view.own
+                        ? card
+                            ? this.collectionSnapshot(card)
+                            : {
+                                  ...view.snapshot,
+                                  producerName: view.producerName,
+                                  groupName: view.groupName,
+                                  madeOn: view.madeOn,
+                                  sortNameKey: view.sortNameKey,
+                                  sortNameBucket: view.sortNameBucket,
+                                  seriesCodes: view.seriesCodes,
+                                  favoriteCharacterIds: view.characterIds
+                              }
+                        : view.snapshot
+                };
+            })
+        };
+    }
+
+    /** 批量解析卡主资料（同一套列与账号准入，见 `COLLECTION_OWNER_PROFILE_SELECT`）。 */
+    private async collectionOwnerProfiles(
+        accountIds: readonly string[]
+    ): Promise<Map<string, PublicProfileRecord>> {
+        const unique = [...new Set(accountIds)].filter(
+            (accountId) => accountId.length > 0
+        );
+        if (unique.length === 0) return new Map();
+        const rows = await queryAll<PublicProfileRecord>(
+            this.database,
+            `${COLLECTION_OWNER_PROFILE_SELECT}
+               AND profile.account_id IN (${unique.map(() => '?').join(', ')})`,
+            unique
+        );
+        return new Map(rows.map((row) => [row.account_id, row]));
+    }
+
+    /**
+     * 所属用户选择器：自己 + 自己册内条目的卡主（卡行仍在、未锁定、未判删）。
+     * 只按显示名做不区分大小写的包含搜索，并按名称排序；不查全站账号目录。
+     */
+    async listCollectionOwners(input: {
+        accountId: string;
+        q?: string;
+        limit: number;
+    }): Promise<PublicProfileRecord[]> {
+        const needle = input.q?.trim() ?? '';
+        return queryAll<PublicProfileRecord>(
+            this.database,
+            `WITH owners AS (
+                 SELECT CAST(? AS text) AS account_id
+                 UNION
+                 SELECT card.owner_account_id
+                   FROM public.namecard_collection_entries entry
+                   JOIN fudaba_cards card
+                     ON card.id = entry.card_id AND card.deleted_at IS NULL
+                  WHERE entry.collector_account_id = ?
+                    AND card.publication_status <> 'locked'
+                    AND card.owner_account_id IS NOT NULL
+             )
+             ${COLLECTION_OWNER_OPTIONS_SELECT}
+               AND (? = '' OR position(lower(?) in lower(profile.display_name)) > 0)
+              ORDER BY profile.display_name, profile.account_id
+              LIMIT ?`,
+            [
+                input.accountId,
+                input.accountId,
+                needle,
+                needle,
+                input.limit
+            ]
+        );
     }
 
     async setCollectionHidden(input: {
@@ -3415,6 +4597,223 @@ export class SqlCoreRepository implements NamecardRepository {
         return Boolean(row);
     }
 
+    async listCollectedCardNumbers(input: {
+        collectorAccountId: string;
+        cardNumbers: readonly number[];
+    }): Promise<Set<number>> {
+        return this.collectionCardNumbers(
+            this.database,
+            input.collectorAccountId,
+            input.cardNumbers
+        );
+    }
+
+    async getCardLayout(
+        accountId: string
+    ): Promise<NamecardCardLayoutRecord | null> {
+        const row = await queryOne<{ layout: unknown }>(
+            this.database,
+            `SELECT layout FROM public.namecard_profile_layouts
+              WHERE owner_account_id=?`,
+            [accountId]
+        );
+        return row ? cardLayoutFromJson(row.layout) : null;
+    }
+
+    async saveCardLayout(input: NamecardCardLayoutSaveInput): Promise<void> {
+        const cards = await queryAll<{
+            id: string;
+            card_number: number | string;
+            publication_status: string;
+            exchange_mode: string;
+            visible: boolean;
+            is_group_card: boolean;
+            public_origin: boolean;
+        }>(
+            this.database,
+            `SELECT id, card_number, publication_status, exchange_mode, visible, is_group_card,
+                    (${NAMECARD_PUBLIC_ORIGIN}) AS public_origin
+               FROM fudaba_cards
+              WHERE owner_account_id=? AND deleted_at IS NULL
+                AND publication_status<>'hidden'`,
+            [input.accountId]
+        );
+        const byNumber = new Map(
+            cards.map((card) => [Number(card.card_number), card])
+        );
+        const byId = new Map(cards.map((card) => [card.id, card]));
+
+        const seen = new Set<number>();
+        for (const number of [
+            ...input.groups.flatMap((group) => group.cardNumbers),
+            ...input.defaultCardNumbers
+        ]) {
+            if (!byNumber.has(number)) {
+                throw new NamecardCardLayoutError('布局里有不属于你的名片');
+            }
+            if (seen.has(number)) {
+                throw new NamecardCardLayoutError('同一张名片在布局里出现了多次');
+            }
+            seen.add(number);
+        }
+
+        const settings = new Map(
+            input.cardSettings.map((setting) => [setting.cardId, setting])
+        );
+        for (const setting of settings.values()) {
+            const card = byId.get(setting.cardId);
+            if (!card) {
+                throw new NamecardCardLayoutError('设置里有不属于你的名片');
+            }
+            if (card.is_group_card) {
+                throw new NamecardCardLayoutError(
+                    '团体名片固定为自动交换且始终展示'
+                );
+            }
+        }
+
+        // 同一份请求里刚改成 `auto` 的卡也可以直接进清单。
+        const quickIds = input.quickCardNumbers.map((number) => {
+            const card = byNumber.get(number);
+            const mode =
+                settings.get(card?.id ?? '')?.exchangeMode ??
+                card?.exchange_mode;
+            if (
+                !card ||
+                card.publication_status !== 'published' ||
+                // 读侧（`listQuickExchangeCards`）与候选清单都要求「有线上页」，写入侧必须同口径，
+                // 否则会保存成功却在返回的 `quickCardNumbers` 里消失。
+                !card.public_origin ||
+                mode !== 'auto'
+            ) {
+                throw new NamecardCardLayoutError(
+                    '快速交换清单只收已发布且自动交换的名片'
+                );
+            }
+            return card.id;
+        });
+
+        // 空分组在保存时删掉（公开页不渲染空标题）。
+        const stored: NamecardCardLayoutRecord = {
+            groups: input.groups
+                .map((group) => ({
+                    id: group.id ?? randomUUID(),
+                    title: group.title,
+                    cardNumbers: [...new Set(group.cardNumbers)]
+                }))
+                .filter((group) => group.cardNumbers.length > 0),
+            defaultCardNumbers: [...new Set(input.defaultCardNumbers)]
+        };
+
+        await this.database.transaction(async (database) => {
+            await executeSql(
+                database,
+                `INSERT INTO public.namecard_profile_layouts
+                     (owner_account_id, layout, updated_at)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (owner_account_id) DO UPDATE
+                     SET layout=EXCLUDED.layout, updated_at=EXCLUDED.updated_at`,
+                [input.accountId, JSON.stringify(stored), input.at]
+            );
+            await executeSql(
+                database,
+                `DELETE FROM public.namecard_quick_exchange_cards WHERE account_id=?`,
+                [input.accountId]
+            );
+            if (quickIds.length > 0) {
+                await database.batch(
+                    quickIds.map((cardId) =>
+                        database
+                            .prepare(
+                                `INSERT INTO public.namecard_quick_exchange_cards
+                                     (account_id, card_id) VALUES (?, ?)
+                                 ON CONFLICT DO NOTHING`
+                            )
+                            .bind(input.accountId, cardId)
+                    )
+                );
+            }
+            for (const setting of settings.values()) {
+                await executeSql(
+                    database,
+                    `UPDATE fudaba_cards
+                        SET visible=COALESCE(?, visible),
+                            exchange_mode=COALESCE(?, exchange_mode),
+                            -- 待审修订发布时会整份覆盖这两列，改动必须同时并进 pending_payload，
+                            -- 否则审核通过的一刻批量改动被静默回滚（与 fudaba-repository.ts 的免审分支同款写法）。
+                            pending_payload=CASE WHEN pending_payload IS NULL THEN NULL
+                                ELSE pending_payload || jsonb_strip_nulls(
+                                    jsonb_build_object(
+                                        'visible', CAST(? AS boolean),
+                                        'exchange_mode', CAST(? AS text))) END,
+                            updated_at=?
+                      WHERE id=? AND owner_account_id=? AND deleted_at IS NULL`,
+                    [
+                        setting.visible ?? null,
+                        setting.exchangeMode ?? null,
+                        setting.visible ?? null,
+                        setting.exchangeMode ?? null,
+                        input.at,
+                        setting.cardId,
+                        input.accountId
+                    ]
+                );
+            }
+        });
+    }
+
+    async listOwnedPublishedCardsAll(
+        accountId: string
+    ): Promise<NamecardPublicRecord[]> {
+        const rows = await queryAll<NamecardCardRow>(
+            this.database,
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+              WHERE owner_account_id=? AND deleted_at IS NULL
+                AND publication_status='published' AND visible
+              ORDER BY card_number DESC`,
+            [accountId]
+        );
+        return (await this.attachNamecardFavorites(
+            this.database,
+            rows,
+            'live'
+        )) as NamecardPublicRecord[];
+    }
+
+    /**
+     * 已经收到这张卡的人可以继续读它的页面对象：原卡被持有者下线（`hidden`）后仍然放行。
+     * `published` 走公开读取、`locked` 谁都不放，所以这里只认 `hidden`（doc §5）。
+     */
+    async findHeldCardPageKey(input: {
+        viewerAccountId: string;
+        cardId: string;
+        pageId: string;
+    }): Promise<string | null> {
+        const row = await queryOne<{ object_version: string }>(
+            this.database,
+            `SELECT page.object_version
+               FROM fudaba_cards card
+               JOIN fudaba_card_pages page
+                 ON page.card_id=card.id AND page.queue='live' AND page.page_id=?
+              WHERE card.id=?
+                AND card.deleted_at IS NULL
+                AND card.publication_status='hidden'
+                AND EXISTS (
+                    SELECT 1 FROM public.namecard_collection_entries entry
+                     WHERE entry.collector_account_id=?
+                       AND entry.card_id=card.id)
+              LIMIT 1`,
+            [input.pageId, input.cardId, input.viewerAccountId]
+        );
+        if (!row) return null;
+        return cardPageObjectKey(
+            input.cardId,
+            'live',
+            input.pageId,
+            row.object_version
+        );
+    }
+
     async listQuickExchangeCards(
         accountId: string
     ): Promise<NamecardPublicRecord[]> {
@@ -3426,7 +4825,8 @@ export class SqlCoreRepository implements NamecardRepository {
               WHERE quick.account_id=?
                 AND card.deleted_at IS NULL
                 AND card.publication_status='published'
-                AND card.exchange_mode <> 'none'
+                -- 只有 auto 能留在清单里；manual/none 一律实时过滤掉（doc §2.3 / §3.4）。
+                AND card.exchange_mode='auto'
                 AND ${NAMECARD_PUBLIC_ORIGIN}
               ORDER BY quick.added_at DESC, card.card_number DESC
               LIMIT 20`,
@@ -3444,10 +4844,12 @@ export class SqlCoreRepository implements NamecardRepository {
     }): Promise<void> {
         const unique = [...new Set(input.cardNumbers)].slice(0, 20);
         const cards = await this.loadExchangeCards(this.database, unique);
+        // 写入就只收 `published + auto`（`loadExchangeCards` 已经保证 published）：
+        // `manual` 要逐张确认，`none` 不接受他人发起，两者都不属于「一页全收」（doc §2.3 / §3.4）。
         const allowed = cards.filter(
             (card) =>
                 card.owner_account_id === input.accountId &&
-                card.exchange_mode !== 'none'
+                card.exchange_mode === 'auto'
         );
         await this.database.transaction(async (database) => {
             await executeSql(
@@ -3522,6 +4924,21 @@ export class SqlCoreRepository implements NamecardRepository {
         return cards[0] ?? null;
     }
 
+    /** 属主侧单卡分享链接：先认卡片归属，再复用同一份短链规则。 */
+    async ensureExchangeSlugForOwnerCard(input: {
+        ownerAccountId: string;
+        cardNumber: number;
+    }): Promise<string | null> {
+        const row = await queryOne<{ id: string }>(
+            this.database,
+            `SELECT id FROM fudaba_cards
+              WHERE owner_account_id=? AND card_number=? AND deleted_at IS NULL`,
+            [input.ownerAccountId, input.cardNumber]
+        );
+        if (!row) return null;
+        return this.ensureExchangeLink(row.id);
+    }
+
     private async loadExchangeCardsByIds(
         database: SqlDatabase,
         cardIds: readonly string[]
@@ -3552,7 +4969,7 @@ export class SqlCoreRepository implements NamecardRepository {
         if (!profile) return null;
         const rows = await queryAll<NamecardCardRow>(
             this.database,
-            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards
+            `SELECT ${NAMECARD_COLUMNS} FROM fudaba_cards card
               WHERE owner_account_id=?
                 AND deleted_at IS NULL
                 AND publication_status='published'
@@ -3597,9 +5014,24 @@ export class SqlCoreRepository implements NamecardRepository {
     ): Promise<NamecardScanSessionRecord | null> {
         return queryOne<NamecardScanSessionRecord>(
             this.database,
-            `SELECT id, account_id, card_numbers, expires_at, consumed_at
+            `SELECT id, account_id, card_numbers, expires_at, consumed_at,
+                    consumed_by_exchange_id
                FROM public.namecard_scan_sessions WHERE token_hash=?`,
             [tokenHash]
+        );
+    }
+
+    async findOwnedScanSession(
+        tokenHash: string,
+        accountId: string
+    ): Promise<NamecardScanSessionRecord | null> {
+        return queryOne<NamecardScanSessionRecord>(
+            this.database,
+            `SELECT id, account_id, card_numbers, expires_at, consumed_at,
+                    consumed_by_exchange_id
+               FROM public.namecard_scan_sessions
+              WHERE token_hash=? AND account_id=?`,
+            [tokenHash, accountId]
         );
     }
 

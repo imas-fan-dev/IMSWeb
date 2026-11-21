@@ -330,8 +330,8 @@ describe("App navigation coordination", () => {
   })
 
   it.each([
-    ["/account/me/favorites", "anonymous", "/account/me"],
-    ["/account/me/favorites", "authenticated", "/account/me"],
+    ["/account/me/collection", "anonymous", "/account/me"],
+    ["/account/me/collection", "authenticated", "/account/me"],
     [
       "/about?from=/account/me#help",
       "anonymous",
@@ -446,7 +446,7 @@ describe("App navigation coordination", () => {
   ])("$description", async ({ ordinaryLink }) => {
     const previousHref = window.location.href
     const previousState = window.history.state
-    window.history.replaceState(null, "", "/account/me/favorites")
+    window.history.replaceState(null, "", "/account/me/collection")
     mocks.status = "authenticated"
     mocks.session = { account: { id: "1" } }
     const router = createBrowserRouter([
@@ -471,7 +471,7 @@ describe("App navigation coordination", () => {
       await user.click(screen.getByRole("button", { name: "社区" }))
       act(() => {
         fireEvent.click(screen.getByRole("button", { name: "我的" }))
-        expect(window.location.pathname).toBe("/account/me/favorites")
+        expect(window.location.pathname).toBe("/account/me/collection")
         if (ordinaryLink) {
           fireEvent.click(screen.getByRole("link", { name: "作品详情" }))
           expect(window.location.pathname).toBe("/works/example")
@@ -499,7 +499,7 @@ describe("App navigation coordination", () => {
   it("cancels personal position restoration when identity changes after commit", async () => {
     mocks.status = "authenticated"
     mocks.session = { account: { id: "1" } }
-    const { rerender } = render(<Tree entries={["/account/me/favorites"]} />)
+    const { rerender } = render(<Tree entries={["/account/me/collection"]} />)
     const user = userEvent.setup()
     readAt(500)
     await user.click(screen.getByRole("button", { name: "社区" }))
@@ -508,7 +508,7 @@ describe("App navigation coordination", () => {
     await user.click(screen.getByRole("button", { name: "我的" }))
     mocks.status = "anonymous"
     mocks.session = null
-    rerender(<Tree entries={["/account/me/favorites"]} />)
+    rerender(<Tree entries={["/account/me/collection"]} />)
     expect(cancel).toHaveBeenCalledOnce()
   })
 
@@ -723,14 +723,14 @@ describe("App navigation coordination", () => {
     mocks.status = "authenticated"
     mocks.session = { account: { id: "1" } }
     const user = userEvent.setup()
-    const { rerender } = render(<Tree entries={["/account/me/favorites"]} />)
+    const { rerender } = render(<Tree entries={["/account/me/collection"]} />)
     mocks.status = "anonymous"
     mocks.session = null
-    rerender(<Tree entries={["/account/me/favorites"]} />)
+    rerender(<Tree entries={["/account/me/collection"]} />)
     readAt(200)
     await user.click(screen.getByRole("button", { name: "社区" }))
     await user.click(screen.getByRole("button", { name: "我的" }))
     expect(screen.getByTestId("location")).toHaveTextContent("/account/me")
-    expect(screen.getByTestId("location")).not.toHaveTextContent("favorites")
+    expect(screen.getByTestId("location")).not.toHaveTextContent("collection")
   })
 })

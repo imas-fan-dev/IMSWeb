@@ -397,7 +397,7 @@ private final class GlassControlRenderer {
     button.center = CGPoint(x: frame.midX, y: frame.midY)
     button.cornerRadius = CGFloat(control.cornerRadius)
     button.usesExternalSurface = grouped
-    button.isHidden = grouped && searchLocateCovered
+    button.isHidden = control.id == "locate" && searchLocateCovered
     // This button owns the lower half of the search skin, not a separate circle.
     button.externalHitBounds = grouped ? CGRect(x: 0, y: -48, width: 48, height: 96) : nil
     button.accessibilityLabel = control.label

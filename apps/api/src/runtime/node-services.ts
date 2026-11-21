@@ -19,6 +19,7 @@ import type {
     HomepageLinkRepository,
     NamecardRepository,
     NamecardCharacterRepository,
+    NamecardTagRepository,
     NamecardUnitRepository,
     NewsRepository,
     PlatformAccountRepository,
@@ -83,6 +84,7 @@ import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
 import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link-repository";
 import { SqlNamecardCharacterRepository } from "@/infra/db/repositories/namecard-character-repository";
 import { SqlNamecardUnitRepository } from "@/infra/db/repositories/namecard-unit-repository";
+import { SqlNamecardTagRepository } from "@/infra/db/repositories/namecard-tag-repository";
 import { SqlCatalogRepository } from "@/infra/db/repositories/catalog-repository";
 import type { CatalogRepository } from "@/ports/repositories/catalog";
 import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
@@ -152,6 +154,7 @@ interface NodeRepositories {
     sitePackages: SitePackageRepository;
     namecardCharacters: NamecardCharacterRepository;
     namecardUnits: NamecardUnitRepository;
+    namecardTags: NamecardTagRepository;
     catalog: CatalogRepository;
     platform: PlatformAccountRepositoryAdapter;
     fudaba: FudabaRepositoryAdapter;
@@ -219,6 +222,7 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
         sitePackages: new SqlSitePackageRepository(database),
         namecardCharacters: new SqlNamecardCharacterRepository(database),
         namecardUnits: new SqlNamecardUnitRepository(database),
+        namecardTags: new SqlNamecardTagRepository(database),
         catalog: new SqlCatalogRepository(database),
         platform: new SqlPlatformAccountRepository(database, schema),
         fudaba: new SqlFudabaRepository(database, schema),
@@ -433,6 +437,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         sitePackages,
         namecardCharacters,
         namecardUnits,
+        namecardTags,
         catalog,
         platform,
         fudaba,
@@ -506,6 +511,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             sitePackages,
             namecardCharacters,
             namecardUnits,
+            namecardTags,
             catalog,
             stationMessages,
             story,

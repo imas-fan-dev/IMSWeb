@@ -6,6 +6,7 @@ import {
   fieldsFromSide,
   manageChangeNeedsReason,
   slotsFromSide,
+  tagsFromDiff,
 } from "~/pages/admin/cards/namecard-manage-dialog"
 import type { AdminNamecardDiff, FudabaCardFields } from "~/lib/api"
 import { makeCardPage } from "@/mocks/data/namecards"
@@ -133,6 +134,35 @@ describe("namecard management window", () => {
     expect(stored.groupName).toBe("本家")
     expect(stored.favoriteCharacterIds).toEqual([])
     expect(stored.credits).toHaveLength(1)
+  })
+
+  it("seeds the draft with the root-level tags instead of the diff sides", () => {
+    expect(
+      tagsFromDiff({
+        tags: [
+          { name: "765", presetId: 2 },
+          { name: "旧卡", presetId: null },
+        ],
+      })
+    ).toEqual(["765", "旧卡"])
+    expect(tagsFromDiff({})).toEqual([])
+    // 两版内容本身不带标签：管理窗只从根上取，标签不会进对比。
+    expect(fieldsFromSide(side())).not.toHaveProperty("tags")
+  })
+
+  it("treats a tag edit as a content change that needs a reason", () => {
+    expect(
+      gate({
+        draft: fields({ tags: ["765"] }),
+        original: fields({ tags: [] }),
+      })
+    ).toBe(true)
+    expect(
+      gate({
+        draft: fields({ tags: ["765"] }),
+        original: fields({ tags: ["765"] }),
+      })
+    ).toBe(false)
   })
 })
 

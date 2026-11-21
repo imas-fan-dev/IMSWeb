@@ -275,36 +275,41 @@ export function AccountMePage({
       </h1>
 
       <section
-        className="flex min-w-0 items-center gap-4 border-y py-5"
+        className="border-y py-2"
         aria-label={t("platformAccount.app.identity")}
       >
-        <Avatar size="lg" className="size-14 shrink-0">
-          {avatarSource ? (
-            <AvatarImage
-              src={avatarSource}
-              alt={t("platformAccount.avatarAlt", { name: displayName })}
-              referrerPolicy="no-referrer"
-            />
-          ) : null}
-          <AvatarFallback className="text-lg">
-            {displayName.trim().slice(0, 1) || t("platformAccount.fallback")}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="truncate font-medium">{displayName}</p>
-            <Badge variant={restricted ? "secondary" : "outline"}>
-              {t(
-                restricted
-                  ? "platformAccount.restricted"
-                  : "platformAccount.authenticated"
-              )}
-            </Badge>
+        <NavigationLink
+          to={`/user/${profile.uid}`}
+          className="flex min-w-0 items-center gap-4 rounded-lg px-2 py-3 outline-none hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <Avatar size="lg" className="size-14 shrink-0">
+            {avatarSource ? (
+              <AvatarImage
+                src={avatarSource}
+                alt={t("platformAccount.avatarAlt", { name: displayName })}
+                referrerPolicy="no-referrer"
+              />
+            ) : null}
+            <AvatarFallback className="text-lg">
+              {displayName.trim().slice(0, 1) || t("platformAccount.fallback")}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="truncate font-medium">{displayName}</p>
+              <Badge variant={restricted ? "secondary" : "outline"}>
+                {t(
+                  restricted
+                    ? "platformAccount.restricted"
+                    : "platformAccount.authenticated"
+                )}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {profile.homeCity || t("platformAccount.app.cityMissing")}
+            </p>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {profile.homeCity || t("platformAccount.app.cityMissing")}
-          </p>
-        </div>
+        </NavigationLink>
       </section>
 
       {restricted ? (

@@ -3,11 +3,13 @@ import { NAMECARD_EXCHANGE_CARD_LIMIT } from '@imsweb/contracts/namecards/runtim
 import type {
     NamecardScanCommitContext,
     NamecardScanSessionContext,
+    NamecardScanStatusContext,
 } from '@/domains/community/namecards/exchange/request';
 import { commitNamecardExchange } from '@/domains/community/namecards/exchange/commit';
 import type {
     NamecardErrorResponse,
     NamecardScanSessionResponse,
+    NamecardScanSessionStatusResponse,
 } from '@/domains/community/namecards/response';
 import {
     newScanToken,
@@ -17,6 +19,8 @@ import {
 import { namecardRepository } from '@/middleware/hono-context';
 
 const INVALID_SCAN_MESSAGE = '二维码已失效，请让对方重新生成';
+/** 不存在与不属于自己一律同一句话：不能靠状态码试出别人的二维码。 */
+const MISSING_SCAN_MESSAGE = '找不到这个二维码';
 
 /** 出示方先登记这一轮要交换的名片,再把它变成一张一次性二维码。 */
 export async function handleCreateScanSession(
@@ -52,6 +56,34 @@ export async function handleCreateScanSession(
     return c.json({ token, expiresAt } satisfies NamecardScanSessionResponse);
 }
 
+/** 出示方轮询:还没被扫、已过期,或已经被某次交换消费掉。 */
+export async function handleGetScanSessionStatus(
+    c: NamecardScanStatusContext,
+): Promise<Response> {
+    const accountId = c.get('platformUser')!.id;
+    const { token } = c.req.valid('param');
+    const session = await namecardRepository(c).findOwnedScanSession(
+        scanTokenHash(token),
+        accountId,
+    );
+    // 别人的二维码与不存在的二维码回同一句话（doc §2.4 一次性口令不泄露存在性）。
+    if (!session) {
+        return c.json({ error: MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse, 404);
+    }
+    // 消费优先于过期：已完成的交换就是事实，哪怕后来时间越过了 expires_at。
+    const status =
+        session.consumed_at !== null
+            ? 'committed'
+            : new Date(session.expires_at).getTime() <= Date.now()
+              ? 'expired'
+              : 'active';
+    return c.json({
+        status,
+        expiresAt: new Date(session.expires_at).toISOString(),
+        exchangeId: status === 'committed' ? session.consumed_by_exchange_id : null,
+    } satisfies NamecardScanSessionStatusResponse);
+}
+
 /** 扫码方提交时,出示方早已选好名单,这里只补自己给出的那张。 */
 export async function handleCommitScanSession(
     c: NamecardScanCommitContext,
@@ -61,11 +93,20 @@ export async function handleCommitScanSession(
     const body = c.req.valid('json');
     const repository = namecardRepository(c);
     const session = await repository.findScanSession(scanTokenHash(token));
-    if (!session || session.consumed_at !== null) {
+    if (!session) {
         return c.json({ error: INVALID_SCAN_MESSAGE } satisfies NamecardErrorResponse, 409);
     }
-    if (new Date(session.expires_at).getTime() <= Date.now()) {
-        return c.json({ error: INVALID_SCAN_MESSAGE } satisfies NamecardErrorResponse, 409);
+    // 幂等优先：这把 `clientExchangeId` 已经落过库时，重放必须拿回那一条记录，
+    // 哪怕二维码正是被那次成功消费掉的（doc §7「重放使用同一 token 仍然有效」）。
+    // 换一把新幂等键才是「再用一次二维码」，仍然按一次性规则拒绝。
+    const replayed = await repository.findExchangeByClientId(body.clientExchangeId);
+    if (!replayed) {
+        if (session.consumed_at !== null) {
+            return c.json({ error: INVALID_SCAN_MESSAGE } satisfies NamecardErrorResponse, 409);
+        }
+        if (new Date(session.expires_at).getTime() <= Date.now()) {
+            return c.json({ error: INVALID_SCAN_MESSAGE } satisfies NamecardErrorResponse, 409);
+        }
     }
     return commitNamecardExchange(c, {
         clientExchangeId: body.clientExchangeId,

@@ -99,20 +99,28 @@ describe("native glass bridge", () => {
     const options = {
       dark: false,
       hidden: false,
-      items: [{ route: "/", lucideIcon: "house", title: "首页" }],
+      items: [
+        { route: "/", lucideIcon: "house", title: "首页" },
+        { action: "exchange" as const, title: "交换" },
+      ],
       selectedColor,
       selectedIndex: 0,
+      currentRoute: "/",
+      accountBadge: "",
+    }
+    const update = {
+      dark: true,
+      hidden: true,
+      selectedColor,
+      selectedIndex: -1,
+      currentRoute: "/community/exchange",
+      accountBadge: "9+",
     }
 
     await expect(configureNativeGlass(options)).resolves.toEqual({
       supported: true,
     })
-    await updateNativeGlass({
-      dark: true,
-      hidden: true,
-      selectedColor,
-      selectedIndex: 1,
-    })
+    await updateNativeGlass(update)
     await destroyNativeGlass()
 
     expect(mocks.invoke).toHaveBeenNthCalledWith(
@@ -124,7 +132,7 @@ describe("native glass bridge", () => {
       2,
       "plugin:native-glass|update",
       {
-        options: { dark: true, hidden: true, selectedColor, selectedIndex: 1 },
+        options: update,
       }
     )
     expect(mocks.invoke).toHaveBeenNthCalledWith(

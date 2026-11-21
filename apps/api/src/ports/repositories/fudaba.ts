@@ -1,6 +1,7 @@
 import type { FudabaMessagesRepository } from '@/ports/repositories/fudaba-messages';
 import type { AuditLogInput } from "@/ports/repositories/admin";
 import type { WikiImageTransform } from "@/ports/repositories/wiki";
+import type { NamecardTagRecord } from "@/ports/repositories/namecard-tags";
 
 export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 
@@ -238,6 +239,8 @@ export interface FudabaCardRecord {
     made_with_ai: boolean;
     visible: boolean;
     credits: FudabaCardCredit[];
+    /** 已保存标签（即时生效，不随待审内容变化）。 */
+    tags: NamecardTagRecord[];
     publication_status: FudabaCardPublicationStatus;
     review_status: FudabaCardReviewStatus | null;
     review_reason: string | null;
@@ -501,6 +504,7 @@ export interface FudabaCardSupplementRecord {
     card_id: string;
     card_number: number;
     card_producer_name: string | null;
+    card_producer_reading: string | null;
     card_page_count: number;
     /** Middle pages the card stores today. */
     card_middle_count: number;
@@ -819,9 +823,7 @@ export interface FudabaPublicCardRecord {
     credits: FudabaCardCredit[];
     created_at: string;
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaCardReactionRecord {
@@ -837,9 +839,7 @@ export interface FudabaCardReactionInput {
 
 export interface FudabaCardInteractionStateRecord {
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
@@ -894,7 +894,6 @@ export interface ListFudabaPublicCardsInput {
     /** True keeps cards offered for exchange, false keeps the closed ones. */
     exchangeable?: boolean;
     officeSlug?: string;
-    favoritedByAccountId?: string;
     viewerAccountId: string | null;
     limit: number;
     after?: FudabaPublicCardCursor;
@@ -1230,7 +1229,7 @@ export interface FudabaRepository {
         createdAt: string;
     }): Promise<boolean>;
     setCardInteraction(input: {
-        kind: "like" | "favorite";
+        kind: "like";
         cardId: string;
         accountId: string;
         active: boolean;

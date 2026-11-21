@@ -4,16 +4,32 @@ import {
   CalendarDaysIcon,
   ImagesIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { SubmitEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { NAMECARD_TAG_FILTER_LIMIT } from "@imsweb/contracts/namecards/runtime"
+
+import {
+  DEFAULT_NAMECARD_FILTERS,
+  NamecardFilterBar,
+  type NamecardFilterValue,
+} from "~/components/community/namecard-filters/namecard-filter-bar"
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialog"
+import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
+import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { WallInsightsPanel } from "./components/wall-insights-panel"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
+import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
+import {
+  normalizeTagText,
+  tagComparisonKey,
+} from "~/components/community/use-tag-suggestions"
+import { NamecardWallCarousel } from "~/components/community/namecard-wall-carousel"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
+import { FitText } from "~/components/shared/fit-text"
 import {
   NamecardPreview,
   type NamecardSide,
@@ -51,23 +67,28 @@ import {
   NamecardReactionSummary,
   type NamecardReactionState,
 } from "~/pages/community/components/namecard-detail-dialog"
-import { NamecardThumbnail } from "~/pages/community/components/namecard-thumbnail"
 import { useNamecardMasonry } from "~/pages/community/hooks/use-namecard-masonry"
 import { useNamecardPaginationVisibility } from "~/pages/community/hooks/use-namecard-pagination-visibility"
 import { useNamecardDetailSession } from "~/pages/community/hooks/use-namecard-detail-session"
 import { useNamecardDetailReturn } from "~/pages/community/hooks/use-namecard-detail-return"
+import type { SeriesOption } from "~/components/community/series-multi-select"
 import {
   addNamecardReaction,
+  getFudabaSeries,
   getNamecardPage,
   getPublicCard,
   getNamecardReactions,
+  requestCardExchange,
 } from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+/** 制作人检索与名片册同一停顿，避免每敲一个字就发一次列表请求。 */
+const SEARCH_DEBOUNCE_MS = 300
 const SESSION_REACTION_LIMIT = 10
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
@@ -123,55 +144,75 @@ function NamecardItem({
   card,
   reactions,
   busy,
+  canEditTags,
   onOpenDetail,
   onReact,
+  onTagClick,
+  onTagsChange,
 }: {
   card: Namecard
   reactions: NamecardReactionState
   busy: boolean
+  /** 匿名只读：chips 照常显示，但【+】与保存行不可用。 */
+  canEditTags: boolean
   onOpenDetail: (
     card: Namecard,
-    trigger: HTMLButtonElement,
+    trigger: HTMLButtonElement | null,
     side?: NamecardSide
   ) => void
   onReact: (cardId: number, emoji: string) => Promise<boolean>
+  /** 点击已保存标签：追加到名片墙的标签筛选。 */
+  onTagClick: (tag: string) => void
+  onTagsChange: (cardId: number, tags: string[]) => void
 }) {
   const createdAt = namecardCreatedAt(card.created_at)
-  // 统一布局优先：页面自带原图与 400 档缩略图，旧字段只做回退。
-  const pageFront = card.pages?.find((page) => page.role === "front")
-  const pageBack = card.pages?.find((page) => page.role === "back")
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  /** 轮播在 pointerup 就打开详情，click 捕获太晚；两条路径都要记下触发按钮。 */
+  const captureTrigger = (target: EventTarget | null) => {
+    const button =
+      target instanceof Element ? target.closest("button") : null
+    triggerRef.current = button instanceof HTMLButtonElement ? button : null
+  }
+  const tags = card.tags?.map((tag) => tag.name) ?? []
+  const producerName = card.producerName || `名片 #${card.cardNumber ?? card.id}`
+  const producer = (
+    <FitText
+      text={producerName}
+      className="text-xs font-medium md:text-sm"
+    />
+  )
   return (
     <Card
       data-namecard-item
-      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:h-full md:gap-0 md:self-stretch md:rounded-xl md:bg-muted/50"
+      className="min-w-0 gap-1 self-start overflow-hidden rounded-lg bg-card pt-0 max-md:group-data-[masonry=ready]/namecards:col-start-(--namecard-column) max-md:group-data-[masonry=ready]/namecards:row-start-(--namecard-start) max-md:group-data-[masonry=ready]/namecards:row-end-(--namecard-end) md:gap-0 md:rounded-xl md:bg-muted/50"
     >
-      <div className="grid gap-1 md:mb-4 md:grid-cols-2 md:gap-px md:border-b md:border-border md:bg-border">
-        {(["front", "back"] as const).flatMap((side) => {
-          const page = side === "front" ? pageFront : pageBack
-          // 单面名片没有背面：不渲染空格子，让正面占满整行。
-          if (!page) return []
-          // 页面行自带 400 档缩略图，原图留作全屏预览。
-          const original = page.url
-          const thumbnail = page.thumbUrl
-          return [
-            <button
-              key={side}
-              type="button"
-              className="relative aspect-3/2 min-h-11 w-full overflow-hidden rounded-none bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
-              aria-label={`查看制作人名片 ${card.id} ${side === "front" ? "正面" : "背面"}`}
-              title="查看名片详情"
-              onClick={(event) => onOpenDetail(card, event.currentTarget, side)}
-            >
-              <NamecardThumbnail
-                key={`${thumbnail}:${original}`}
-                thumbnail={thumbnail}
-                original={original}
-              />
-            </button>,
-          ]
-        })}
+      {/* 轮播自己只回传正/背面；打开详情要聚焦回原来那张图的按钮，所以在这里
+          捕获点击目标（pointerdown 早于轮播在 pointerup 里打开详情）。 */}
+      <div
+        onPointerDownCapture={(event) => captureTrigger(event.target)}
+        onClickCapture={(event) => captureTrigger(event.target)}
+      >
+        <NamecardWallCarousel
+          pages={card.pages ?? []}
+          cardNumber={card.cardNumber ?? card.id}
+          pageCount={card.pageCount}
+          onOpen={(side) => onOpenDetail(card, triggerRef.current, side)}
+        />
       </div>
-      <CardHeader className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 md:min-h-8 md:px-4">
+      <CardHeader className="flex flex-col items-stretch gap-0.5 px-1.5 pt-1.5 md:gap-1 md:px-4 md:pt-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {card.claimerUid !== null && card.claimerUid !== undefined ? (
+            <NavigationLink
+              to={`/user/${card.claimerUid}`}
+              className="min-w-0 underline-offset-2 hover:underline"
+            >
+              {producer}
+            </NavigationLink>
+          ) : (
+            <div className="min-w-0">{producer}</div>
+          )}
+          <NamecardClaimBadge card={card} iconOnly />
+        </div>
         <CardDescription className="flex items-start gap-1.5 text-xs/5 whitespace-nowrap tabular-nums">
           <CalendarDaysIcon
             aria-hidden="true"
@@ -189,12 +230,20 @@ function NamecardItem({
             <span title="提交时间缺失或无效">日期待补</span>
           )}
         </CardDescription>
-        <NamecardClaimBadge card={card} />
       </CardHeader>
-      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:px-4 md:pt-3 md:pb-4">
+      <CardFooter className="flex-col items-stretch gap-1 border-0 bg-transparent p-1.5 md:gap-1.5 md:px-4 md:pt-3 md:pb-4">
+        <NamecardTagEditor
+          variant="inline"
+          value={tags}
+          cardId={card.cardId}
+          disabled={!canEditTags}
+          onValueClick={onTagClick}
+          onChange={(next) => onTagsChange(card.id, next)}
+        />
         <NamecardReactionSummary
           {...reactions}
           busy={busy}
+          size="sm"
           onOpen={(trigger) => onOpenDetail(card, trigger)}
           onReact={(emoji) => onReact(card.id, emoji)}
         />
@@ -206,6 +255,8 @@ function NamecardItem({
 export default function CommunityCardsPage() {
   const platform = useOptionalPlatformSession()
   const canClaim = platform.status === "authenticated"
+  // 标签与内容解耦：登录用户可改任意名片的标签，匿名只读。
+  const canEditTags = platform.status === "authenticated"
   const [searchParams, setSearchParams] = useSearchParams()
   const page = pageFromSearchParam(searchParams.get("page"))
   const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
@@ -229,7 +280,48 @@ export default function CommunityCardsPage() {
   const sessionReactionCounts = useRef(new Map<string, number>())
   const [busyReactionCards, setBusyReactionCards] = useState(new Set<number>())
   const [reload, setReload] = useState(0)
-  const listContext = `${page}:${pageSize}`
+  const [filters, setFilters] = useState<NamecardFilterValue>(
+    DEFAULT_NAMECARD_FILTERS
+  )
+  // 搜索框即时响应，查询串慢半拍（与名片册一致）。
+  const [search, setSearch] = useState("")
+  const [series, setSeries] = useState<readonly SeriesOption[]>([])
+  const { catalog, loading: catalogLoading } = useNamecardCharacterCatalog(true)
+
+  /** 共享筛选状态 → 公开墙的查询参数：内部 `exchange` 在墙上叫 `created`。 */
+  const query = useMemo(() => {
+    const { sort, dir, seriesCodes, group, characterIds, tags, matchAll } =
+      filters
+    return {
+      sort: sort === "exchange" ? ("created" as const) : sort,
+      dir,
+      q: search || undefined,
+      series: seriesCodes,
+      group: group.trim() || undefined,
+      character: characterIds,
+      tags,
+      match: matchAll ? ("all" as const) : ("any" as const),
+      excludeOther: filters.excludeOther,
+      excludeCross: filters.excludeCross,
+      declaration: filters.declaration ?? undefined,
+      invert: filters.invert,
+    }
+  }, [filters, search])
+  const filterKey = [
+    query.sort,
+    query.dir,
+    query.q ?? "",
+    query.series.join(","),
+    query.group ?? "",
+    query.character.join(","),
+    query.tags.join(","),
+    query.match,
+    query.excludeOther,
+    query.excludeCross,
+    query.declaration ?? "",
+    query.invert,
+  ].join("|")
+  const listContext = `${page}:${pageSize}:${filterKey}`
   const [loadedContext, setLoadedContext] = useState(listContext)
   if (loadedContext !== listContext) {
     setLoadedContext(listContext)
@@ -245,6 +337,16 @@ export default function CommunityCardsPage() {
   )
   const { fallbackRef, remember, prepareRestore, restore } =
     useNamecardDetailReturn(searchParams.toString())
+  // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它——详情窗保持打开，
+  // 选卡窗口叠在上面。
+  const [exchangeRequest, setExchangeRequest] = useState<{
+    cardNumber: number
+    target?: string | undefined
+    targetCard?: number | undefined
+  } | null>(null)
+  const exchangeSubmit = useExchangeSubmit({
+    onSettled: () => setReload((n) => n + 1),
+  })
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -261,8 +363,31 @@ export default function CommunityCardsPage() {
   }, [page, pageSize, searchParams, setSearchParams])
 
   useEffect(() => {
+    const timer = setTimeout(
+      () => setSearch(filters.q.trim()),
+      SEARCH_DEBOUNCE_MS
+    )
+    return () => clearTimeout(timer)
+  }, [filters.q])
+
+  useEffect(() => {
     let active = true
-    void getNamecardPage(page, pageSize)
+    void getFudabaSeries()
+      .send()
+      .then((payload) => {
+        if (active) setSeries(payload.items)
+      })
+      .catch(() => {
+        if (active) setSeries([])
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void getNamecardPage(page, pageSize, query)
       .send()
       .then((next) => {
         if (active) setResult(next)
@@ -276,7 +401,7 @@ export default function CommunityCardsPage() {
     return () => {
       active = false
     }
-  }, [page, pageSize, reload])
+  }, [page, pageSize, query, reload])
 
   // 站内信与「随机补充一张」用 ?card=<编号> 深链到任意一张名片，当前页里
   // 通常没有它，所以要单独取一次。
@@ -373,15 +498,57 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
+  function changeFilters(next: NamecardFilterValue) {
+    setFilters(next)
+    if (page === 1) return
+    // 任一筛选/排序变化都回第 1 页；URL 同步仍走下面的 page/size effect。
+    const params = new URLSearchParams(searchParams)
+    params.set("page", "1")
+    params.set("size", String(pageSize))
+    setSearchParams(params)
+  }
+
   function openDetail(
     card: Namecard,
-    trigger: HTMLButtonElement,
+    trigger: HTMLButtonElement | null,
     side?: NamecardSide
   ) {
     if (!result) return
-    remember(trigger)
+    if (trigger) remember(trigger)
     setDetailSide(side ?? null)
     detail.open(card)
+  }
+
+  /** 墙 / 详情窗保存标签后，把列表里同一张卡与打开中的详情一起换掉。 */
+  function updateCardTags(cardId: number, tags: string[]) {
+    const update = (card: Namecard): Namecard => ({
+      ...card,
+      tags: tags.map((name) => ({ name, presetId: null })),
+    })
+    setResult((current) =>
+      current
+        ? {
+            ...current,
+            list: current.list.map((card) =>
+              card.id === cardId ? update(card) : card
+            ),
+          }
+        : current
+    )
+    detail.updateCard(cardId, update)
+  }
+
+  /** 点瓦片上的标签：追加筛选（归一去重），到上限就提示。 */
+  function appendTagFilter(tag: string) {
+    const text = normalizeTagText(tag)
+    if (!text) return
+    const key = tagComparisonKey(text)
+    if (filters.tags.some((current) => tagComparisonKey(current) === key)) return
+    if (filters.tags.length >= NAMECARD_TAG_FILTER_LIMIT) {
+      toast.error(`最多同时筛选 ${NAMECARD_TAG_FILTER_LIMIT} 个标签`)
+      return
+    }
+    changeFilters({ ...filters, tags: [...filters.tags, text] })
   }
 
   function recordReaction(cardId: number, emoji: string) {
@@ -462,6 +629,18 @@ export default function CommunityCardsPage() {
     changePage(nextPage)
   }
 
+  const filtered =
+    filters.q.trim() !== "" ||
+    filters.characterIds.length > 0 ||
+    filters.seriesCodes.length > 0 ||
+    filters.tags.length > 0 ||
+    filters.group.trim() !== "" ||
+    filters.matchAll ||
+    filters.excludeOther ||
+    filters.excludeCross ||
+    filters.invert ||
+    filters.declaration !== null
+
   return (
     <PageShell
       width="wide"
@@ -484,11 +663,13 @@ export default function CommunityCardsPage() {
         }}
         finalFocus={() => previewReturnTarget}
       />
+      {/* 公开墙只有卡号（投影里 `claimerUid` 恒为 null）：详情窗把卡号交给选卡窗口反查卡主。 */}
       <NamecardDetailDialog
         card={detail.card}
         canClaim={canClaim}
         initialSide={detailSide}
         busy={detail.card ? busyReactionCards.has(detail.card.id) : false}
+        exchangeTargetCard={detail.card?.cardNumber}
         reactions={
           detail.card
             ? (reactionsByCard[detail.card.id] ?? {
@@ -498,18 +679,54 @@ export default function CommunityCardsPage() {
             : { reactions: {}, loading: false }
         }
         onOpenChange={(open) => {
+          // 选卡窗口叠在详情窗上时，只有上层收：下层的关闭请求一律忽略。
+          if (!open && exchangeRequest !== null) return
           if (!open) closeDetail()
         }}
         onOpenPreview={openPreview}
         onClaim={setClaimCard}
         onSupplement={setSupplementCard}
-        dismissible={claimCard === null && supplementCard === null}
+        onExchange={(card, target) => {
+          // 详情窗不收起：选卡窗口叠在它上面，关掉选卡后还能继续看这张卡。
+          setExchangeRequest({
+            cardNumber: card.cardNumber,
+            target: "accountId" in target ? target.accountId : undefined,
+            targetCard: "cardNumber" in target ? target.cardNumber : undefined,
+          })
+        }}
+        dismissible={
+          claimCard === null &&
+          supplementCard === null &&
+          exchangeRequest === null
+        }
         onReact={(emoji) =>
           detail.card
             ? reactToCard(detail.card.id, emoji)
             : Promise.resolve(false)
         }
+        onTagsChange={(tags) => {
+          if (detail.card) updateCardTags(detail.card.id, tags)
+        }}
         onReturnFocus={restore}
+      />
+      {/* 详情窗的【交换】落点：一页一个选卡窗口，成功后用 reload 重取列表与逐卡标记。 */}
+      <ExchangeCardPickerDialog
+        open={exchangeRequest !== null}
+        onOpenChange={(open) => {
+          if (!open) setExchangeRequest(null)
+        }}
+        target={exchangeRequest?.target}
+        targetCard={exchangeRequest?.targetCard}
+        onSubmit={(cardNumbers) => {
+          const request = exchangeRequest
+          if (!request) return
+          void exchangeSubmit.submit((clientExchangeId) =>
+            requestCardExchange(request.cardNumber, {
+              clientExchangeId,
+              giveCardNumbers: cardNumbers,
+            })
+          )
+        }}
       />
       <NamecardSupplementDialog
         key={`supplement:${supplementCard?.id ?? "none"}`}
@@ -583,6 +800,19 @@ export default function CommunityCardsPage() {
         </h1>
       </header>
 
+      <div className="mt-4">
+        <NamecardFilterBar
+          value={filters}
+          onChange={changeFilters}
+          timeLabel="创建时间"
+          series={series}
+          catalog={catalog}
+          catalogLoading={catalogLoading}
+          showOwner={false}
+          showTags
+        />
+      </div>
+
       <section
         ref={fallbackRef}
         tabIndex={-1}
@@ -593,7 +823,7 @@ export default function CommunityCardsPage() {
         {loading ? (
           <div role="status">
             <span className="sr-only">正在读取名片墙…</span>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-3 md:gap-4">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
               {Array.from({ length: 4 }, (_, index) => (
                 <Skeleton
                   key={index}
@@ -631,9 +861,13 @@ export default function CommunityCardsPage() {
               <EmptyMedia variant="icon">
                 <ImagesIcon aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>还没有公开名片</EmptyTitle>
+              <EmptyTitle>
+                {filtered ? "没有符合条件的名片" : "还没有公开名片"}
+              </EmptyTitle>
               <EmptyDescription>
-                你可以提交第一张双面制作人名片。
+                {filtered
+                  ? "换个筛选条件试试。"
+                  : "你可以提交第一张双面制作人名片。"}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -644,13 +878,14 @@ export default function CommunityCardsPage() {
             <div
               ref={galleryRef}
               data-namecard-gallery
-              className="group/namecards grid grid-cols-2 gap-x-2 gap-y-3 max-md:data-[masonry=ready]:grid-rows-(--namecard-rows) max-md:data-[masonry=ready]:gap-y-0 md:gap-4"
+              className="group/namecards grid grid-cols-2 gap-x-2 gap-y-3 max-md:data-[masonry=ready]:grid-rows-(--namecard-rows) max-md:data-[masonry=ready]:gap-y-0 sm:grid-cols-3 md:gap-4 lg:grid-cols-4"
             >
               {result.list.map((card) => (
                 <NamecardItem
                   key={card.id}
                   card={card}
                   busy={busyReactionCards.has(card.id)}
+                  canEditTags={canEditTags}
                   reactions={
                     reactionsByCard[card.id] ?? {
                       reactions: {},
@@ -659,6 +894,8 @@ export default function CommunityCardsPage() {
                   }
                   onOpenDetail={openDetail}
                   onReact={reactToCard}
+                  onTagClick={appendTagFilter}
+                  onTagsChange={updateCardTags}
                 />
               ))}
             </div>

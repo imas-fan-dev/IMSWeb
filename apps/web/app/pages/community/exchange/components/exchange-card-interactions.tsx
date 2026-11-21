@@ -1,4 +1,4 @@
-import { BookmarkIcon, HeartIcon } from "lucide-react"
+import { HeartIcon } from "lucide-react"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
@@ -8,7 +8,6 @@ import {
   isApiError,
   setFudabaCardInteraction,
   type FudabaCard,
-  type FudabaCardInteractionKind,
   type FudabaCardInteractions,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -38,30 +37,6 @@ export function CardInteractionScope({ children }: { children: ReactNode }) {
   )
 }
 
-const labels = {
-  like: { active: "取消点赞", inactive: "点赞" },
-  favorite: { active: "取消收藏", inactive: "收藏" },
-} as const
-
-function nextInteractions(
-  current: FudabaCardInteractions,
-  kind: FudabaCardInteractionKind,
-  active: boolean
-): FudabaCardInteractions {
-  const delta = active ? 1 : -1
-  return kind === "like"
-    ? {
-        ...current,
-        likes: Math.max(0, current.likes + delta),
-        viewerLiked: active,
-      }
-    : {
-        ...current,
-        favorites: Math.max(0, current.favorites + delta),
-        viewerFavorited: active,
-      }
-}
-
 function failureMessage(error: unknown): string {
   if (isApiError(error)) {
     if (error.status === 401) return "登录状态已过期，请重新登录后再试。"
@@ -79,12 +54,7 @@ interface CardInteractionBarProps {
 }
 
 function serverState(interactions: FudabaCardInteractions): string {
-  return [
-    interactions.likes,
-    interactions.favorites,
-    interactions.viewerLiked,
-    interactions.viewerFavorited,
-  ].join(":")
+  return [interactions.likes, interactions.viewerLiked].join(":")
 }
 
 /**
@@ -114,23 +84,24 @@ function InteractionControls({
     setLocal(value)
     shared?.update(sharedKey, value)
   }
-  const [pending, setPending] = useState<FudabaCardInteractionKind | null>(null)
+  const [pending, setPending] = useState(false)
 
   const interactive = platform.status === "authenticated"
 
-  async function toggle(kind: FudabaCardInteractionKind) {
+  async function toggleLike() {
     if (pending) return
-    const active =
-      kind === "like"
-        ? !interactions.viewerLiked
-        : !interactions.viewerFavorited
+    const active = !interactions.viewerLiked
     const previous = interactions
-    setInteractions(nextInteractions(previous, kind, active))
-    setPending(kind)
+    setInteractions({
+      ...previous,
+      likes: Math.max(0, previous.likes + (active ? 1 : -1)),
+      viewerLiked: active,
+    })
+    setPending(true)
     try {
       const result = await setFudabaCardInteraction(
         card.id,
-        kind,
+        "like",
         active
       ).send()
       setInteractions(result.interactions)
@@ -139,7 +110,7 @@ function InteractionControls({
       setInteractions(previous)
       toast.error(failureMessage(error))
     } finally {
-      setPending(null)
+      setPending(false)
     }
   }
 
@@ -164,19 +135,6 @@ function InteractionControls({
           />
           {interactions.likes}
         </span>
-        <span
-          className="inline-flex items-center gap-1"
-          aria-label={`${interactions.favorites} 次收藏`}
-        >
-          <BookmarkIcon
-            className={cn(
-              "size-3.5",
-              interactions.viewerFavorited && "fill-current"
-            )}
-            aria-hidden="true"
-          />
-          {interactions.favorites}
-        </span>
       </span>
     )
   }
@@ -188,12 +146,12 @@ function InteractionControls({
         variant="ghost"
         size="sm"
         className="h-7 gap-1 px-2 text-xs text-muted-foreground"
-        disabled={pending !== null}
+        disabled={pending}
         aria-pressed={interactions.viewerLiked}
         aria-label={`${
-          interactions.viewerLiked ? labels.like.active : labels.like.inactive
+          interactions.viewerLiked ? "取消点赞" : "点赞"
         }（${interactions.likes}）`}
-        onClick={() => void toggle("like")}
+        onClick={() => void toggleLike()}
       >
         <HeartIcon
           className={cn(
@@ -203,29 +161,6 @@ function InteractionControls({
           aria-hidden="true"
         />
         {interactions.likes}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1 px-2 text-xs text-muted-foreground"
-        disabled={pending !== null}
-        aria-pressed={interactions.viewerFavorited}
-        aria-label={`${
-          interactions.viewerFavorited
-            ? labels.favorite.active
-            : labels.favorite.inactive
-        }（${interactions.favorites}）`}
-        onClick={() => void toggle("favorite")}
-      >
-        <BookmarkIcon
-          className={cn(
-            "size-3.5",
-            interactions.viewerFavorited && "fill-current text-primary"
-          )}
-          aria-hidden="true"
-        />
-        {interactions.favorites}
       </Button>
     </span>
   )

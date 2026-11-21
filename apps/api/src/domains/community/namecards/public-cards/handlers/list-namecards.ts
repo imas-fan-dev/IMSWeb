@@ -12,13 +12,29 @@ import type { ValidatedRequestContext } from '@/middleware/request-validation';
 export async function handleListNamecards(
     c: ValidatedRequestContext<AppEnvironment, 'query', NamecardListQuery>
 ): Promise<Response> {
-    const { page, size } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { page, size } = query;
     try {
-        const total = await namecardRepository(c).countApprovedCards();
-        const rows = await namecardRepository(c).listApprovedCards(
-            size,
-            (page - 1) * size
-        );
+        const { rows, total } = await namecardRepository(c).listApprovedCardsPage({
+            limit: size,
+            offset: (page - 1) * size,
+            sort: query.sort,
+            dir: query.dir,
+            ...(query.q ? { q: query.q } : {}),
+            ...(query.series.length > 0
+                ? { seriesCodes: query.series }
+                : {}),
+            ...(query.group ? { groupName: query.group } : {}),
+            ...(query.tags.length > 0 ? { tags: query.tags } : {}),
+            ...(query.character.length > 0
+                ? { characterIds: query.character }
+                : {}),
+            match: query.match,
+            excludeOther: query.excludeOther,
+            excludeCross: query.excludeCross,
+            ...(query.declaration ? { declaration: query.declaration } : {}),
+            invert: query.invert
+        });
         const claimRepository = services(c).fudaba;
         const statuses = claimRepository
             ? await claimRepository.listLegacyNamecardClaimStatuses(

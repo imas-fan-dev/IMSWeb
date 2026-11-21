@@ -117,6 +117,23 @@
     }
   }
 
+  /*
+   * 落点 ghost 的进入动画（合集 ghost 与展开后的每个格子共用）。
+   * 只写 `from`：终点取元素自己的值——合集是 `opacity-70`、展开格子是 `opacity-60`，
+   * 写死终点会把压暗的透明度顶掉。`backwards` 让错峰的等待期间保持起始态，
+   * 否则会先露一下脸再跳回透明。
+   */
+  .namecard-ghost-enter {
+    animation: namecard-ghost-enter 180ms cubic-bezier(0.2, 0, 0, 1) backwards;
+  }
+
+  @keyframes namecard-ghost-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.96);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     /* 仍然跑一次动画，好让 animationend 把高亮类摘掉。 */
     .card-field-flash::after {
@@ -125,6 +142,11 @@
     }
 
     .card-mode-swap {
+      animation: none;
+    }
+
+    /* 组件侧本来就不会挂这个类（见 `card-drag-ghost.tsx`）；偏好中途变化时这里兜一道。 */
+    .namecard-ghost-enter {
       animation: none;
     }
   }

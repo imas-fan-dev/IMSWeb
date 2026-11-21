@@ -41,8 +41,9 @@ test.describe("namecard preview", () => {
     await page.goto("/community/cards")
     await expect(page).toHaveURL(/\/community\/cards\?page=1&size=12$/)
 
+    // 墙上轮播按公开卡号命名（这张是 #1）；详情窗/预览的可访问名仍用记录 id 42。
     const frontTrigger = page.getByRole("button", {
-      name: "查看制作人名片 42 正面",
+      name: "查看制作人名片 1 正面",
     })
     await expect(frontTrigger.locator("img")).toBeVisible()
     await frontTrigger.click()

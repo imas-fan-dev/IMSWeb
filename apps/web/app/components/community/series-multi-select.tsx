@@ -28,6 +28,7 @@ export function SeriesMultiSelect({
   lockedCodes = [],
   disabled,
   onChange,
+  description,
 }: {
   id: string
   series: readonly SeriesOption[]
@@ -38,6 +39,8 @@ export function SeriesMultiSelect({
   required?: boolean
   disabled: boolean
   onChange: (codes: string[]) => void
+  /** 名片册的筛选不说「由担当角色决定」，换一句提示。 */
+  description?: React.ReactNode
 }) {
   const selected = useMemo(() => new Set(selectedCodes), [selectedCodes])
   const locked = useMemo(() => new Set(lockedCodes), [lockedCodes])
@@ -59,7 +62,7 @@ export function SeriesMultiSelect({
         ) : null}
       </FieldLabel>
       <FieldDescription>
-        担当角色所属的企划会被自动勾选，且不可取消。
+        {description ?? "担当角色所属的企划会被自动勾选，且不可取消。"}
       </FieldDescription>
       {selectedCodes.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">

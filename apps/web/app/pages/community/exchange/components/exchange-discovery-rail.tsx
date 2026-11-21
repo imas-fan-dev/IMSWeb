@@ -1,7 +1,6 @@
 import {
   Building2Icon,
   ChevronRightIcon,
-  ContactRoundIcon,
   EyeIcon,
   MapPinIcon,
   RadioTowerIcon,
@@ -43,7 +42,6 @@ export interface ExchangeDiscoveryRailProps {
   openOnly: boolean
   series: FudabaSeries[]
   offices: FudabaOffice[]
-  cardCount: number
   refreshing: boolean
   error: string | null
   hasFilters: boolean
@@ -56,7 +54,6 @@ export interface ExchangeDiscoveryRailProps {
   onRefresh: () => void
   onOpenFilter: () => void
   onOpenOffices: () => void
-  onOpenCards: () => void
   modalOpen?: boolean
   /**
    * Present only while the map style carries a notice. The rail is the sole
@@ -85,7 +82,6 @@ export function ExchangeDiscoveryRail({
   openOnly,
   series,
   offices,
-  cardCount,
   refreshing,
   error,
   hasFilters,
@@ -98,7 +94,6 @@ export function ExchangeDiscoveryRail({
   onRefresh,
   onOpenFilter,
   onOpenOffices,
-  onOpenCards,
   modalOpen,
   onOpenAttribution,
 }: ExchangeDiscoveryRailProps) {
@@ -164,7 +159,6 @@ export function ExchangeDiscoveryRail({
               modalOpen={modalOpen}
               onOpenFilter={onOpenFilter}
               onOpenOffices={onOpenOffices}
-              onOpenCards={onOpenCards}
               onOpenAttribution={onOpenAttribution}
             />
           </div>
@@ -180,13 +174,6 @@ export function ExchangeDiscoveryRail({
           >
             <Building2Icon aria-hidden="true" />
             {offices.length} 个事务所
-          </Badge>
-          <Badge
-            variant="secondary"
-            className="gap-1.5 font-normal tabular-nums"
-          >
-            <ContactRoundIcon aria-hidden="true" />
-            {cardCount} 张名片
           </Badge>
         </div>
 

@@ -44,14 +44,22 @@ export default function PublicLayout() {
           {t("accessibility.skipToContent")}
         </a>
         {isExchangeMap ? null : <SeriesIconBackground />}
-        <SiteHeader compact={isExchangeMap} />
+        <SiteHeader
+          compact={isExchangeMap}
+          actions={
+            // 活动详情已有独立后台入口；交换地图保留紧凑顶栏。
+            !isExchangeMap && !isEventDetailPage ? (
+              <AdminReturnShortcut />
+            ) : null
+          }
+        />
         <div
           className={cn(
             "relative flex-1 bg-background/75 sm:bg-background/60",
             isModernStory ? "z-20" : "z-10",
             isAccountAuthPage && "flex flex-col",
             isExchangeMap && "min-h-0 bg-[#e8f2f4] sm:bg-[#e8f2f4]",
-            /^\/account\/me(?:\/(?:profile|namecards|favorites|offices|claims))?\/?$/.test(
+            /^\/account\/me(?:\/(?:profile|namecards|collection|offices|claims))?\/?$/.test(
               normalizedPathname
             ) && "lg:flex lg:flex-col"
           )}
@@ -64,14 +72,14 @@ export default function PublicLayout() {
               <SiteFooter />
             </div>
             <div className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 sm:right-6 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
-              {isNamecardWall ? <NamecardCreateEntry /> : null}
               <BackToTop
-                className={cn("static", isWikiCatalog && "max-md:hidden")}
+                className={cn(
+                  "static",
+                  isWikiCatalog && "max-md:hidden",
+                  isNamecardWall && "max-sm:size-12"
+                )}
               />
-              {/* 文章详情页自带后台入口，不再叠一个悬浮按钮。 */}
-              {isEventDetailPage ? null : (
-                <AdminReturnShortcut className="static" />
-              )}
+              {isNamecardWall ? <NamecardCreateEntry /> : null}
             </div>
           </>
         )}

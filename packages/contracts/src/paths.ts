@@ -150,6 +150,11 @@ export function exchangeMyHistoryPath(): string {
   return exchangePath("me/exchanges")
 }
 
+/** 属主的名片清单布局（分组 / 排序 / 快速清单一并保存）。 */
+export function exchangeMyCardsLayoutPath(): string {
+  return exchangePath("me/cards/layout")
+}
+
 export function exchangeDecisionPath(
   exchangeId: string,
   decision: "accept" | "decline"

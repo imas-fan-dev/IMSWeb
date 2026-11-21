@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url"
 import { routeDescriptorsForTarget } from "../app/route-metadata.ts"
 
 export function appPreviewWebOnlyRoutes() {
+  // 同一个路径可以按目标各有一条描述（例如分享页：Web 独立页、App 留在外壳里），
+  // 只按「这条描述是否只有 web」判断会把它们误报成 Web 独占，所以要看 App 侧有没有同路径。
+  const appPaths = new Set(
+    routeDescriptorsForTarget("app").map((route) => route.path)
+  )
   return [
     "/admin",
     "/admin/*",
@@ -14,7 +19,8 @@ export function appPreviewWebOnlyRoutes() {
           route.targets.every((target) => target === "web") &&
           route.layout !== "admin" &&
           route.path &&
-          !route.path.startsWith("admin/")
+          !route.path.startsWith("admin/") &&
+          !appPaths.has(route.path)
       )
       .flatMap((route) => [`/${route.path}`, `/${route.path}/`]),
   ]

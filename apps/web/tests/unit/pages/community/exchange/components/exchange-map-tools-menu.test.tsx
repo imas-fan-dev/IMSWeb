@@ -15,7 +15,6 @@ function Harness() {
         modalOpen={tool !== null}
         onOpenFilter={() => setTool("筛选地图")}
         onOpenOffices={() => setTool("事务所名录")}
-        onOpenCards={() => setTool("名片名录")}
       />
       {tool ? (
         <div role="dialog" aria-label={tool}>
@@ -30,7 +29,6 @@ describe("ExchangeMapToolsMenu", () => {
   it.each([
     ["打开筛选，已应用筛选", "筛选地图"],
     ["打开事务所名录", "事务所名录"],
-    ["打开名片名录", "名片名录"],
   ])(
     "opens %s and returns focus after its panel closes",
     async (entry, title) => {

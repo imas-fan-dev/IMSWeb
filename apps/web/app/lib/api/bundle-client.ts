@@ -21,9 +21,9 @@ interface RoutableRequest {
  * Strips the API baseURL off a request for a file the web bundle serves.
  *
  * The three API clients set `baseURL: API_ORIGIN`, which is right for `/api`
- * and for the public media routes Hono owns, and wrong for `/maps`, `/brand`
- * and `/favicon.ico`: those ship inside the frontend bundle. On the website
- * the two live at one origin and the mistake is invisible; a packaged Tauri
+ * and for the public media routes Hono owns, and wrong for `/maps` and `/brand`:
+ * those ship inside the frontend bundle. On the website the two live at one
+ * origin and the mistake is invisible; a packaged Tauri
  * build serves the bundle from a local scheme and sends the request to the API
  * origin instead, where it 404s.
  *

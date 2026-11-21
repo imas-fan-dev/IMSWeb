@@ -210,7 +210,6 @@ test.describe("app navigation", () => {
     await expect(nav(page).getByRole("link")).toHaveText([
       "首页",
       "社区",
-      "交换地图",
       "资料",
       "我的",
     ])
@@ -257,7 +256,8 @@ test.describe("app navigation", () => {
     })
     installSeededPublicApis(api, [
       { path: "/api/community/content", times: 1 },
-      { path: "/api/community/exchange/series", times: 1 },
+      // 名片墙首屏与一次组件重挂都会各取一次系列清单，两次都属正常。
+      { path: "/api/community/exchange/series", times: { min: 1, max: 2 } },
     ])
     await page.goto(cardsUrl)
     await readCards(page)
@@ -453,20 +453,6 @@ test.describe("app navigation", () => {
       },
       (route) => route.fulfill({ json: makeCharacterCatalog() })
     )
-    api.mock(
-      {
-        method: "GET",
-        path: "/api/community/exchange/me/favorites",
-        times: { min: 0, max: 4 },
-      },
-      (route) =>
-        route.fulfill({
-          json: {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          },
-        })
-    )
   }
 
   async function setAccountSessionHint(page: Page) {
@@ -596,6 +582,11 @@ test.describe("app navigation", () => {
       await page.goto("/community")
       await page.locator('a[href="/community/cards"]').first().click()
       await expect(page).toHaveURL(/\/community\/cards/)
+      // 反应读取由名片挂载后的 effect 触发；等墙面渲染出来再离开，
+      // 否则冷启动的 shard 可能在请求发出前就切走了。
+      await expect(
+        page.getByRole("button", { name: /查看制作人名片/ }).first()
+      ).toBeVisible()
       const afterDetail = await page.evaluate(() => history.length)
       // Reselecting the active tab returns to the root that is already in this
       // tab instead of appending a second root above the detail page.

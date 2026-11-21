@@ -13,6 +13,8 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init());
     #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_geolocation::init());
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_native_glass::init());

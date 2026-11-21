@@ -1,4 +1,5 @@
 import {
+  namecardCardLayoutSchema,
   namecardFavoriteCharacterSchema,
   namecardPageSchema,
   namecardSchema,
@@ -6,9 +7,24 @@ import {
 import { describe, expect, it } from "vitest"
 
 import { assertFactoryCoversSchema } from "@/mocks/data/schema-conformance"
-import { makeNamecard, makeNamecardFavoriteCharacter, makeNamecardPage } from "@/mocks/data/namecards"
+import {
+  makeNamecard,
+  makeNamecardCardLayout,
+  makeNamecardFavoriteCharacter,
+  makeNamecardPage,
+} from "@/mocks/data/namecards"
 
 describe("namecards fixture factories", () => {
+  it("builds a profile layout that matches its contract", () => {
+    const value = makeNamecardCardLayout({
+      defaultCardNumbers: [2, 1],
+      groups: [{ id: "g-1", title: "常用", cardNumbers: [3] }],
+      quickCardNumbers: [2],
+    })
+
+    assertFactoryCoversSchema(namecardCardLayoutSchema, value)
+    expect(namecardCardLayoutSchema.parse(value)).toEqual(value)
+  })
   it("builds an idol that matches its contract", () => {
     const value = makeNamecardFavoriteCharacter()
 

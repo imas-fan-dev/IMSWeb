@@ -1,7 +1,6 @@
 import {
   ArrowLeftIcon,
   Building2Icon,
-  CreditCardIcon,
   MapPinnedIcon,
   RefreshCwIcon,
   SearchIcon,
@@ -52,7 +51,6 @@ import {
   SheetTitle,
 } from "~/components/ui/sheet"
 import { Skeleton } from "~/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { useInfiniteScroll } from "~/lib/use-infinite-scroll"
 import type { FudabaSeries } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
@@ -66,10 +64,7 @@ import {
 } from "./components/exchange-discovery-rail"
 import { ExchangeMapAttributionDialog } from "./components/exchange-map-attribution-dialog"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
-import {
-  ExchangeCard,
-  OfficeCard,
-} from "~/pages/community/exchange/components/exchange-components"
+import { OfficeCard } from "~/pages/community/exchange/components/exchange-components"
 import {
   ExchangeDataRevision,
   ExchangeMapDialogContext,
@@ -85,8 +80,6 @@ import {
   rememberExchangeMapFilters,
 } from "~/pages/community/exchange/maps/exchange-map-model"
 import "~/pages/community/exchange/maps/exchange-office-map.css"
-
-type DirectoryView = "offices" | "cards"
 
 function mapToolsFocusTarget(...preferred: (HTMLElement | null)[]) {
   const candidates = [
@@ -226,162 +219,83 @@ function FilterControls({
 
 interface DirectoryResultsProps {
   mapDialog?: boolean
-  view: DirectoryView
   state: DiscoveryState
   seriesMap: ReadonlyMap<string, FudabaSeries>
   hasFilters: boolean
   loadingMoreOffices: boolean
-  loadingMoreCards: boolean
-  onViewChange: (view: DirectoryView) => void
   onResetFilters: () => void
   onLoadMoreOffices: () => void
-  onLoadMoreCards: () => void
 }
 
 function DirectoryResults({
   mapDialog = false,
-  view,
   state,
   seriesMap,
   hasFilters,
   loadingMoreOffices,
-  loadingMoreCards,
-  onViewChange,
   onResetFilters,
   onLoadMoreOffices,
-  onLoadMoreCards,
 }: DirectoryResultsProps) {
   const listClassName = mapDialog ? "grid gap-3 md:grid-cols-2" : "space-y-3"
   const footerClassName = cn("py-2", mapDialog && "md:col-span-2")
-  // Each rail is its own scroller inside a full-height pane, so the sentinels
-  // are watched against the viewport and use a rail-sized margin rather than
-  // the page-sized one a document feed wants. Pull-to-refresh has no place
-  // here: this route never scrolls the window, so the gesture could not tell a
-  // pull from an ordinary drag. The toolbar keeps its refresh button.
+  // This list scrolls inside a pane, so use a smaller margin than a page feed.
   const officesSentinelRef = useInfiniteScroll({
     hasNextPage: state.officePageInfo.hasNextPage,
     loading: loadingMoreOffices,
     onLoadMore: onLoadMoreOffices,
     rootMargin: 200,
   })
-  const cardsSentinelRef = useInfiniteScroll({
-    hasNextPage: state.cardPageInfo.hasNextPage,
-    loading: loadingMoreCards,
-    onLoadMore: onLoadMoreCards,
-    rootMargin: 200,
-  })
 
   return (
-    <Tabs
-      value={view}
-      onValueChange={(value) => onViewChange(value as DirectoryView)}
-      className="min-h-0 flex-1 gap-0"
-    >
-      <div className="border-b px-4 pb-3">
-        <TabsList className="w-full" aria-label="公开名录类型">
-          <TabsTrigger value="offices">
-            <Building2Icon aria-hidden="true" />
-            事务所
-          </TabsTrigger>
-          <TabsTrigger value="cards">
-            <CreditCardIcon aria-hidden="true" />
-            名片
-          </TabsTrigger>
-        </TabsList>
+    <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold">公开事务所</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {hasFilters ? "当前筛选结果" : "按访问热度排列"}
+          {" · 已加载 "}
+          {state.offices.length}
+          {" 个事务所"}
+        </p>
       </div>
-
-      <TabsContent value="offices" className="min-h-0 overflow-y-auto p-4">
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold">公开事务所</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {hasFilters ? "当前筛选结果" : "按访问热度排列"}
-            {" · 已加载 "}
-            {state.offices.length}
-            {" 个事务所"}
-          </p>
+      {state.error ? (
+        <Alert className="mb-4">
+          <RefreshCwIcon aria-hidden="true" />
+          <AlertTitle>部分内容未能继续加载</AlertTitle>
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {state.offices.length ? (
+        <div className={listClassName}>
+          {state.offices.map((office) => (
+            <OfficeCard key={office.id} office={office} series={seriesMap} />
+          ))}
+          <InfiniteScrollFooter
+            sentinelRef={officesSentinelRef}
+            label="事务所"
+            hasNextPage={state.officePageInfo.hasNextPage}
+            loading={loadingMoreOffices}
+            className={footerClassName}
+          />
         </div>
-        {state.error ? (
-          <Alert className="mb-4">
-            <RefreshCwIcon aria-hidden="true" />
-            <AlertTitle>部分内容未能继续加载</AlertTitle>
-            <AlertDescription>{state.error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {state.offices.length ? (
-          <div className={listClassName}>
-            {state.offices.map((office) => (
-              <OfficeCard key={office.id} office={office} series={seriesMap} />
-            ))}
-            <InfiniteScrollFooter
-              sentinelRef={officesSentinelRef}
-              label="事务所"
-              hasNextPage={state.officePageInfo.hasNextPage}
-              loading={loadingMoreOffices}
-              className={footerClassName}
-            />
-          </div>
-        ) : (
-          <Empty className="min-h-56 border-y">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Building2Icon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>没有符合条件的事务所</EmptyTitle>
-              <EmptyDescription>
-                调整城市、企划或开放状态后重试。
-              </EmptyDescription>
-            </EmptyHeader>
-            {hasFilters ? (
-              <Button type="button" variant="outline" onClick={onResetFilters}>
-                清除筛选
-              </Button>
-            ) : null}
-          </Empty>
-        )}
-      </TabsContent>
-
-      <TabsContent value="cards" className="min-h-0 overflow-y-auto p-4">
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold">可交换名片</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            已加载 {state.cards.length} 张公开名片
-          </p>
-        </div>
-        {state.error ? (
-          <Alert className="mb-4">
-            <RefreshCwIcon aria-hidden="true" />
-            <AlertTitle>部分内容未能继续加载</AlertTitle>
-            <AlertDescription>{state.error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {state.cards.length ? (
-          <div className={listClassName}>
-            {state.cards.map((card) => (
-              <ExchangeCard key={card.id} card={card} series={seriesMap} />
-            ))}
-            <InfiniteScrollFooter
-              sentinelRef={cardsSentinelRef}
-              label="名片"
-              hasNextPage={state.cardPageInfo.hasNextPage}
-              loading={loadingMoreCards}
-              className={footerClassName}
-            />
-          </div>
-        ) : (
-          <Empty className="min-h-56 border-y">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <CreditCardIcon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>当前没有可交换名片</EmptyTitle>
-              <EmptyDescription>
-                已审核且开放交换的名片会显示在这里。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )}
-      </TabsContent>
-    </Tabs>
+      ) : (
+        <Empty className="min-h-56 border-y">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Building2Icon aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>没有符合条件的事务所</EmptyTitle>
+            <EmptyDescription>
+              调整城市、企划或开放状态后重试。
+            </EmptyDescription>
+          </EmptyHeader>
+          {hasFilters ? (
+            <Button type="button" variant="outline" onClick={onResetFilters}>
+              清除筛选
+            </Button>
+          ) : null}
+        </Empty>
+      )}
+    </div>
   )
 }
 
@@ -446,7 +360,6 @@ export default function CommunityExchangePage() {
   const filterReturnFocus = useRef(true)
   const filterTitleId = useId()
   const [directoryOpen, setDirectoryOpen] = useState(false)
-  const [directoryView, setDirectoryView] = useState<DirectoryView>("offices")
   const dialogTitleRef = useRef<HTMLHeadingElement | null>(null)
   const routeOpener = useRef<HTMLElement | null>(null)
   const directoryOpener = useRef<HTMLElement | null>(null)
@@ -519,15 +432,8 @@ export default function CommunityExchangePage() {
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
-  const {
-    state,
-    refreshing,
-    loadingMoreOffices,
-    loadingMoreCards,
-    refresh,
-    loadMoreOffices,
-    loadMoreCards,
-  } = useExchangeDiscovery({ city, seriesCodes, openOnly, dataRevision })
+  const { state, refreshing, loadingMoreOffices, refresh, loadMoreOffices } =
+    useExchangeDiscovery({ city, seriesCodes, openOnly, dataRevision })
 
   const seriesMap = useMemo(
     () => new Map(state.series.map((item) => [item.code, item])),
@@ -568,10 +474,9 @@ export default function CommunityExchangePage() {
     setSearchParams(new URLSearchParams(), { replace: true })
   }
 
-  function openDirectory(view: DirectoryView) {
+  function openDirectory() {
     if (!IS_APP_TARGET && document.activeElement instanceof HTMLElement)
       directoryOpener.current = document.activeElement
-    setDirectoryView(view)
     setDirectoryOpen(true)
   }
 
@@ -596,7 +501,6 @@ export default function CommunityExchangePage() {
     openOnly,
     series: state.series,
     offices: state.offices,
-    cardCount: state.cards.length,
     refreshing,
     error: state.error,
     hasFilters,
@@ -611,8 +515,7 @@ export default function CommunityExchangePage() {
       setDirectoryOpen(false)
       setFilterOpen(true)
     },
-    onOpenOffices: () => openDirectory("offices"),
-    onOpenCards: () => openDirectory("cards"),
+    onOpenOffices: openDirectory,
     modalOpen:
       filterOpen || directoryOpen || attributionOpen || routeDialogOpen,
     onOpenAttribution: attribution ? openAttribution : undefined,
@@ -646,7 +549,7 @@ export default function CommunityExchangePage() {
                     open={openOnly ? true : undefined}
                     onAttributionChange={setAttribution}
                     onSearchAttributionChange={setSearchAttributions}
-                    onSwitchDirectory={() => openDirectory("offices")}
+                    onSwitchDirectory={openDirectory}
                     searchTools={{
                       filterAnchorRef: IS_APP_TARGET
                         ? undefined
@@ -665,11 +568,7 @@ export default function CommunityExchangePage() {
                       },
                       onOpenOffices: () => {
                         setFilterOpen(false)
-                        openDirectory("offices")
-                      },
-                      onOpenCards: () => {
-                        setFilterOpen(false)
-                        openDirectory("cards")
+                        openDirectory()
                       },
                       onRefresh: () => void refresh(),
                       onOpenAttribution: hasAttribution
@@ -775,20 +674,16 @@ export default function CommunityExchangePage() {
                     <SheetHeader className="shrink-0 pr-14">
                       <SheetTitle>公开交换名录</SheetTitle>
                       <SheetDescription>
-                        地图范围之外的公开事务所和名片也会保留在这里。
+                        也可以在这里查看当前地图视野之外的公开事务所。
                       </SheetDescription>
                     </SheetHeader>
                     <DirectoryResults
-                      view={directoryView}
                       state={state}
                       seriesMap={seriesMap}
                       hasFilters={hasFilters}
                       loadingMoreOffices={loadingMoreOffices}
-                      loadingMoreCards={loadingMoreCards}
-                      onViewChange={setDirectoryView}
                       onResetFilters={resetFilters}
                       onLoadMoreOffices={() => void loadMoreOffices()}
-                      onLoadMoreCards={() => void loadMoreCards()}
                     />
                   </SheetContent>
                 </Sheet>
@@ -832,7 +727,7 @@ export default function CommunityExchangePage() {
                     </EmptyMedia>
                     <EmptyTitle>社区交换区尚未开放</EmptyTitle>
                     <EmptyDescription>
-                      事务所与名片完成公开审核后会在这里显示。
+                      事务所完成公开审核后会在这里显示。
                     </EmptyDescription>
                   </EmptyHeader>
                   <NavigationLink
@@ -910,7 +805,7 @@ export default function CommunityExchangePage() {
                     >
                       {routeDialogOpen
                         ? "查看与管理交换资料，关闭后返回地图。"
-                        : "浏览符合当前筛选的公开事务所和名片。"}
+                        : "浏览符合当前筛选的公开事务所。"}
                     </DialogDescription>
                   </div>
                 </div>
@@ -939,16 +834,12 @@ export default function CommunityExchangePage() {
               >
                 <DirectoryResults
                   mapDialog
-                  view={directoryView}
                   state={state}
                   seriesMap={seriesMap}
                   hasFilters={hasFilters}
                   loadingMoreOffices={loadingMoreOffices}
-                  loadingMoreCards={loadingMoreCards}
-                  onViewChange={setDirectoryView}
                   onResetFilters={resetFilters}
                   onLoadMoreOffices={() => void loadMoreOffices()}
-                  onLoadMoreCards={() => void loadMoreCards()}
                 />
               </div>
               {routeDialogOpen ? (

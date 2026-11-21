@@ -43,6 +43,7 @@ import {
 import {
   normalizePlatformProfileMutation,
   normalizePlatformProfileResponse,
+  normalizeMyPlatformAccounts,
   normalizePlatformSession,
 } from "../../media-urls"
 import { parsed } from "../../parsed"
@@ -383,6 +384,7 @@ export function getMyPlatformAccounts() {
     platformApiPath("/me/accounts"),
     parsed(myPlatformAccountsSchema, {
       errorSchema: platformHttpErrorSchema,
+      select: normalizeMyPlatformAccounts,
       meta: withPlatformAuth(),
     })
   )

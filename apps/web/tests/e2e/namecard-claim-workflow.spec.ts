@@ -1,4 +1,3 @@
-import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
@@ -400,7 +399,7 @@ test.describe("namecard claim workflow", () => {
       "POST"
     )
 
-    const dialog = await openClaimDialog(page)
+    const { dialog } = await openClaimDialog(page)
     // 企划 and 担当角色 are left alone: the server derives a series for the
     // claim record from the bound card, the idols, or the legacy card itself.
     await dialog.getByLabel("团体名称").fill("765PRO")
@@ -496,11 +495,17 @@ test.describe("namecard claim workflow", () => {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
     const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    await expect(detail).toBeVisible()
+    // 打开详情本身可能已经把页面滚到名片处；以认领弹窗打开前的位置为基准，
+    // 断言弹窗不会再次移动页面。
+    const pageScrollBefore = await page.evaluate(
+      () => document.scrollingElement?.scrollTop ?? 0
+    )
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)
-    return dialog
+    return { dialog, pageScrollBefore }
   }
 
   // The popup opens with a 100ms zoom-in, so measuring straight after `toBeVisible`
@@ -537,7 +542,7 @@ test.describe("namecard claim workflow", () => {
       page,
     }) => {
       await mockClaimSurface(page)
-      const dialog = await openClaimDialog(page)
+      const { dialog, pageScrollBefore } = await openClaimDialog(page)
 
       const viewport = await page.evaluate(() => ({
         width: window.visualViewport?.width ?? window.innerWidth,
@@ -559,9 +564,10 @@ test.describe("namecard claim workflow", () => {
       expect(submit!.y + submit!.height).toBeLessThanOrEqual(
         viewport.height + 1
       )
+      // 弹窗本身不能再滚动页面：与打开前的滚动位置保持一致。
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
 
       // Touch targets: the close button and every option row.
       const close = await dialog
@@ -583,7 +589,7 @@ test.describe("namecard claim workflow", () => {
     }) => {
       await page.setViewportSize({ width: 320, height: 568 })
       await mockClaimSurface(page)
-      const dialog = await openClaimDialog(page)
+      const { dialog } = await openClaimDialog(page)
 
       const body = dialog.locator('[data-slot="dialog-body"]')
       const footer = dialog.locator('[data-slot="dialog-footer"]')
@@ -596,6 +602,11 @@ test.describe("namecard claim workflow", () => {
       }))
       expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight)
 
+      // 打开弹窗本身可能让页面滚动到卡片所在位置；要断言的是「滚动弹窗 body 不会带动页面」，
+      // 因此以打开后的页面滚动位置为基准，而不是硬编码 0。
+      const pageScrollBefore = await page.evaluate(
+        () => document.scrollingElement?.scrollTop ?? 0
+      )
       const footerBefore = await footer.boundingBox()
       const closeBefore = await close.boundingBox()
       await body.evaluate((node) => {
@@ -608,7 +619,7 @@ test.describe("namecard claim workflow", () => {
       expectSameBox(closeBefore, await close.boundingBox())
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
     })
   })
 
@@ -654,6 +665,7 @@ test.describe("namecard claim workflow", () => {
           id: "legacy-envelope-1",
           kind: "legacy-card-match",
           cardNumber: 42,
+          exchangeId: null,
           title: "这张旧名片是您的吗？",
           body: "名片墙上有一张无主名片 #42，制作人名称是「认领测试制作人」。",
           readAt: null,
@@ -712,17 +724,6 @@ test.describe("namecard claim workflow", () => {
         },
         "POST",
         { min: 0, max: 12 }
-      )
-      await api.mockRoute(
-        "**/api/community/exchange/me/favorites?**",
-        async (route) => {
-          const response = {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          } satisfies FudabaCardPage
-          await route.fulfill({ status: 200, json: response })
-        },
-        "GET"
       )
       await api.mockRoute(
         "**/api/cards**",
@@ -793,7 +794,6 @@ test.describe("namecard claim workflow", () => {
     page,
     api,
   }, testInfo) => {
-    installEmptyWikiCatalogMock(api)
     await installAdminAuthMock(page, api, {
       csrfToken: "claim-admin-csrf",
       user: {

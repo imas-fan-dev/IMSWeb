@@ -46,8 +46,6 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
     for (const [path, kind, active] of [
         ['/cards/:cardId/like', 'like', true],
         ['/cards/:cardId/like', 'like', false],
-        ['/cards/:cardId/favorite', 'favorite', true],
-        ['/cards/:cardId/favorite', 'favorite', false],
     ] as const) {
         const handler = createHandleFudabaCardInteraction(kind, active);
         if (active) routes.put(path, ...write, paramSchemaValidator(fudabaCardIdParamsSchema), handler);

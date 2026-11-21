@@ -1,11 +1,9 @@
 /*
  * App shell: the `--app-*` viewport tokens, the immersive override, the app
- * viewport gesture policy, the native-glass DOM twin hiding, and the wiki
- * mobile-search lift that clears the admin return shortcut.
+ * viewport gesture policy, and the native-glass DOM twin hiding.
  *
- * Tokens and gesture policy sit in `@layer base`. The native-glass hiding and
- * the wiki lift sit in `@layer overrides` because each one must win against a
- * utility class on the same element.
+ * Tokens and gesture policy sit in `@layer base`. The native-glass hiding
+ * sits in `@layer overrides` to win against utility classes.
  */
 
 @layer base {
@@ -46,6 +44,19 @@
   }
 }
 
+@layer components {
+  .app-android-exchange-arc {
+    /* Keep the caption columns within the same safe edges as the tab bar. */
+    bottom: calc(50% + 2.5rem);
+    display: grid;
+    width: min(18rem, calc(100dvw - 2 * var(--app-safe-inline, 1rem)));
+    translate: -50% 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.5rem;
+  }
+}
+
 @layer overrides {
   /*
    * Native Liquid Glass controls are drawn above the WKWebView, which only
@@ -63,24 +74,39 @@
   }
 }
 
-@layer overrides {
-  /*
-   * Wiki mobile search floats above the admin return shortcut. The lift is the
-   * shortcut's `h-11` (2.75rem) plus its own bottom offset (`bottom-1rem`, or
-   * `sm:bottom-1.5rem`), so the search panel clears the button instead of
-   * covering it.
-   */
-  @media (max-width: 767px) {
-    body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
-      --wiki-search-lift: 4.25rem;
-      bottom: calc(var(--wiki-search-lift) + env(safe-area-inset-bottom));
-    }
-  }
+/*
+ * 扫码取景：原生相机画面垫在 WebView 后面（插件把 WebView 背景置透明）。
+ * 只要页面还有不透明背景，相机就被盖住；这一条把除取景层以外的 body 子节点
+ * 全部让开，镂空区域才真的透到相机。
+ */
+html[data-camera-scan],
+html[data-camera-scan] body {
+  background: transparent !important;
+}
 
-  @media (min-width: 640px) and (max-width: 767px) {
-    body:has([data-admin-return-shortcut]) [data-wiki-mobile-search="modern"] {
-      --wiki-search-lift: 4.75rem;
-      bottom: calc(var(--wiki-search-lift) + env(safe-area-inset-bottom));
-    }
+html[data-camera-scan] body > :not([data-scan-overlay]) {
+  visibility: hidden;
+}
+
+/* 扫码取景框里的下扫亮线：只表达「正在扫描」，减少动态效果时保持静止。 */
+@keyframes scan-sweep {
+  0%,
+  100% {
+    transform: translateY(-3.5rem);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(3.5rem);
+    opacity: 1;
+  }
+}
+
+.scan-sweep {
+  animation: scan-sweep 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-sweep {
+    animation: none;
   }
 }

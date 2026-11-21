@@ -1,11 +1,11 @@
 import type { NamecardExchangeHistoryEntry } from '@imsweb/contracts/namecards';
-import type { NamecardCollectionQueryContext } from '@/domains/community/namecards/exchange/request';
+import type { NamecardExchangeHistoryQueryContext } from '@/domains/community/namecards/exchange/request';
 import type { NamecardExchangeHistoryPageResponse } from '@/domains/community/namecards/response';
 import { namecardRepository } from '@/middleware/hono-context';
 
 /** 交换记录：发起与收到都算自己的一条。 */
 export async function handleListExchanges(
-    c: NamecardCollectionQueryContext,
+    c: NamecardExchangeHistoryQueryContext,
 ): Promise<Response> {
     const query = c.req.valid('query');
     const page = query.page ?? 1;

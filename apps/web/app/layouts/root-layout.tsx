@@ -1,6 +1,13 @@
 import { ThemeProvider } from "next-themes"
 import type { ReactNode } from "react"
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router"
+import {
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  useLocation,
+} from "react-router"
 
 import { GlassFilterDefs } from "~/components/shared/glass-filter-defs"
 import { ImageLoadingIndicator } from "~/components/shared/image-loading-indicator"
@@ -11,8 +18,20 @@ import { Toaster } from "~/components/ui/sonner"
 import { I18nProvider } from "~/i18n/provider"
 import { IS_APP_TARGET, VIEWPORT_CONTENT } from "~/lib/app-target"
 import { defaultLanguage } from "~/i18n/resources"
+import { canonicalSiteUrl, siteSeoOrigin } from "~/lib/site-seo"
+
+const seoOrigin = IS_APP_TARGET
+  ? undefined
+  : siteSeoOrigin(import.meta.env.VITE_IMS_PUBLIC_SITE_ORIGIN)
 
 export function RootDocumentLayout({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation()
+  // The shared SPA shell also renders at `/`. The home route emits its
+  // own canonical during prerendering so the shell cannot inherit it.
+  const canonical =
+    seoOrigin && pathname !== "/" && pathname !== "/index.html"
+      ? canonicalSiteUrl(pathname, seoOrigin)
+      : undefined
   return (
     <html
       lang={defaultLanguage}
@@ -29,6 +48,7 @@ export function RootDocumentLayout({ children }: { children: ReactNode }) {
         <meta name="viewport" content={VIEWPORT_CONTENT} />
         <meta name="theme-color" content="#171717" />
         <Meta />
+        {canonical ? <link rel="canonical" href={canonical} /> : null}
         <Links />
       </head>
       <body className="min-h-svh antialiased">
@@ -45,7 +65,7 @@ export function RootAppLayout() {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <GlassFilterDefs />
       <ImageLoadingIndicator />
-      <SeriesBrowserIcon />
+      {IS_APP_TARGET ? <SeriesBrowserIcon /> : null}
       <ThemeColorSync />
       <TauriInteractionGuard />
       <Outlet />

@@ -475,16 +475,16 @@ describe("AdminLayout", () => {
       "href",
       "/admin/cards/manage"
     )
-    expect(screen.getByText("标签管理")).toHaveAttribute(
-      "aria-disabled",
-      "true"
+    expect(screen.getByRole("link", { name: "标签管理" })).toHaveAttribute(
+      "href",
+      "/admin/tags"
     )
 
     await user.unhover(group)
     await user.hover(group)
 
     expect(group).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByText("标签管理")).toBeVisible()
+    expect(screen.getByRole("link", { name: "标签管理" })).toBeVisible()
   })
 
   it("marks only the matching catalog child as current", () => {

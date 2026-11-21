@@ -10,6 +10,7 @@ import {
   successEnvelope,
 } from "../common.js"
 import { namecardDiffSideSchema } from "../namecards.js"
+import { namecardTagNamesSchema } from "../namecard-tags.js"
 
 import {
   NAMECARD_FAVORITE_CHARACTER_LIMIT,
@@ -85,6 +86,11 @@ export const fudabaCardClaimPayloadSchema = z
     madeOn: claimFieldSchema.madeOn.optional(),
     seriesCodes: claimFieldSchema.seriesCodes.optional(),
     favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
+    /**
+     * 标签随认领表单提交，但即时生效、**不写进 payload**：处理层会在创建认领
+     * 记录前摘掉它，审核 diff 里也不会出现。
+     */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict()
 
@@ -167,6 +173,8 @@ export const fudabaCardSupplementPayloadSchema = z
     groupName: claimFieldSchema.groupName.optional(),
     seriesCodes: claimFieldSchema.seriesCodes.optional(),
     favoriteCharacterIds: claimFieldSchema.favoriteCharacterIds.optional(),
+    /** 同认领：即时生效，处理层在写入补充记录前摘掉。 */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict()
   .refine(filledInAtLeastOnce, { message: "至少要改动一处资料" })
@@ -406,10 +414,11 @@ export const NAMECARD_NOTIFICATION_KINDS = [
   // An ownerless card whose producer name matches an account invites that
   // account to claim it.
   "legacy-card-match",
-  // 手动交换：待确认与两种结果各通知一次。
+  // 手动交换：待确认与三种结果（同意 / 拒绝 / 超时）各通知一次。
   "card-exchange-requested",
   "card-exchange-accepted",
   "card-exchange-declined",
+  "card-exchange-expired",
   // Backoffice station messages share this inbox; they carry no card number.
   "station-message",
 ] as const
@@ -425,6 +434,8 @@ export const namecardNotificationSchema = z
     id: z.string().min(1),
     kind: namecardNotificationKindSchema,
     cardNumber: z.number().int().positive().nullable(),
+    /** 这条通知对应的交换记录；只有 `card-exchange-*` 四类带，其余为 null。 */
+    exchangeId: z.string().min(1).nullable(),
     title: z.string().min(1),
     body: z.string().max(4000),
     readAt: z.string().nullable(),

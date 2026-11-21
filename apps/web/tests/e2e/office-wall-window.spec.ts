@@ -13,7 +13,6 @@ test("loads the complete wall observation area and replaces distant content with
     : { min: 1, max: 8 }
   installSeededPublicApis(api, [
     { path: "/api/community/exchange/offices", times: backgroundTimes },
-    { path: "/api/community/exchange/cards", times: backgroundTimes },
     { path: "/api/community/exchange/map/config", times: { min: 0, max: 8 } },
     { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
   ])

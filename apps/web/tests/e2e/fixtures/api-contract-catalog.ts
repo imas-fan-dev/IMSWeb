@@ -162,6 +162,8 @@ import {
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
+  namecardCardLayoutRequestSchema,
+  namecardCardLayoutSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
   namecardMutationResponseSchema,
@@ -175,6 +177,8 @@ import {
   myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
+  namecardCollectionPageSchema,
+  namecardCollectionQuerySchema,
 } from "@imsweb/contracts/namecards"
 import {
   newsErrorResponseSchema,
@@ -580,7 +584,7 @@ export function resolveApiContract(
     }
   if (
     (method === "PUT" || method === "DELETE") &&
-    /^\/api\/community\/exchange\/cards\/[^/]+\/(like|favorite)$/.test(path)
+    /^\/api\/community\/exchange\/cards\/[^/]+\/like$/.test(path)
   )
     return {
       body: z.object({}).strict(),
@@ -674,6 +678,17 @@ export function resolveApiContract(
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaOwnerCardListSchema, ...fudabaErrors },
     }
+  // 精确匹配必须排在下面的名片详情正则之前，否则 `/cards/layout` 会被当成详情。
+  if (method === "GET" && path === `${exchange}/me/cards/layout`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
+    }
+  if (method === "PUT" && path === `${exchange}/me/cards/layout`)
+    return {
+      body: namecardCardLayoutRequestSchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
+    }
   if (
     method === "GET" &&
     /^\/api\/community\/exchange\/me\/cards\/[^/]+$/.test(path)
@@ -724,15 +739,15 @@ export function resolveApiContract(
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
-  if (method === "GET" && path === `${exchange}/me/favorites`)
-    return {
-      query: fudabaCardQuerySchema,
-      responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
-    }
   if (method === "POST" && path === `${exchange}/offices`)
     return {
       body: fudabaOfficeFieldsRequestSchema,
       responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/collection`)
+    return {
+      query: namecardCollectionQuerySchema,
+      responses: { 200: namecardCollectionPageSchema, ...fudabaErrors },
     }
   if (method === "GET" && path === `${exchange}/me/offices`)
     return {

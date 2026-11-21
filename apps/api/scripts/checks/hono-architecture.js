@@ -326,6 +326,7 @@ const portContracts = new Map([
         ["NamecardCharacterRepository"],
     ],
     ["repositories/namecard-units.ts", ["NamecardUnitRepository"]],
+    ["repositories/namecard-tags.ts", ["NamecardTagRepository"]],
     ["repositories/catalog.ts", ["CatalogRepository"]],
     ["repositories/station-messages.ts", ["StationMessageRepository"]],
     ["repositories/fudaba-review-policy.ts", ["FudabaReviewPolicy"]],
@@ -402,6 +403,7 @@ const utilsCategories = new Set([
     "crypto",
     "http",
     "media",
+    "sorting",
     "storage",
     "validation",
 ]);
@@ -597,6 +599,7 @@ const domainSections = new Map([
             "platform-users",
             "namecard-characters",
             "namecard-units",
+            "namecard-tags",
             "catalog",
             "station-messages",
         ],

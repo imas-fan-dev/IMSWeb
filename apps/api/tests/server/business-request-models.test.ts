@@ -82,27 +82,18 @@ test.describe('business request models', () => {
     });
 
     test('namecard request models enforce IDs and preserve legacy parseInt pagination', () => {
-        assert.deepEqual(validateNamecardListQuery({}), { page: 1, size: 25 });
-        assert.deepEqual(validateNamecardListQuery({ page: '3', size: '12' }), {
-            page: 3,
-            size: 12
-        });
-        assert.deepEqual(validateNamecardListQuery({ page: 'abc', size: 'abc' }), {
-            page: 1,
-            size: 25
-        });
-        assert.deepEqual(validateNamecardListQuery({ page: '0', size: '0' }), {
-            page: 1,
-            size: 25
-        });
-        assert.deepEqual(validateNamecardListQuery({ page: '1foo', size: '1foo' }), {
-            page: 1,
-            size: 1
-        });
-        assert.deepEqual(validateNamecardListQuery({ page: '101', size: '101' }), {
-            page: 101,
-            size: 101
-        });
+        // 分页归一化只关心 page/size；筛选字段的默认值由名片墙用例覆盖。
+        const paging = (value: unknown) => {
+            const { page, size } = validateNamecardListQuery(value);
+            return { page, size };
+        };
+        assert.deepEqual(paging({}), { page: 1, size: 25 });
+        assert.deepEqual(paging({ page: '3', size: '12' }), { page: 3, size: 12 });
+        assert.deepEqual(paging({ page: 'abc', size: 'abc' }), { page: 1, size: 25 });
+        assert.deepEqual(paging({ page: '0', size: '0' }), { page: 1, size: 25 });
+        assert.deepEqual(paging({ page: '1foo', size: '1foo' }), { page: 1, size: 1 });
+        // 每页条数上限 100。
+        assert.deepEqual(paging({ page: '101', size: '101' }), { page: 101, size: 100 });
         const defaultAdminPage = {
             page: 1,
             status: null,

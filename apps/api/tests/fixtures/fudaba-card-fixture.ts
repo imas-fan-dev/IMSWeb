@@ -163,9 +163,7 @@ export function makeFudabaPublicCardRecord(
         credits: [],
         created_at: BASELINE_CREATED_AT,
         like_count: 2,
-        favorite_count: 1,
         viewer_liked: false,
-        viewer_favorited: false,
         ...overrides
     };
 }

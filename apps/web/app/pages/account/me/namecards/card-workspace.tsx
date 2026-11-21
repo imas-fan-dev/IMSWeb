@@ -9,7 +9,6 @@ import {
 } from "~/components/ui/dialog"
 import { FileImageIcon } from "lucide-react"
 
-
 import {
   Empty,
   EmptyDescription,
@@ -18,12 +17,21 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty"
 import { Skeleton } from "~/components/ui/skeleton"
-import type { FudabaOwnerCard, FudabaSeries, PlatformProfile } from "~/lib/api"
+import type {
+  FudabaOwnerCard,
+  FudabaSeries,
+  NamecardCardLayout,
+  PlatformProfile,
+} from "~/lib/api"
 import { CardEditor, CardEditorHeading } from "./card-editor"
-import { CardInventory } from "./card-inventory"
+import type { CardManagerCardPatches } from "./card-manager-model"
+import { CardManager } from "./card-manager"
+import { shareHandleFor } from "./card-share-model"
 
 export function CardWorkspace({
   cards,
+  cardLayout,
+  accountId,
   selectedCardId,
   creating,
   loadingDetail,
@@ -38,12 +46,18 @@ export function CardWorkspace({
   onCreated,
   onSaved,
   onDeleted,
+  onLayoutSaved,
   onReload,
   onWriteClosed,
+  onDirtyChange,
+  scrollContainerRef,
 }: {
   active: boolean
   onClose: () => void
   cards: FudabaOwnerCard[]
+  /** 服务端归一后的清单布局；读失败时为 `null`。 */
+  cardLayout: NamecardCardLayout | null
+  accountId: string | null
   selectedCardId: string | null
   creating: boolean
   loadingDetail: boolean
@@ -56,8 +70,20 @@ export function CardWorkspace({
   onCreated: (card: FudabaOwnerCard) => void
   onSaved: (card: FudabaOwnerCard) => void
   onDeleted: (cardId: string) => void
+  /**
+   * 保存布局成功后把服务端归一后的布局与**只含差异**的卡片字段写回上层；
+   * 上层用函数式合并，请求在飞期间新建/删除的卡不受影响。
+   */
+  onLayoutSaved: (
+    layout: NamecardCardLayout,
+    patches: CardManagerCardPatches
+  ) => void
   onReload: (cardId: string) => Promise<FudabaOwnerCard>
   onWriteClosed: () => void
+  /** 编辑草稿的脏标记；上层用它决定刷新前是否先确认。 */
+  onDirtyChange?: (dirty: boolean) => void
+  /** App 目标下拖拽边缘滚动作用的页面级滚动容器。 */
+  scrollContainerRef?: { readonly current: HTMLElement | null }
 }) {
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null
 
@@ -104,16 +130,22 @@ export function CardWorkspace({
   const open = active && Boolean(creating || selectedCard)
   return (
     <div className="min-w-0">
-      <CardInventory
+      <CardManager
         cards={cards}
+        layout={cardLayout}
+        accountId={accountId}
         selectedCardId={selectedCardId}
         readOnly={readOnly}
+        shareHandle={shareHandleFor(profile)}
         onSelect={(id) => {
           onSelect(id)
         }}
         onCreate={() => {
           onCreate()
         }}
+        onLayoutSaved={onLayoutSaved}
+        onDirtyChange={onDirtyChange}
+        scrollContainerRef={scrollContainerRef}
       />
       {mapDialog ? (
         open ? (

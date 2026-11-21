@@ -20,6 +20,24 @@ import {
   namecardFeedbackMutationSchema,
   namecardMutationResponseSchema,
   resolveNamecardFeedbackRequestSchema,
+  adminNamecardTagBlockedMatchListSchema,
+  adminNamecardTagBlocklistCreateRequestSchema,
+  adminNamecardTagBlocklistDeleteSchema,
+  adminNamecardTagBlocklistListSchema,
+  adminNamecardTagBlocklistMutationSchema,
+  adminNamecardTagBlocklistRemoveMatchesSchema,
+  adminNamecardTagBlocklistUpdateRequestSchema,
+  adminNamecardTagBlockRequestSchema,
+  adminNamecardTagBlockResultSchema,
+  adminNamecardTagFreeListSchema,
+  adminNamecardTagPresetCreateRequestSchema,
+  adminNamecardTagPresetDeleteSchema,
+  adminNamecardTagPresetListSchema,
+  adminNamecardTagPresetMergeRequestSchema,
+  adminNamecardTagPresetMutationSchema,
+  adminNamecardTagPresetUpdateRequestSchema,
+  adminNamecardTagPromoteRequestSchema,
+  adminNamecardTagPromoteResponseSchema,
 } from "@imsweb/contracts/namecards"
 import { platformProfileHttpErrorSchema } from "@imsweb/contracts/platform"
 import {
@@ -741,3 +759,240 @@ export function uploadAdminPlatformAccountKindIcon(kindId: string, file: File) {
     })
   )
 }
+
+/* ---- 管理台：标签库 ---- */
+
+const ADMIN_TAGS_PATH = adminApiPath("/namecard-tags")
+
+/** The three tag library lists share this paging/search shape. */
+export interface AdminNamecardTagSearchInput {
+  q?: string
+  page?: number
+  pageSize?: number
+}
+
+export type AdminNamecardFreeSort = "frequency" | "recent"
+
+export interface AdminNamecardFreeTagSearchInput
+  extends AdminNamecardTagSearchInput {
+  sort?: AdminNamecardFreeSort
+}
+
+function tagSearchParams(input: AdminNamecardTagSearchInput) {
+  const params: Record<string, string> = {}
+  const q = input.q?.trim()
+  if (q) params.q = q
+  if (input.page !== undefined) params.page = String(input.page)
+  if (input.pageSize !== undefined) params.pageSize = String(input.pageSize)
+  return params
+}
+
+/** 自由标签：按使用频率（或首次出现）排序，支持关键字检索与分页。 */
+export function getAdminNamecardFreeTags(
+  input: AdminNamecardFreeTagSearchInput = {}
+) {
+  return adminApiClient.Get(
+    `${ADMIN_TAGS_PATH}/free`,
+    parsed(adminNamecardTagFreeListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: {
+        ...tagSearchParams(input),
+        ...(input.sort ? { sort: input.sort } : {}),
+      },
+    })
+  )
+}
+
+/** 把一条自由标签提升为预设；不传 `presetName` 时沿用标签自身。 */
+export function promoteAdminNamecardFreeTag(
+  input: z.input<typeof adminNamecardTagPromoteRequestSchema>
+) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/free/promote`,
+    adminNamecardTagPromoteRequestSchema.parse(input),
+    parsed(adminNamecardTagPromoteResponseSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+/** 屏蔽一条自由标签：移除现存标签并追加屏蔽词（默认按原文匹配）。 */
+export function blockAdminNamecardFreeTag(
+  input: z.input<typeof adminNamecardTagBlockRequestSchema>
+) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/free/block`,
+    adminNamecardTagBlockRequestSchema.parse(input),
+    parsed(adminNamecardTagBlockResultSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function getAdminNamecardTagPresets(
+  input: AdminNamecardTagSearchInput = {}
+) {
+  return adminApiClient.Get(
+    `${ADMIN_TAGS_PATH}/presets`,
+    parsed(adminNamecardTagPresetListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: tagSearchParams(input),
+    })
+  )
+}
+
+export function createAdminNamecardTagPreset(
+  input: z.input<typeof adminNamecardTagPresetCreateRequestSchema>
+) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/presets`,
+    adminNamecardTagPresetCreateRequestSchema.parse(input),
+    parsed(adminNamecardTagPresetMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function updateAdminNamecardTagPreset(
+  id: number,
+  input: z.input<typeof adminNamecardTagPresetUpdateRequestSchema>
+) {
+  return adminApiClient.Patch(
+    `${ADMIN_TAGS_PATH}/presets/${id}`,
+    adminNamecardTagPresetUpdateRequestSchema.parse(input),
+    parsed(adminNamecardTagPresetMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function deleteAdminNamecardTagPreset(id: number) {
+  return adminApiClient.Delete(
+    `${ADMIN_TAGS_PATH}/presets/${id}`,
+    undefined,
+    parsed(adminNamecardTagPresetDeleteSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+/** 把一条自由标签并入已有预设的别名，并让现存标签指向该预设。 */
+export function mergeAdminNamecardFreeTag(
+  presetId: number,
+  input: z.input<typeof adminNamecardTagPresetMergeRequestSchema>
+) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/presets/${presetId}/merge`,
+    adminNamecardTagPresetMergeRequestSchema.parse(input),
+    parsed(adminNamecardTagPresetMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function getAdminNamecardTagBlocklist(
+  input: AdminNamecardTagSearchInput = {}
+) {
+  return adminApiClient.Get(
+    `${ADMIN_TAGS_PATH}/blocklist`,
+    parsed(adminNamecardTagBlocklistListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+      params: tagSearchParams(input),
+    })
+  )
+}
+
+/** 现存自由标签里被任意屏蔽词命中的条目（附第一条命中规则）。 */
+export function getAdminNamecardTagBlockedMatches() {
+  return adminApiClient.Get(
+    `${ADMIN_TAGS_PATH}/blocklist/matches`,
+    parsed(adminNamecardTagBlockedMatchListSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function createAdminNamecardTagBlocklist(
+  input: z.input<typeof adminNamecardTagBlocklistCreateRequestSchema>
+) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/blocklist`,
+    adminNamecardTagBlocklistCreateRequestSchema.parse(input),
+    parsed(adminNamecardTagBlocklistMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function updateAdminNamecardTagBlocklist(
+  id: number,
+  input: z.input<typeof adminNamecardTagBlocklistUpdateRequestSchema>
+) {
+  return adminApiClient.Patch(
+    `${ADMIN_TAGS_PATH}/blocklist/${id}`,
+    adminNamecardTagBlocklistUpdateRequestSchema.parse(input),
+    parsed(adminNamecardTagBlocklistMutationSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export function deleteAdminNamecardTagBlocklist(id: number) {
+  return adminApiClient.Delete(
+    `${ADMIN_TAGS_PATH}/blocklist/${id}`,
+    undefined,
+    parsed(adminNamecardTagBlocklistDeleteSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+/** 移除某条屏蔽词命中的全部现存自由标签；规则本身保留。 */
+export function removeAdminNamecardTagBlocklistMatches(id: number) {
+  return adminApiClient.Post(
+    `${ADMIN_TAGS_PATH}/blocklist/${id}/remove-matches`,
+    undefined,
+    parsed(adminNamecardTagBlocklistRemoveMatchesSchema, {
+      errorSchema: backofficeProtectedHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
+export type {
+  AdminNamecardTagBlockedMatch,
+  AdminNamecardTagBlockedMatchList,
+  AdminNamecardTagBlocklistDelete,
+  AdminNamecardTagBlocklistItem,
+  AdminNamecardTagBlocklistList,
+  AdminNamecardTagBlocklistMutation,
+  AdminNamecardTagBlocklistRemoveMatches,
+  AdminNamecardTagBlockRequest,
+  AdminNamecardTagBlockResult,
+  AdminNamecardTagFree,
+  AdminNamecardTagFreeList,
+  AdminNamecardTagFreeQuery,
+  AdminNamecardTagPreset,
+  AdminNamecardTagPresetCreateRequest,
+  AdminNamecardTagPresetDelete,
+  AdminNamecardTagPresetList,
+  AdminNamecardTagPresetListQuery,
+  AdminNamecardTagPresetMergeRequest,
+  AdminNamecardTagPresetMutation,
+  AdminNamecardTagPresetUpdateRequest,
+  AdminNamecardTagPromoteRequest,
+  AdminNamecardTagPromoteResponse,
+} from "@imsweb/contracts/namecards"

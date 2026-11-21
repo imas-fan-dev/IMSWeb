@@ -36,6 +36,7 @@ import { registerAdminPlatformUserRoutes } from "@/domains/admin/platform-users/
 import { registerAdminStationMessageRoutes } from "@/domains/admin/station-messages/routes";
 import { registerAdminNamecardCharacterRoutes } from "@/domains/admin/namecard-characters/routes";
 import { registerAdminNamecardUnitRoutes } from "@/domains/admin/namecard-units/routes";
+import { registerAdminNamecardTagRoutes } from "@/domains/admin/namecard-tags/routes";
 import { registerAdminCatalogRoutes } from "@/domains/admin/catalog/routes";
 import { registerAboutRoutes } from "@/domains/content/about/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
@@ -50,6 +51,7 @@ import { registerBirthdayRoutes } from '@/domains/content/birthdays/routes';
 import { registerLiveScheduleRoutes } from "@/domains/content/live-schedule/routes";
 import { registerMediaRoutes } from "@/domains/delivery/media/routes";
 import { registerNamecardRoutes } from "@/domains/community/namecards/routes";
+import { handleExchangeSharePage } from "@/domains/community/namecards/exchange/handlers/share-page-html";
 import { registerNewsRoutes } from "@/domains/content/news/routes";
 import { registerProducerMapRoutes } from "@/domains/content/producer-map/routes";
 import { registerPlatformAccountSecurityRoutes } from "@/domains/identity/platform-account-security/routes";
@@ -278,6 +280,7 @@ export function createHonoApp<
     registerAdminStationMessageRoutes(app);
     registerAdminNamecardCharacterRoutes(app);
     registerAdminNamecardUnitRoutes(app);
+    registerAdminNamecardTagRoutes(app);
     registerAdminCatalogRoutes(app);
     registerNamecardRoutes(app);
     registerEventRoutes(app);
@@ -294,6 +297,11 @@ export function createHonoApp<
     registerSitePackageRoutes(app);
     registerSiteRoutes(app);
     registerWikiRoutes(app, (c) => c.get("services"));
+
+    // 站点分享页（不在 apiPath 下）：动态路径没法预渲染，所以在 Hono 层接住，
+    // 由 handler 往 SPA 空壳里注入逐页 OGP 标签。必须排在 notFound 之前。
+    app.get("/exchange/card/:slug", handleExchangeSharePage);
+    app.get("/exchange/:handle", handleExchangeSharePage);
 
     app.notFound(handleApplicationNotFound);
 

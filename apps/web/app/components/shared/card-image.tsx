@@ -12,6 +12,11 @@ export interface CardImageProps {
   draggable?: boolean
   fallback?: ReactNode
   failedFallback?: ReactNode
+  /**
+   * 交换墙的图默认匿名可读；这张卡对所有匿名读者关闭时才置 true，让凭据生效
+   * （App 没有 cookie，只能靠 Bearer）。
+   */
+  authorize?: boolean
   onLoad?: (event: SyntheticEvent<HTMLImageElement>) => void
   onError?: (event: SyntheticEvent<HTMLImageElement>) => void
 }
@@ -33,10 +38,11 @@ export function CardImage({
   draggable,
   fallback = null,
   failedFallback,
+  authorize = false,
   onLoad,
   onError,
 }: CardImageProps) {
-  const media = useOwnerCardMedia(src ?? null)
+  const media = useOwnerCardMedia(src ?? null, { authorize })
   if (!media.src) {
     return media.failed ? (failedFallback ?? fallback) : fallback
   }

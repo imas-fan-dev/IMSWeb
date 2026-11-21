@@ -58,7 +58,6 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
     : { min: 1, max: 8 }
   installSeededPublicApis(api, [
     { path: "/api/community/exchange/offices", times: backgroundTimes },
-    { path: "/api/community/exchange/cards", times: backgroundTimes },
     { path: "/api/community/exchange/map/config", times: { min: 0, max: 8 } },
     { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
   ])

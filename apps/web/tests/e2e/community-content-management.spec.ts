@@ -428,7 +428,6 @@ test.describe("community content management", () => {
     await page.addInitScript(() =>
       window.localStorage.setItem("imsweb.language", "zh-CN")
     )
-    installEmptyWikiCatalogMock(api, 1)
     await installAdminAuthMock(page, api, { sessionTimes: 1 })
     let reads = 0
     api.expect({

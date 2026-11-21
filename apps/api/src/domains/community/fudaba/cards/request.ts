@@ -34,6 +34,8 @@ export interface FudabaCardFields {
     madeWithAi: boolean;
     producerName: string;
     seriesCodes: string[];
+    /** 标签：即时生效，不进审核载荷。 */
+    tags?: string[];
     tradeNote: string;
     /** 显示状态: whether other visitors see the card at all. */
     visible: boolean;
@@ -126,6 +128,7 @@ function parseCredits(value: unknown): unknown {
 const FIELD_COERCIONS: Record<string, (value: unknown) => unknown> = {
     seriesCodes: parseSeriesCodes,
     favoriteCharacterIds: parseJson,
+    tags: parseJson,
     credits: parseCredits,
     isGroupCard: parseFlag,
     isOriginal: parseFlag,
@@ -234,7 +237,8 @@ function normalizeCardFields(fields: FudabaCardFieldsRequest): FudabaCardFields 
         madeWithAi: fields.madeWithAi,
         // 团体名片的表述是「任何人都可以自由领取」，所以它必须可见。
         visible: isGroupCard ? true : fields.visible,
-        credits: fields.credits
+        credits: fields.credits,
+        tags: fields.tags
     };
 }
 
