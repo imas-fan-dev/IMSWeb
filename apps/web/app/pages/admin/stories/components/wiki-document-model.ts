@@ -217,6 +217,14 @@ export function documentRevisionTimestamp(value: string) {
 }
 
 /**
+ * Snapshot retention window, mirroring the API's save-time pruning.
+ *
+ * One number on the Web side so the drawer copy and the locally projected
+ * counter after a save cannot drift from each other.
+ */
+export const DOCUMENT_REVISION_LIMIT = 30
+
+/**
  * What loading a snapshot does, stated next to the action.
  *
  * Restoring is non-destructive: the draft keeps the stored `expectedRevision`,
@@ -224,6 +232,23 @@ export function documentRevisionTimestamp(value: string) {
  */
 export function revisionLoadNote(storedRevision: number) {
   return `载入的是草稿：保存会以服务器修订 r${storedRevision} 为基准，生成 r${storedRevision + 1} 的新版本，不会改写已有历史。`
+}
+
+/**
+ * Summary after one successful save, without a second read.
+ *
+ * The save response proves exactly one snapshot was appended for the revision it
+ * returns, so the count and the newest revision are derived locally and clamped
+ * to the retention window; the exact timestamps stay on the server rows.
+ */
+export function revisionsSummaryAfterSave(
+  summary: { count: number; latestRevision: number | null },
+  savedRevision: number
+) {
+  return {
+    count: Math.min(summary.count + 1, DOCUMENT_REVISION_LIMIT),
+    latestRevision: savedRevision,
+  }
 }
 
 export function documentDraftIsDirty(

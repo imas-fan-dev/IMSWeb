@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "e3d43685b41ea812cb896ddf4f92fab4da0767c11c3e6f386988288556d7b462",
+    "semanticDigest": "32341a86915c5f3d462b5e4d2a42723d73c4fa5d8c7cd7bedf3e54067bf0dbb8",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -4302,7 +4302,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:0f3dd75faf239139:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:11559678afafe99b:fb7f85e2:0",
       "carriers": [
         {
           "kind": "param",
@@ -7224,7 +7224,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:f5021e0c2b52800e:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:9c708453f4c2e005:75c9f5f2:0",
       "carriers": [
         {
           "kind": "query",
@@ -12592,7 +12592,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:c877f3b2ce6ab4d6:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
       "carriers": [
         {
           "kind": "param",
@@ -16279,7 +16279,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:4c33bb02fee64d24:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
       "carriers": [
         {
           "kind": "param",
@@ -18684,7 +18684,7 @@
     {
       "method": "GET",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:0f3dd75faf239139:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:11559678afafe99b:fb7f85e2:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -19857,7 +19857,7 @@
     {
       "method": "GET",
       "path": "/api/wiki/stories",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:f5021e0c2b52800e:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:9c708453f4c2e005:75c9f5f2:0",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -22576,7 +22576,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/preview",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:c877f3b2ce6ab4d6:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22593,7 +22593,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/preview",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:c877f3b2ce6ab4d6:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -24157,7 +24157,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:4c33bb02fee64d24:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -24174,7 +24174,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:4c33bb02fee64d24:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
       "kind": "json",
       "source": "validated",
       "location": {

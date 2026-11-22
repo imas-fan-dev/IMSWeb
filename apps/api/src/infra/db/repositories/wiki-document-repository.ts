@@ -298,30 +298,29 @@ export class SqlWikiDocumentRepository implements WikiDocumentRepository {
             : null;
     }
 
+    /**
+     * Counters for the workbench's history entry, in the same scope as the list.
+     *
+     * The join repeats the list/detail visibility rule, so a soft-deleted entry
+     * reports an empty history here too instead of disagreeing with the routes.
+     */
     async findWikiEntryDocumentRevisionsSummary(
         entryId: number
     ): Promise<WikiEntryDocumentRevisionsSummary> {
         const row = await queryOne<{
             count: number | string;
             latest_revision: number | null;
-            latest_created_at: string | Date | null;
         }>(
             this.database,
-            `SELECT COUNT(*)::int AS count,
-                    MAX(revision) AS latest_revision,
-                    (SELECT created_at FROM wiki_entry_document_revisions
-                      WHERE entry_id=? ORDER BY revision DESC LIMIT 1)
-                        AS latest_created_at
-               FROM wiki_entry_document_revisions
-              WHERE entry_id=?`,
-            [entryId, entryId]
+            `SELECT COUNT(*)::int AS count, MAX(revisions.revision) AS latest_revision
+               FROM wiki_entry_document_revisions revisions
+               JOIN wiki_entries entries ON entries.id=revisions.entry_id
+              WHERE revisions.entry_id=? AND entries.deleted_at IS NULL`,
+            [entryId]
         );
         return {
             count: Number(row?.count ?? 0),
             latestRevision: row?.latest_revision ?? null,
-            latestCreatedAt: row?.latest_created_at
-                ? isoTime(row.latest_created_at)
-                : null,
         };
     }
 

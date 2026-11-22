@@ -115,7 +115,6 @@ describe('wiki entry document revision history API', () => {
         assert.deepEqual(emptyDocument.revisionsSummary, {
             count: 0,
             latestRevision: null,
-            latestCreatedAt: null,
         });
         const emptyList = await readContractJson(
             await request(app, 'GET', adminWikiEntryDocumentRevisionsPath(entryId)),
@@ -162,7 +161,6 @@ describe('wiki entry document revision history API', () => {
         assert.deepEqual(summary.revisionsSummary, {
             count: 30,
             latestRevision: 32,
-            latestCreatedAt: listed.revisions[0]!.createdAt,
         });
 
         // Revision 1 and 2 fell out of the retention window: they are gone,

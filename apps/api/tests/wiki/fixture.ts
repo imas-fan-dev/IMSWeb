@@ -730,13 +730,12 @@ export class MemoryStoryRepository implements StoryRepository {
     async findWikiEntryDocumentRevisionsSummary(
         entryId: number
     ): Promise<WikiEntryDocumentRevisionsSummary> {
-        const newest = this.documentRevisions
-            .filter((row) => row.entryId === entryId)
-            .sort((left, right) => right.snapshot.revision - left.snapshot.revision)[0];
+        const revisions = this.documentRevisions.filter((row) => row.entryId === entryId);
         return {
-            count: this.documentRevisions.filter((row) => row.entryId === entryId).length,
-            latestRevision: newest?.snapshot.revision ?? null,
-            latestCreatedAt: newest?.snapshot.createdAt ?? null
+            count: revisions.length,
+            latestRevision: revisions.length
+                ? Math.max(...revisions.map((row) => row.snapshot.revision))
+                : null
         };
     }
     async listWikiEntryDocumentMedia(entryId: number): Promise<WikiEntryDocumentMediaRecord[]> {

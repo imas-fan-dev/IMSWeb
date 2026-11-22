@@ -11,7 +11,7 @@ import {
     collectWikiDocumentCategorySites,
     loadWikiDocumentAssetTable,
     resolveWikiDocumentAssets,
-    documentImageUrl,
+    documentAssetUrlResolver,
 } from '@/domains/content/wiki/documents/document-assets';
 import type { WikiEntryDocumentParams } from '@/domains/content/wiki/documents/document-request';
 import type { WikiValidatedInput } from '@/domains/content/wiki/request';
@@ -51,7 +51,7 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
                 projectId: entry.projectId,
                 assetRefs,
             }),
-            documentImageUrl(services.storage!),
+            documentAssetUrlResolver(services.storage!, entry.projectName, entry.name),
         ]);
         const resolved = await resolveWikiDocumentAssets({
             document,

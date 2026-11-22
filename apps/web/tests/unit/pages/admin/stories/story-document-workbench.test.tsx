@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -213,7 +214,6 @@ function documentPayload(
     revisionsSummary?: {
       count: number
       latestRevision: number | null
-      latestCreatedAt: string | null
     }
   } = {}
 ) {
@@ -242,7 +242,6 @@ function documentPayload(
     revisionsSummary: input.revisionsSummary ?? {
       count: 0,
       latestRevision: null,
-      latestCreatedAt: null,
     },
   }
 }
@@ -874,7 +873,6 @@ describe("Wiki document workbench", () => {
             revisionsSummary: {
               count: 3,
               latestRevision: 5,
-              latestCreatedAt: newestCreatedAt,
             },
           })
         ),
@@ -928,7 +926,16 @@ describe("Wiki document workbench", () => {
     const source = await screen.findByRole("textbox", { name: "文档源码" })
     expect(source).toHaveValue("## 当前版本\n")
 
-    await user.click(screen.getByRole("button", { name: "版本历史" }))
+    // The document read's summary already labels the entry, so opening the
+    // drawer is a deliberate second request.
+    const historyEntry = screen.getByRole("button", { name: /版本历史/ })
+    expect(historyEntry).toHaveTextContent("3")
+    expect(historyEntry).toHaveAttribute(
+      "title",
+      "最近保存 r5，可恢复 3 个版本"
+    )
+
+    await user.click(historyEntry)
     const drawer = await screen.findByRole("dialog", { name: "版本历史" })
     const rows = within(
       await within(drawer).findByRole("list", { name: "历史版本" })
@@ -966,6 +973,228 @@ describe("Wiki document workbench", () => {
       sourceMarkdown: "## 第3版历史源码\n",
     })
     expect(await screen.findByText("已保存")).toBeVisible()
+    // The save appends one snapshot, so the entry's count moves forward without
+    // a second document read.
+    expect(screen.getByRole("button", { name: /版本历史/ })).toHaveTextContent(
+      "4"
+    )
+  })
+
+  it("disables the version history entry until the first save", async () => {
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 新页面\n",
+            revision: 0,
+          })
+        ),
+      save: (body) =>
+        jsonResponse({
+          status: "success",
+          contentMode: body.contentMode,
+          revision: 1,
+          document: { version: 1, headings: [], availableTags: [], blocks: [] },
+          warnings: [],
+        }),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    await screen.findByRole("textbox", { name: "文档源码" })
+    const historyEntry = screen.getByRole("button", { name: /版本历史/ })
+    expect(historyEntry).toBeDisabled()
+    expect(historyEntry).toHaveAttribute("title", "还没有保存过历史版本")
+    // No count is rendered for an empty history, and the disabled entry cannot
+    // open a drawer that would only show nothing.
+    expect(historyEntry).not.toHaveTextContent("0")
+    fireEvent.click(historyEntry)
+    expect(
+      screen.queryByRole("dialog", { name: "版本历史" })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "保存文档" }))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /版本历史/ })).toBeEnabled()
+    )
+    expect(screen.getByRole("button", { name: /版本历史/ })).toHaveTextContent(
+      "1"
+    )
+  })
+
+  it("shows the loading states before the history list and a snapshot arrive", async () => {
+    const pendingList: Array<() => void> = []
+    const pendingSnapshot: Array<() => void> = []
+    const listResponse = jsonResponse({
+      status: "success",
+      revisions: [
+        {
+          revision: 3,
+          summary: "第三版",
+          createdBy: "operator",
+          createdAt: "2026-10-30T02:03:04.000Z",
+        },
+      ],
+    })
+    const snapshotResponse = jsonResponse({
+      status: "success",
+      revision: 3,
+      summary: "第三版",
+      createdBy: "operator",
+      createdAt: "2026-10-30T02:03:04.000Z",
+      sourceMarkdown: "## 第3版历史源码\n",
+    })
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 当前版本\n",
+            revision: 3,
+            revisionsSummary: { count: 1, latestRevision: 3 },
+          })
+        ),
+      revisions: () =>
+        new Promise((resolve) => {
+          pendingList.push(() => resolve(listResponse))
+        }),
+      revision: () =>
+        new Promise((resolve) => {
+          pendingSnapshot.push(() => resolve(snapshotResponse))
+        }),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    await screen.findByRole("textbox", { name: "文档源码" })
+    await user.click(screen.getByRole("button", { name: /版本历史/ }))
+    const drawer = await screen.findByRole("dialog", { name: "版本历史" })
+    expect(await within(drawer).findByText("正在读取版本列表…")).toBeVisible()
+
+    await act(async () => {
+      pendingList.forEach((resolve) => resolve())
+    })
+    const rows = within(
+      await within(drawer).findByRole("list", { name: "历史版本" })
+    ).getAllByRole("listitem")
+    expect(rows).toHaveLength(1)
+
+    await user.click(within(rows[0]!).getByRole("button"))
+    expect(await within(drawer).findByText("正在读取 r3 的源码…")).toBeVisible()
+
+    await act(async () => {
+      pendingSnapshot.forEach((resolve) => resolve())
+    })
+    await waitFor(() =>
+      expect(
+        within(drawer).getByLabelText("历史版本源码预览")
+      ).toHaveTextContent("## 第3版历史源码")
+    )
+  })
+
+  it("surfaces a failed history list without pretending there is no history", async () => {
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 当前版本\n",
+            revision: 3,
+            revisionsSummary: { count: 2, latestRevision: 3 },
+          })
+        ),
+      revisions: () =>
+        jsonResponse({ status: "error", msg: "历史快照读取超时" }, 500),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    await screen.findByRole("textbox", { name: "文档源码" })
+    await user.click(screen.getByRole("button", { name: /版本历史/ }))
+    const drawer = await screen.findByRole("dialog", { name: "版本历史" })
+    expect(await within(drawer).findByText("版本列表读取失败")).toBeVisible()
+    expect(within(drawer).getByText("历史快照读取超时")).toBeVisible()
+    // The failure is not an empty history: the empty copy stays hidden.
+    expect(
+      within(drawer).queryByText(/还没有保存过历史版本/)
+    ).not.toBeInTheDocument()
+  })
+
+  it("reports an empty list even though the document promised a snapshot", async () => {
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 当前版本\n",
+            revision: 3,
+            revisionsSummary: { count: 2, latestRevision: 3 },
+          })
+        ),
+      // A concurrent prune between the document read and the list leaves the
+      // summary ahead of the list; the drawer must show the empty state instead
+      // of a blank panel.
+      revisions: () => jsonResponse({ status: "success", revisions: [] }),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    await screen.findByRole("textbox", { name: "文档源码" })
+    await user.click(screen.getByRole("button", { name: /版本历史/ }))
+    const drawer = await screen.findByRole("dialog", { name: "版本历史" })
+    expect(
+      await within(drawer).findByText(
+        "还没有保存过历史版本，第一次保存文档后会出现在这里。"
+      )
+    ).toBeVisible()
+    expect(
+      within(drawer).getByRole("button", { name: "载入到编辑器" })
+    ).toBeDisabled()
+  })
+
+  it("surfaces a failed snapshot request", async () => {
+    installWorkbenchFetch({
+      document: () =>
+        jsonResponse(
+          documentPayload({
+            contentMode: "document",
+            sourceMarkdown: "## 当前版本\n",
+            revision: 3,
+            revisionsSummary: { count: 1, latestRevision: 3 },
+          })
+        ),
+      revisions: () =>
+        jsonResponse({
+          status: "success",
+          revisions: [
+            {
+              revision: 3,
+              summary: "第三版",
+              createdBy: "operator",
+              createdAt: "2026-10-30T02:03:04.000Z",
+            },
+          ],
+        }),
+      revision: () =>
+        jsonResponse({ status: "error", msg: "该版本已被裁剪" }, 404),
+    })
+    renderWorkbench()
+    const user = userEvent.setup()
+
+    await screen.findByRole("textbox", { name: "文档源码" })
+    await user.click(screen.getByRole("button", { name: /版本历史/ }))
+    const drawer = await screen.findByRole("dialog", { name: "版本历史" })
+    const rows = within(
+      await within(drawer).findByRole("list", { name: "历史版本" })
+    ).getAllByRole("listitem")
+    await user.click(within(rows[0]!).getByRole("button"))
+
+    expect(await within(drawer).findByText("历史版本读取失败")).toBeVisible()
+    expect(within(drawer).getByText("该版本已被裁剪")).toBeVisible()
+    expect(
+      within(drawer).getByRole("button", { name: "载入到编辑器" })
+    ).toBeDisabled()
   })
 
   it("persists a switch back to structured mode", async () => {

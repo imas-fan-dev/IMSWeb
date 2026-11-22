@@ -329,6 +329,7 @@ export function WikiDocumentWorkspace({
           onUpload={uploadMedia}
           dirty={dirty}
           storedRevision={data.revision}
+          revisionsSummary={data.revisionsSummary}
           save={{
             saving: save.saving,
             saved: save.saved,

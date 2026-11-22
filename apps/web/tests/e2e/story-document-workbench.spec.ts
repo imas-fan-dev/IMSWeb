@@ -226,7 +226,7 @@ function entryDocument(input: {
     document: { version: 1, headings: [], availableTags: [], blocks: [] },
     warnings: [],
     media: [],
-    revisionsSummary: { count: 0, latestRevision: null, latestCreatedAt: null },
+    revisionsSummary: { count: 0, latestRevision: null },
   }
 }
 

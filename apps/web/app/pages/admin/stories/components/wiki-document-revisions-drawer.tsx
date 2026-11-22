@@ -19,6 +19,7 @@ import {
 } from "~/lib/api"
 import { errorMessage } from "./wiki-workbench-model"
 import {
+  DOCUMENT_REVISION_LIMIT,
   documentRevisionTimestamp,
   revisionLoadNote,
 } from "./wiki-document-model"
@@ -120,7 +121,8 @@ export function DocumentRevisionsDrawer({
         <SheetHeader className="border-b">
           <SheetTitle>版本历史</SheetTitle>
           <SheetDescription>
-            每次保存都会留一份快照，每页只保留最近 30 个版本。
+            每次保存都会留一份快照，每页只保留最近 {DOCUMENT_REVISION_LIMIT}{" "}
+            个版本。
             {revisionLoadNote(storedRevision)}
           </SheetDescription>
         </SheetHeader>

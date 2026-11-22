@@ -216,8 +216,9 @@ OSS、R2 或本地 RustFS 的公开直链，并复用同一组 `imageTransform`�
   `summary`、`createdBy`（写入操作者）与 `createdAt` 一并返回，供工作台「版本历史」抽屉展示。
 - `GET .../document/revisions/:revision` 以 `(entry_id, revision)` 限定查询：不存在、已被裁剪、
   属于其它内容页或属于已软删除内容页时统一返回同一个 `404`，不泄漏其它内容页是否存在该版本。
-- 文档读取额外返回 `revisionsSummary`（`count`、`latestRevision`、`latestCreatedAt`），让抽屉
-  在打开前就知道有多少可恢复快照。
+- 文档读取额外返回 `revisionsSummary`（`count`、`latestRevision`），工作台据此显示可恢复版本数量：
+  没有历史时「版本历史」入口禁用并给出说明，有历史时按钮标注数量与最近版本，打开抽屉前不需要
+  额外请求。
 - 「载入到编辑器」是非破坏性草稿载入：只替换编辑器文本，保留当前 `expectedRevision`，因此随后
   保存会生成新的向前版本（例如 r33）而不是改写历史；是否保存仍由维护者决定。
 

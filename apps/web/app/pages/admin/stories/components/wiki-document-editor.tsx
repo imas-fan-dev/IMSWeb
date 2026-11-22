@@ -4,6 +4,7 @@ import { adminTextareaClass } from "~/components/admin/admin-ui"
 import { Button } from "~/components/ui/button"
 import { Textarea } from "~/components/ui/textarea"
 import type {
+  WikiDocumentRevisionsSummary,
   WikiDocumentWarning,
   WikiStoryContentType,
   WikiStoryCoverAsset,
@@ -51,6 +52,7 @@ export function WikiDocumentEditor({
   onUpload,
   dirty,
   storedRevision,
+  revisionsSummary,
   save,
 }: {
   entryId: number
@@ -69,6 +71,11 @@ export function WikiDocumentEditor({
   dirty: boolean
   /** Server revision the next save compares against (`expectedRevision`). */
   storedRevision: number
+  /**
+   * Restorable history reported by the document read, so the 版本历史 entry can
+   * label itself and stay disabled until the first save.
+   */
+  revisionsSummary: WikiDocumentRevisionsSummary
   save: { saving: boolean; saved: boolean; onSave: () => void }
 }) {
   const [pane, setPane] = useState<EditorPane>("source")
@@ -123,6 +130,19 @@ export function WikiDocumentEditor({
     if (file) void uploadFile(file)
   }
 
+  /**
+   * Replaces the whole draft and parks the caret at its end.
+   *
+   * Used by the structured export dialog and the history drawer. The history
+   * path stays a non-destructive *draft* load: only the text changes, so the
+   * workspace still saves against the revision it read from the server.
+   */
+  const replaceDraft = (markdown: string) => {
+    onReplaceSource(markdown)
+    caretRef.current = { start: markdown.length, end: markdown.length }
+    requestCaret(caretRef.current)
+  }
+
   const focusWarningLine = (warning: WikiDocumentWarning) => {
     setPane("source")
     const offset = lineStartOffset(source, warning.line)
@@ -167,9 +187,20 @@ export function WikiDocumentEditor({
             type="button"
             size="sm"
             variant="outline"
+            disabled={revisionsSummary.count === 0}
+            title={
+              revisionsSummary.count === 0
+                ? "还没有保存过历史版本"
+                : `最近保存 r${revisionsSummary.latestRevision}，可恢复 ${revisionsSummary.count} 个版本`
+            }
             onClick={() => setHistoryOpen(true)}
           >
             版本历史
+            {revisionsSummary.count === 0 ? null : (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {revisionsSummary.count}
+              </span>
+            )}
           </Button>
           <Button
             type="button"
@@ -187,13 +218,7 @@ export function WikiDocumentEditor({
         onOpenChange={setHistoryOpen}
         entryId={entryId}
         storedRevision={storedRevision}
-        onLoadRevision={(markdown) => {
-          // Non-destructive draft load: the workspace keeps `expectedRevision`,
-          // so saving after a restore appends a forward revision.
-          onReplaceSource(markdown)
-          caretRef.current = { start: markdown.length, end: markdown.length }
-          requestCaret(caretRef.current)
-        }}
+        onLoadRevision={replaceDraft}
       />
 
       <DocumentToolbar
@@ -204,11 +229,7 @@ export function WikiDocumentEditor({
         focusReturnRef={textareaRef}
         uploading={uploading}
         onInsert={insertSnippet}
-        onReplace={(next) => {
-          onReplaceSource(next)
-          caretRef.current = { start: next.length, end: next.length }
-          requestCaret(caretRef.current)
-        }}
+        onReplace={replaceDraft}
         onUpload={(file) => void uploadFile(file)}
       />
 

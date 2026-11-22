@@ -10,6 +10,7 @@ import type {
   WikiDocumentWarning,
   WikiPublicStoryDocument,
 } from "~/lib/api"
+import { revisionsSummaryAfterSave } from "./wiki-document-model"
 
 /** Request state for one entry's stored document (read side of the workbench). */
 type EntryDocumentRequest = {
@@ -70,6 +71,10 @@ export function useWikiEntryDocument(entryId: number) {
                 revision: saved.revision,
                 document: saved.document,
                 warnings: saved.warnings,
+                revisionsSummary: revisionsSummaryAfterSave(
+                  current.data.revisionsSummary,
+                  saved.revision
+                ),
               },
               error: null,
             }

@@ -26,13 +26,13 @@ wiki/
     routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
     handlers/           # 11 个 action
   documents/
-    routes.ts           # 增强 Markdown 文档的读取、保存、预览、图片上传与结构化导出
+    routes.ts           # 增强 Markdown 文档的读取、保存、预览、图片上传、结构化导出与历史版本读取
     enhanced-markdown-compiler.ts  # 纯函数：Markdown -> 版本化 AST + plainText + 行号告警
     source-link-inference.ts       # 编译期与导出器共享的来源字段推断（域名 -> 类型/平台/默认 UP）
     structured-document-exporter.ts # 纯函数：结构化分类/卡片 -> 校准过的 Markdown 草稿 + 数据卫生 lint
     document-assets.ts             # `cover:<id>`/`doc:<id>` 引用解析、封面引用集合、公开读 URL 口径
     document-request.ts            # 该 capability 的请求模型
-    handlers/           # 5 个 action：读取、保存、预览、上传文档图片、只读导出结构化草稿
+    handlers/           # 7 个 action：读取、保存、预览、上传文档图片、只读导出结构化草稿、历史快照列表、单版本快照
 ```
 
 文档图片没有独立的公开读取路由：上传与共享封面都通过

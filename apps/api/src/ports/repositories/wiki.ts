@@ -84,7 +84,6 @@ export interface WikiEntryDocumentRevisionSnapshot
 export interface WikiEntryDocumentRevisionsSummary {
     count: number;
     latestRevision: number | null;
-    latestCreatedAt: string | null;
 }
 
 export interface WikiEntryContent {

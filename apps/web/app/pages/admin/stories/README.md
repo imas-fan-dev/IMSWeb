@@ -16,6 +16,7 @@
 | 编辑者选择企划和内容页                    | [层级浏览](components/wiki-hierarchy-explorer.tsx)、[剧情大纲](components/story-outline.tsx)           | 按目录定位内容页，展示与选择剧情分类和卡片                                            |
 | 编辑者切换结构化卡片 / 增强 Markdown 文档 | [文档工作台](components/wiki-document-workspace.tsx)                                                   | 非破坏性双模式切换、未保存改动的二次确认、`409` 冲突的重新加载与覆盖恢复              |
 | 编辑者撰写增强 Markdown                   | [文档编辑器](components/wiki-document-editor.tsx)、[预览与告警](components/wiki-document-sections.tsx) | 左源码右实时预览、防抖服务端编译、按行号定位的编译告警、快捷插入工具栏与粘贴/拖拽传图 |
+| 编辑者查看与恢复历史版本                  | [版本历史抽屉](components/wiki-document-revisions-drawer.tsx)                                          | 逆序列出保留的快照与操作者/时间、预览所选版本源码、以保留 `expectedRevision` 的方式载入为草稿；入口标注可恢复数量，无历史时禁用 |
 | 文档工作台请求状态                        | [文档 hooks](components/wiki-document-hooks.ts)、[文档模型](components/wiki-document-model.ts)         | 文档读取/保存/预览的表单状态、模板片段与行号定位纯函数                                |
 | 编辑者直接使用角色档案                    | [角色选择器](components/story-character-selector.tsx)                                                  | 按企划档案 ID 复用或建立剧情关联，刷新后用内容条目 ID 定位，不复制人物资料            |
 | 工作台状态维护                            | [hooks](components/wiki-workbench-hooks.ts)、[model](components/wiki-workbench-model.ts)               | 目录与剧情加载、选择状态、刷新、编辑状态与纯模型                                      |

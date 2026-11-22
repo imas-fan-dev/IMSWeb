@@ -907,12 +907,15 @@ export const adminWikiEntryDocumentRevisionSchema = exactJsonResponse({
  * Retained-snapshot counters carried by the document read.
  *
  * Counts only what is still restorable, so a pristine entry and one whose
- * history was pruned both report the truth the drawer will show.
+ * history was pruned both report the truth. The workbench consumes both fields
+ * before opening the drawer: `count` labels and enables the 版本历史 entry
+ * (`0` disables it) and `latestRevision` names the newest restorable snapshot,
+ * so no reader of the document pays for the thirty snapshots just to render the
+ * button. Snapshot timestamps stay on their own rows in the history list.
  */
 export const wikiDocumentRevisionsSummarySchema = exactJsonResponse({
   count: z.number().int().nonnegative(),
   latestRevision: z.number().int().positive().nullable(),
-  latestCreatedAt: z.string().min(1).nullable(),
 })
 
 export const adminWikiEntryDocumentSchema = exactJsonResponse({
