@@ -1,4 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
+
+import {
+  IDOL_FONT_URL,
+  WORK_CHARACTER_IMAGE_URLS,
+} from "~/pages/works/brand-assets"
 import {
   getWorkDestination,
   getWorkEntry,
@@ -80,43 +85,17 @@ describe("works content", () => {
     ])
   })
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.resetModules()
-  })
-
-  it.each([
-    [
-      "",
-      "https://imas-assets.texasoct.tech/brand/works/sc/objects/c72bdcdc-fb2f-4083-a442-2ec96fd709ef/character.png",
-    ],
-    [
-      "http://127.0.0.1:9002/imsweb-media-local/brand/works/sc/local/character.png",
-      "http://127.0.0.1:9002/imsweb-media-local/brand/works/sc/local/character.png",
-    ],
-  ])("supports the SC artwork override %s", async (override, expectedSc) => {
-    vi.stubEnv("VITE_IMS_SC_CHARACTER_IMAGE_URL", override)
-    vi.resetModules()
-
-    const { WORK_CHARACTER_IMAGE_URLS, IDOL_FONT_URL } =
-      await import("~/pages/works/brand-assets")
-    const { workEntries, getWorkEntry } =
-      await import("~/pages/works/works-content")
+  it("loads series artwork and the display font directly from public R2 URLs", () => {
+    const expectedOrigin = "https://imas-assets.texasoct.tech/"
     const characterImages = workEntries
-      .map((entry) => entry.characterImage)
-      .filter((url): url is string => Boolean(url))
-    const otherCharacterImages = workEntries
-      .filter((entry) => entry.slug !== "sc")
       .map((entry) => entry.characterImage)
       .filter((url): url is string => Boolean(url))
 
     expect(characterImages).toHaveLength(6)
     expect(characterImages).toEqual(Object.values(WORK_CHARACTER_IMAGE_URLS))
-    expect(getWorkEntry("sc")?.characterImage).toBe(expectedSc)
-    expect(otherCharacterImages).toHaveLength(5)
     expect(
-      [...otherCharacterImages, IDOL_FONT_URL].every((url) =>
-        url.startsWith("https://imas-assets.texasoct.tech/")
+      [...characterImages, IDOL_FONT_URL].every((url) =>
+        url.startsWith(expectedOrigin)
       )
     ).toBe(true)
     expect(
