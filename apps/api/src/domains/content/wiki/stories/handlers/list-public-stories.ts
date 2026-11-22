@@ -15,7 +15,7 @@ import {
   collectWikiDocumentAssetSites,
   loadWikiDocumentAssetTable,
   resolveWikiDocumentAssets,
-  documentImageUrl,
+  documentAssetUrlResolver,
   wikiDocumentCategorySelection,
 } from "@/domains/content/wiki/documents/document-assets";
 import {
@@ -68,6 +68,8 @@ export function createHandleListPublicWikiStories<E extends Env>(
           idolRecord.id,
           agency.id,
           content.document,
+          agency.name,
+          idol.name,
         )
       : null;
     const aggregated = aggregateStories(
@@ -152,18 +154,22 @@ async function resolvePublicWikiDocument(
   entryId: number,
   projectId: number,
   document: WikiPublicStoryDocument,
+  agencyName: string,
+  entryName: string,
 ): Promise<WikiPublicStoryDocument> {
   const assetRefs = collectWikiDocumentAssetSites(document);
-  const [assets, imageUrl] = await Promise.all([
+  const [assets] = await Promise.all([
     loadWikiDocumentAssetTable({ repository, entryId, projectId, assetRefs }),
-    documentImageUrl(storage),
   ]);
   const resolved = await resolveWikiDocumentAssets({
     document,
     assetRefs,
     categoryRefs: [],
     assets,
-    imageUrl,
+    // Public reads fall back to the site's own image route, exactly like
+    // structured cards do, so a deployment without a public read base (local
+    // development) still renders instead of answering 503.
+    imageUrl: documentAssetUrlResolver(storage, agencyName, entryName),
   });
   return resolved.document;
 }

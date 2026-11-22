@@ -178,3 +178,80 @@ describe('public Wiki stories document payload', () => {
         assert.deepEqual(documentBody.categories, []);
     });
 });
+
+describe('public Wiki document media URLs', () => {
+    test('falls back to the site image route when no public read base is configured', async () => {
+        const database = await createPostgresTestDatabase('wiki-document-media-fallback');
+        await new PostgresqlSchemaStrategy().initializeStory(database);
+        const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
+        // A local development storage has no public read base at all; the public
+        // page must still render instead of answering 503.
+        const storage = new MemoryObjectStorage();
+        const app = createApp(repository, storage);
+
+        const project = await queryOne<{ id: number }>(
+            database,
+            `INSERT INTO agencies (code, name_cn, color, wiki_enabled)
+             VALUES (?, ?, ?, TRUE) RETURNING id`,
+            ['wfall', '回退企划', '#8dbbff']
+        );
+        await queryOne(
+            database,
+            `INSERT INTO wiki_project_settings (project_id, is_enabled, banner_title)
+             VALUES (?, TRUE, ?)
+             ON CONFLICT (project_id) DO UPDATE SET is_enabled = TRUE`,
+            [project!.id, '回退企划']
+        );
+        const entry = await queryOne<{ id: number }>(
+            database,
+            `INSERT INTO wiki_entries (project_id, local_name_cn, storage_slug, local_accent_color)
+             VALUES (?, ?, ?, ?) RETURNING id`,
+            [project!.id, '回退条目', 'entry_fallback', '#ffbad6']
+        );
+        const objectKey = 'agencies/wfall/story-cover-assets/objects/abc/cover.webp';
+        const asset = await queryOne<{ id: number }>(
+            database,
+            `INSERT INTO wiki_story_cover_assets (agency_id, name, object_key, display_order)
+             VALUES (?, ?, ?, 0) RETURNING id`,
+            [project!.id, '回退封面', objectKey]
+        );
+
+        const saved = await app.request(
+            `http://wiki.test${adminWikiEntryDocumentPath(entry!.id)}`,
+            {
+                method: 'PUT',
+                headers: {
+                    Cookie: 'ims_admin_access=backoffice-token',
+                    'X-CSRFToken': CSRF_TOKEN,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contentMode: 'document',
+                    sourceMarkdown: `::media{asset="cover:${asset!.id}" caption="封面"}\n`,
+                    expectedRevision: 0,
+                }),
+            }
+        );
+        assert.equal(saved.status, 200);
+
+        const publicPath =
+            '/api/wiki/stories?agency=' +
+            encodeURIComponent('回退企划') +
+            '&idol=' +
+            encodeURIComponent('回退条目');
+        const response = await app.request(`http://wiki.test${publicPath}`);
+        assert.equal(response.status, 200);
+        const body = (await response.json()) as {
+            document: { blocks: Array<{ type: string; imageUrl?: string | null }> };
+        };
+        const media = body.document.blocks.find((block) => block.type === 'media');
+        // Names are percent-encoded by the resolver so the route survives names
+        // containing `/`, `?` or `#`; the object key keeps its slashes.
+        assert.equal(
+            media?.imageUrl,
+            `/image/${encodeURIComponent('回退企划')}/${encodeURIComponent(
+                '回退条目'
+            )}/${objectKey}`
+        );
+    });
+});

@@ -4,13 +4,17 @@ import type {
     WikiDocumentWarning,
     WikiPublicStoryDocument,
 } from '@imsweb/contracts/wiki';
+import { imagePath } from '@imsweb/contracts/paths';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { StoryRepository } from '@/ports/repositories';
 import type {
     WikiDocumentAssetSite,
     WikiDocumentCategorySite,
 } from '@/domains/content/wiki/documents/enhanced-markdown-compiler';
-import { requirePublicObjectUrl } from '@/utils/storage/public-object-url';
+import {
+    requirePublicObjectUrl,
+    resolvePublicObjectUrl,
+} from '@/utils/storage/public-object-url';
 
 /**
  * Resolution of document image and category references against the database.
@@ -73,6 +77,46 @@ export function documentImageUrl(
     storage: ObjectStorage
 ): (objectKey: string) => Promise<string> {
     return (objectKey) => requirePublicObjectUrl(storage, objectKey);
+}
+
+/**
+ * The site's own image route for a document asset.
+ *
+ * Structured cards are served from `/image/<agency>/<entry>/<objectKey>`; the
+ * document renderer uses the same route as its fallback so a deployment without
+ * a public read base (local development) still shows the artwork.
+ */
+export function documentAssetFallbackUrl(
+    agencyName: string,
+    entryName: string,
+    objectKey: string
+): string {
+    return imagePath(
+        `/${encodeURIComponent(agencyName)}/${encodeURIComponent(
+            entryName
+        )}/${objectKey}`
+    );
+}
+
+/**
+ * Resolver used by every document endpoint.
+ *
+ * Prefers the configured public read base (CDN/R2 in production) and falls back
+ * to the site image route, so saving or reading a document never fails just
+ * because the deployment has no public base — the same lenient contract the
+ * structured cards already use.
+ */
+export function documentAssetUrlResolver(
+    storage: ObjectStorage,
+    agencyName: string,
+    entryName: string
+): (objectKey: string) => Promise<string> {
+    return (objectKey) =>
+        resolvePublicObjectUrl(
+            storage,
+            objectKey,
+            documentAssetFallbackUrl(agencyName, entryName, objectKey)
+        );
 }
 
 /**

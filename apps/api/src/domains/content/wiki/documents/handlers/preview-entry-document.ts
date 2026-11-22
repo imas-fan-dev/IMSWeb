@@ -9,7 +9,7 @@ import { compileEnhancedMarkdown } from '@/domains/content/wiki/documents/enhanc
 import {
     loadWikiDocumentAssetTable,
     resolveWikiDocumentAssets,
-    documentImageUrl,
+    documentAssetUrlResolver,
 } from '@/domains/content/wiki/documents/document-assets';
 import type {
     WikiEntryDocumentParams,
@@ -47,7 +47,7 @@ export function createHandlePreviewWikiEntryDocument<E extends Env>(
                 projectId: entry.projectId,
                 assetRefs: compiled.assetRefs,
             }),
-            documentImageUrl(services.storage!),
+            documentAssetUrlResolver(services.storage!, entry.projectName, entry.name),
         ]);
         const resolved = await resolveWikiDocumentAssets({
             document: compiled.document,
