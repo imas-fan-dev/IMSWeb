@@ -47,6 +47,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import { namecardDateTimeLabel } from "~/lib/namecards/dates"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { ExchangeRequestDialog } from "./exchange-request-dialog"
 import { EXCHANGE_SOURCE_LABEL } from "./exchange-source-label"
 import { useExchangeHistory } from "./use-exchange-history"
@@ -237,6 +238,7 @@ function ExchangeHistoryBody() {
     id: string
     status: NamecardExchangeStatus
   } | null>(null)
+  const shownExchange = useRetainedValue(openExchange)
 
   const runLocal = async (
     id: string,
@@ -355,8 +357,8 @@ function ExchangeHistoryBody() {
         onOpenChange={(open) => {
           if (!open) setOpenExchange(null)
         }}
-        exchangeId={openExchange?.id ?? null}
-        readOnly={openExchange?.status !== "pending"}
+        exchangeId={shownExchange?.id ?? null}
+        readOnly={shownExchange?.status !== "pending"}
         onDecided={history.reload}
       />
     </div>

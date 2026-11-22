@@ -1,5 +1,6 @@
 import { LoaderCircleIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 
 import {
   Dialog,
@@ -69,9 +70,9 @@ function fieldRows(
  * 裁决按钮与列表行上的 √ / × 走同一套二次确认窗（理由在确认窗里填）。
  */
 export function SupplementReviewDialog({
-  supplement,
-  cardNumber,
-  cardLabel,
+  supplement: incomingSupplement,
+  cardNumber: incomingCardNumber,
+  cardLabel: incomingCardLabel,
   onOpenChange,
   onApprove,
   onReject,
@@ -86,6 +87,22 @@ export function SupplementReviewDialog({
   /** 二次确认窗打开时别再让点击穿透关掉这扇窗。 */
   dismissible?: boolean
 }) {
+  // 关闭时父组件先置空；把补充记录与标题参数作为一个整体留到淡出结束。
+  const supplementSnapshot = useMemo(
+    () =>
+      incomingSupplement
+        ? {
+            supplement: incomingSupplement,
+            cardNumber: incomingCardNumber,
+            cardLabel: incomingCardLabel,
+          }
+        : null,
+    [incomingSupplement, incomingCardNumber, incomingCardLabel]
+  )
+  const retained = useRetainedValue(supplementSnapshot)
+  const supplement = retained?.supplement ?? null
+  const cardNumber = retained?.cardNumber ?? incomingCardNumber
+  const cardLabel = retained?.cardLabel ?? incomingCardLabel
   const labels = useReviewLabels()
   const [detail, setDetail] =
     useState<AdminCardSupplementDetailResponse | null>(null)
@@ -111,7 +128,7 @@ export function SupplementReviewDialog({
 
   return (
     <Dialog
-      open={supplement !== null}
+      open={incomingSupplement !== null}
       onOpenChange={onOpenChange}
       disablePointerDismissal={!dismissible}
     >

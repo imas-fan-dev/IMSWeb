@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react"
 import type { CSSProperties } from "react"
 import { useState } from "react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { Badge } from "~/components/ui/badge"
@@ -48,6 +49,8 @@ export function StoryCategorySection({
   const [selectedCard, setSelectedCard] = useState<WikiPublicStoryCard | null>(
     null
   )
+  // 关闭时先置空，退场期间保留最后一张剧情卡。
+  const shownCard = useRetainedValue(selectedCard)
   const portraitCards = isPortraitStoryCategory(category.name)
 
   return (
@@ -158,14 +161,14 @@ export function StoryCategorySection({
         <DialogContent>
           <DialogHeader>
             <p className="text-sm text-muted-foreground">{category.name}</p>
-            <DialogTitle>{selectedCard?.name}</DialogTitle>
-            {selectedCard?.subtitle ? (
-              <DialogDescription>{selectedCard.subtitle}</DialogDescription>
+            <DialogTitle>{shownCard?.name}</DialogTitle>
+            {shownCard?.subtitle ? (
+              <DialogDescription>{shownCard.subtitle}</DialogDescription>
             ) : null}
           </DialogHeader>
           <div className="space-y-2">
-            {selectedCard?.links.length ? (
-              selectedCard.links.map((link) => {
+            {shownCard?.links.length ? (
+              shownCard.links.map((link) => {
                 const href = safeExternalStoryUrl(link.url)
                 const label = link.title || "查看剧情"
                 return href ? (

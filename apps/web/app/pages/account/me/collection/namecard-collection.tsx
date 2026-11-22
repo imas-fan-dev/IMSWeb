@@ -10,7 +10,11 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import type { NamecardCollectionEntry } from "@imsweb/contracts/namecards"
+import type {
+  NamecardCollectionDirection,
+  NamecardCollectionEntry,
+  NamecardCollectionSort,
+} from "@imsweb/contracts/namecards"
 
 import { ExchangeHistoryDialog } from "~/components/community/exchange/exchange-history-dialog"
 import { CardImage } from "~/components/shared/card-image"
@@ -47,7 +51,10 @@ import {
   setNamecardCollectionHidden,
 } from "~/lib/api"
 import type { NamecardCollectionPage, NamecardReactions } from "~/lib/api"
-import { NAMECARD_COLLECTION_PAGE_SIZE } from "~/lib/namecards/collection-query"
+import {
+  NAMECARD_COLLECTION_DEFAULT_DIRECTION,
+  NAMECARD_COLLECTION_PAGE_SIZE,
+} from "~/lib/namecards/collection-query"
 import { NAMECARD_DATA_CHANGED_EVENT } from "~/lib/namecards/data-refresh"
 import { readShowOwn, writeShowOwn } from "~/lib/namecards/show-own-preference"
 import { cn } from "~/lib/utils"
@@ -59,6 +66,14 @@ import {
 
 /** 输入停顿多久才发请求；筛选本身不防抖（选完就该等结果）。 */
 const SEARCH_DEBOUNCE_MS = 300
+
+/** 名片册的排序键：与接口一致，时间默认倒序、名称与企划默认正序。 */
+const COLLECTION_SORT_OPTIONS = [
+  { value: "exchange", label: "交换时间" },
+  { value: "name", label: "制作人名" },
+  { value: "series", label: "企划" },
+  { value: "date", label: "制作日期" },
+] satisfies { value: NamecardCollectionSort; label: string }[]
 
 const EMPTY_REACTIONS: NamecardReactionState = {
   reactions: {},
@@ -226,6 +241,11 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
   const [filters, setFilters] = useState<NamecardFilterValue>(
     DEFAULT_NAMECARD_FILTERS
   )
+  // 排序键与方向独立于筛选：清空筛选不会改变排序。
+  const [sort, setSort] = useState<NamecardCollectionSort>("exchange")
+  const [dir, setDir] = useState<NamecardCollectionDirection>(
+    NAMECARD_COLLECTION_DEFAULT_DIRECTION.exchange
+  )
   const [page, setPage] = useState(1)
   const [includeOwn, setIncludeOwn] = useState(false)
   const [includeHidden, setIncludeHidden] = useState(false)
@@ -249,8 +269,7 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
   const { catalog, loading: catalogLoading } =
     useNamecardCharacterCatalog(active)
 
-  const { q, sort, dir, characterIds, matchAll, excludeOther, seriesCodes } =
-    filters
+  const { q, characterIds, matchAll, excludeOther, seriesCodes } = filters
   const group = filters.group
   const owner = filters.owner
   const excludeCross = filters.excludeCross
@@ -380,6 +399,18 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
 
   function changeFilters(next: NamecardFilterValue) {
     setFilters(next)
+    setPage(1)
+  }
+
+  /** 换排序键就回到该键的默认方向，避免「按名称 + 倒序」这种意外组合。 */
+  function changeSort(next: NamecardCollectionSort) {
+    setSort(next)
+    setDir(NAMECARD_COLLECTION_DEFAULT_DIRECTION[next])
+    setPage(1)
+  }
+
+  function changeDirection(next: NamecardCollectionDirection) {
+    setDir(next)
     setPage(1)
   }
 
@@ -550,6 +581,11 @@ export function NamecardCollection({ active = true }: { active?: boolean }) {
         <NamecardFilterBar
           value={filters}
           onChange={changeFilters}
+          sort={sort}
+          dir={dir}
+          sortOptions={COLLECTION_SORT_OPTIONS}
+          onSortChange={changeSort}
+          onDirectionChange={changeDirection}
           series={series}
           catalog={catalog}
           catalogLoading={catalogLoading}

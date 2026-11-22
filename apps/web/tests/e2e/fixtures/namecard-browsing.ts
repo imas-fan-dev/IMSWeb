@@ -638,10 +638,10 @@ export async function expectNamecardReactionDensity(page: Page) {
     .poll(() =>
       groups.evaluateAll((elements) => {
         const mobile = !matchMedia("(min-width: 48rem)").matches
-        // The wall uses the compact reaction scale everywhere: 28px pills,
-        // 24px add button, 12px emoji and 10px/12px labels.
-        const minWidth = 27.5
-        const minHeight = 27.5
+        // Wall and detail share the compact scale: 20px pills / add trigger,
+        // 12px emoji and 10px labels at every breakpoint.
+        const minWidth = 19.5
+        const minHeight = 19.5
         return elements.every((group) => {
           const card = group.closest("[data-namecard-item]")!
           const cardBox = card.getBoundingClientRect()
@@ -679,8 +679,7 @@ export async function expectNamecardReactionDensity(page: Page) {
                     image.naturalWidth > 0 &&
                     Math.abs(imageBox!.width - 12) < 0.1 &&
                     Math.abs(imageBox!.height - 12) < 0.1 &&
-                    getComputedStyle(button).fontSize ===
-                      (mobile ? "10px" : "12px")))
+                    getComputedStyle(button).fontSize === "10px"))
               )
             })
           )

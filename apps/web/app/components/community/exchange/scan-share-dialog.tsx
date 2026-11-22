@@ -26,6 +26,7 @@ import {
   scanShareLinkFor,
 } from "~/pages/account/me/namecards/card-share-model"
 
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { useScanShare } from "./use-scan-share"
 
 const SCAN_SHARE_TITLE = "扫码交换"
@@ -41,12 +42,13 @@ const SCAN_SHARE_WAITING_DESCRIPTION =
  * 内容只在 `open` 为真时挂载：关闭即卸载，回到选卡窗口再进就是一次全新的会话。
  */
 function ScanShareBody({
-  cardNumbers,
+  cardNumbers: incomingCardNumbers,
   onClose,
 }: {
   cardNumbers: readonly number[]
   onClose: () => void
 }) {
+  const cardNumbers = useRetainedValue(incomingCardNumbers) ?? []
   const share = useScanShare({ cardNumbers })
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // 二维码内容是站点链接：任何扫码器都能看出这是什么、属于哪个站点。

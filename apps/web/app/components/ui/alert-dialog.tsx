@@ -7,8 +7,16 @@ import { Button } from "~/components/ui/button"
 import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppression"
 import { cn } from "~/lib/utils"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+const AlertDialogOpenContext = React.createContext<boolean | undefined>(
+  undefined
+)
+
+function AlertDialog({ open, ...props }: AlertDialogPrimitive.Root.Props) {
+  return (
+    <AlertDialogOpenContext.Provider value={open}>
+      <AlertDialogPrimitive.Root data-slot="alert-dialog" open={open} {...props} />
+    </AlertDialogOpenContext.Provider>
+  )
 }
 
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
@@ -42,10 +50,20 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  children,
   ...props
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm"
 }) {
+  // 与 Dialog 相同：关闭时保留打开时的子树，避免描述先清空。
+  const open = React.useContext(AlertDialogOpenContext)
+  const [snapshot, setSnapshot] = React.useState<React.ReactNode>(children)
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== undefined && open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSnapshot(children)
+  }
+  const content = open === false ? snapshot : children
   return (
     <AlertDialogPortal>
       <NativeTabBarSuppression />
@@ -59,7 +77,9 @@ function AlertDialogContent({
           "top-1/2 left-1/2 max-h-(--overlay-safe-height) w-(--overlay-safe-width) -translate-1/2"
         )}
         {...props}
-      />
+      >
+        {content}
+      </AlertDialogPrimitive.Popup>
     </AlertDialogPortal>
   )
 }

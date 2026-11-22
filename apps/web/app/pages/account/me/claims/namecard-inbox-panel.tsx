@@ -9,6 +9,7 @@ import {
   RefreshCwIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -50,6 +51,9 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
   const [readingId, setReadingId] = useState<string | null>(null)
   const [detail, setDetail] = useState<InboxDetail | null>(null)
   const [exchangeId, setExchangeId] = useState<string | null>(null)
+  // 关闭时状态先置空、弹层还要退场：把最后一条留住再淡出。
+  const shownDetail = useRetainedValue(detail)
+  const shownExchangeId = useRetainedValue(exchangeId)
 
   useEffect(() => {
     let active = true
@@ -348,23 +352,25 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
           <DialogHeader>
             <DialogTitle
               className="line-clamp-2 pr-10 wrap-break-word"
-              title={detail?.title ?? ""}
+              title={shownDetail?.title ?? ""}
             >
-              {detail?.title ?? ""}
+              {shownDetail?.title ?? ""}
             </DialogTitle>
             <DialogDescription>
-              {detail ? detail.at.slice(0, 16).replace("T", " ") : ""}
+              {shownDetail
+                ? shownDetail.at.slice(0, 16).replace("T", " ")
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="max-h-[60vh] overflow-y-auto overscroll-contain rounded-lg border bg-muted/20 p-4 text-sm wrap-break-word whitespace-pre-wrap">
-              {detail?.body ?? ""}
+              {shownDetail?.body ?? ""}
             </div>
           </DialogBody>
           <DialogFooter>
-            {detail?.cardNumber ? (
+            {shownDetail?.cardNumber ? (
               <NavigationLink
-                to={claimHref(detail.cardNumber)}
+                to={claimHref(shownDetail.cardNumber)}
                 className={buttonVariants({ variant: "outline" })}
                 onClick={() => setDetail(null)}
               >
@@ -386,7 +392,7 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
         onOpenChange={(open) => {
           if (!open) setExchangeId(null)
         }}
-        exchangeId={exchangeId}
+        exchangeId={shownExchangeId}
         readOnly={readOnly}
         onDecided={handleExchangeDecided}
       />

@@ -445,8 +445,12 @@ describe("CommunityCardsPage", () => {
       return element as HTMLElement
     })
     expect(carousel).toHaveClass("aspect-square")
-    expect(within(carousel).getByRole("button", { name: "查看正面" })).toBeVisible()
-    expect(within(carousel).getByRole("button", { name: "查看背面" })).toBeVisible()
+    expect(
+      within(carousel).getByRole("button", { name: "查看正面" })
+    ).toBeVisible()
+    expect(
+      within(carousel).getByRole("button", { name: "查看背面" })
+    ).toBeVisible()
     expect(within(carousel).getByLabelText("共 3 页")).toBeVisible()
     // 制作人名与日期在缩略图下方，所有者徽标不再有文字链接。
     expect(screen.getByText("天海春香")).toBeVisible()
@@ -477,8 +481,10 @@ describe("CommunityCardsPage", () => {
         expect.objectContaining({ tags: ["偶像"] })
       )
     )
-    const filters = screen.getByRole("button", { name: "筛选（已应用）" })
+    const filters = screen.getByRole("button", { name: /^筛选/ })
     expect(filters).toHaveAttribute("aria-expanded", "false")
+    expect(filters).toHaveTextContent("筛选（已应用）")
+    // 标签筛选也收在同一个筛选面板里。
     await user.click(filters)
     expect(
       screen.getByRole("button", { name: "移除标签筛选 偶像" })
@@ -816,16 +822,16 @@ describe("CommunityCardsPage", () => {
       "/emoji/twemoji/2764.svg"
     )
     expect(reaction).toHaveClass(
-      "h-7",
-      "min-h-7",
-      "min-w-7",
+      "h-5",
+      "min-h-5",
+      "shrink-0",
       "gap-0.5",
-      "rounded-full",
-      "px-1",
+      "rounded-sm",
+      "px-1.5",
       "text-[10px]",
-      "md:min-w-0"
+      "tabular-nums"
     )
-    expect(reaction.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
+    expect(reaction.querySelector("img")).toHaveClass("size-3")
 
     expect(screen.getByRole("button", { name: "添加反应" })).toHaveClass(
       "max-md:hidden"
@@ -843,9 +849,9 @@ describe("CommunityCardsPage", () => {
     expect(reactionGroup).toBeVisible()
     expect(reactionGroup.lastElementChild).toBe(addButton)
     expect(addButton).toHaveAttribute("title", "添加反应")
-    expect(addButton).toHaveClass("size-8", "rounded-full")
+    expect(addButton).toHaveClass("size-5", "before:-inset-y-3")
     const visibleCircle = addButton.querySelector("span")
-    expect(visibleCircle).toHaveClass("size-6", "rounded-full", "border-dashed")
+    expect(visibleCircle).toHaveClass("size-5", "rounded-sm", "border-dashed")
     expect(addButton.querySelector("svg")).toHaveAttribute(
       "aria-hidden",
       "true"
@@ -937,8 +943,8 @@ describe("CommunityCardsPage", () => {
 
     const add = within(summary).getByRole("button", { name: "添加反应" })
     expect(add).toHaveAttribute("title", "添加反应")
-    expect(add).toHaveClass("max-md:hidden", "size-8")
-    expect(add.querySelector("span")).toHaveClass("size-6", "border-dashed")
+    expect(add).toHaveClass("max-md:hidden", "size-5")
+    expect(add.querySelector("span")).toHaveClass("size-5", "border-dashed")
     await user.click(add)
     expect(screen.getByText("选择反应")).toBeVisible()
     expect(screen.getAllByRole("button", { name: /，添加反应$/ })).toHaveLength(
@@ -1306,13 +1312,7 @@ describe("CommunityCardsPage", () => {
 
     const group = await screen.findByLabelText("名片反应摘要")
     await within(group).findAllByRole("button", { name: "🤣，56 次反应" })
-    expect(group).toHaveClass(
-      "flex",
-      "flex-wrap",
-      "min-h-7",
-      "gap-0.5",
-      "md:gap-1"
-    )
+    expect(group).toHaveClass("flex", "flex-wrap", "min-h-5")
     expect(group).not.toHaveClass("-mx-2", "md:mx-0")
     const chips = within(group).getAllByRole("button", { name: /次反应$/ })
     const mobileChips = chips.filter((chip) =>
@@ -1326,30 +1326,25 @@ describe("CommunityCardsPage", () => {
       "56",
       "34",
     ])
+    // 次数降序；同为 56 的 👍 在内置顺序里排在 🤣 前。
     expect(desktopChips.map((chip) => chip.textContent)).toEqual([
-      "12",
+      "56",
       "56",
       "34",
-      "56",
+      "12",
     ])
     for (const chip of chips) {
       expect(chip).toHaveClass(
-        "h-7",
-        "min-h-7",
-        "min-w-7",
+        "h-5",
+        "min-h-5",
         "shrink-0",
         "gap-0.5",
-        "rounded-full",
+        "rounded-sm",
         "border-border",
         "bg-background",
-        "px-1",
+        "px-1.5",
         "text-[10px]",
-        "tabular-nums",
-        "max-md:focus-visible:ring-inset",
-        "md:min-w-0",
-        "md:gap-0.5",
-        "md:px-1.5",
-        "md:text-xs"
+        "tabular-nums"
       )
       expect(chip).not.toHaveClass(
         "min-h-11",
@@ -1357,10 +1352,13 @@ describe("CommunityCardsPage", () => {
         "w-11",
         "w-1/4",
         "basis-1/4",
-        "truncate"
+        "truncate",
+        "md:min-w-0",
+        "md:gap-0.5",
+        "md:px-1.5",
+        "md:text-xs"
       )
-      expect(chip).toHaveClass("max-w-14", "md:max-w-none", "grow")
-      expect(chip.querySelector("img")).toHaveClass("size-3.5", "md:size-5")
+      expect(chip.querySelector("img")).toHaveClass("size-3")
     }
     expect(within(group).getByRole("button", { name: "添加反应" })).toHaveClass(
       "max-md:hidden"
@@ -1565,7 +1563,9 @@ describe("CommunityCardsPage", () => {
         "md:px-4"
       )
       // 第一行是制作人名（自适应字号），第二行是创建日期。
-      expect(header.querySelector("[data-slot=card-description] time")).not.toBeNull()
+      expect(
+        header.querySelector("[data-slot=card-description] time")
+      ).not.toBeNull()
       const faces = within(item).getAllByRole("button", {
         name: /^查看制作人名片/,
       })
@@ -1615,9 +1615,7 @@ describe("CommunityCardsPage", () => {
       "md:px-2.5",
       "md:whitespace-nowrap",
     ]
-    expect(
-      within(items[3]).getByText("已由注册用户认领")
-    ).toBeInTheDocument()
+    expect(within(items[3]).getByText("已由注册用户认领")).toBeInTheDocument()
     expect(
       screen.getByText("认领审核中").closest('[data-slot="badge"]')!
     ).toHaveClass(...claimPlacement)
@@ -1710,23 +1708,33 @@ describe("CommunityCardsPage", () => {
     })
   })
 
-  it("keeps filters collapsed by default, without hiding the wall order", async () => {
+  it("keeps every filter collapsed behind the 筛选 toggle", async () => {
     const user = userEvent.setup()
     renderPage()
 
-    const toggle = screen.getByRole("button", { name: "筛选" })
+    const toggle = screen.getByRole("button", { name: /^筛选/ })
     expect(toggle).toHaveAttribute("aria-expanded", "false")
-    expect(screen.queryByRole("textbox", { name: "制作人名称" })).toBeNull()
+    expect(toggle).not.toHaveClass("md:hidden")
+    const panel = document.getElementById("namecard-filters-panel")!
+    expect(panel).toHaveClass("hidden")
     expect(
       screen.getByRole("combobox", { name: "排序方式" })
     ).toHaveTextContent("最新发布")
+    // 排序在折叠区外，搜索与标签等筛选都在区内。
+    const sort = screen.getByRole("combobox", { name: "排序方式" })
+    expect(panel.contains(sort)).toBe(false)
+    expect(panel).toContainElement(screen.getByLabelText("制作人名称"))
+    expect(panel).toContainElement(
+      screen.getByRole("combobox", { name: "标签筛选" })
+    )
+    expect(screen.queryByLabelText("所属用户")).not.toBeInTheDocument()
+
     await user.click(toggle)
     expect(toggle).toHaveAttribute("aria-expanded", "true")
-    expect(screen.queryByLabelText("所属用户")).not.toBeInTheDocument()
-    expect(
-      screen.getByRole("textbox", { name: "制作人名称" })
-    ).toBeInTheDocument()
+    expect(panel).toHaveClass("flex")
+    expect(screen.getByLabelText("制作人名称")).toBeVisible()
     expect(screen.getByRole("combobox", { name: "标签筛选" })).toBeVisible()
+    expect(screen.getByLabelText("所属团体")).toBeVisible()
   })
 
   it("passes every wall filter and resets the page on change", async () => {
@@ -1739,8 +1747,7 @@ describe("CommunityCardsPage", () => {
     renderPage("/community/cards?page=3&size=12&sort=created")
     await screen.findByRole("button", { name: "查看制作人名片 42 背面" })
 
-    await user.click(screen.getByRole("button", { name: "筛选" }))
-    await user.click(screen.getByRole("button", { name: /高级筛选/ }))
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("制作人名称"), "春香")
     await waitFor(
       () =>
@@ -1788,7 +1795,7 @@ describe("CommunityCardsPage", () => {
 
     expect(await screen.findByText("还没有公开名片")).toBeVisible()
 
-    await user.click(screen.getByRole("button", { name: "筛选" }))
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("制作人名称"), "春香")
 
     expect(await screen.findByText("没有符合条件的名片")).toBeVisible()
@@ -2032,7 +2039,7 @@ describe("CommunityCardsPage", () => {
       screen.getByRole("combobox", { name: "排序方式" })
     ).toHaveTextContent("随机发现")
     expect(screen.queryByRole("navigation", { name: "名片分页" })).toBeNull()
-    expect(screen.getByRole("button", { name: "筛选" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^筛选/ })).toHaveAttribute(
       "aria-expanded",
       "false"
     )

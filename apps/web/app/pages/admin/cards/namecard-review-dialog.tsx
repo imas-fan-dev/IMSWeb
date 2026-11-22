@@ -1,6 +1,7 @@
 import { LoaderCircleIcon, LockIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -103,7 +104,7 @@ export function diffFields(
  * 审核队列里的详情窗：左边对比两版的图片，右边逐字段对比文字，底部只留裁决按钮。
  */
 export function NamecardReviewDialog({
-  card,
+  card: incomingCard,
   onOpenChange,
   onApprove,
   onReject,
@@ -115,6 +116,7 @@ export function NamecardReviewDialog({
   onReject: (card: AdminNamecard) => void
   onLock: (card: AdminNamecard) => void
 }) {
+  const card = useRetainedValue(incomingCard)
   const labels = useReviewLabels()
   const [diff, setDiff] = useState<AdminNamecardDiff | null>(null)
   const [failed, setFailed] = useState(false)
@@ -138,7 +140,7 @@ export function NamecardReviewDialog({
   const fields = diff ? diffFields(diff.live, diff.pending, labels) : []
 
   return (
-    <Dialog open={card !== null} onOpenChange={onOpenChange}>
+    <Dialog open={incomingCard !== null} onOpenChange={onOpenChange}>
       <DialogContent layout="pinned" className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>名片 #{card?.id ?? ""}</DialogTitle>

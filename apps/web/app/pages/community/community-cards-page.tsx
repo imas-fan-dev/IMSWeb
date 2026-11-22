@@ -3,7 +3,6 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   ImagesIcon,
-  ListFilterIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { SubmitEvent } from "react"
@@ -28,7 +27,6 @@ import { NamecardClaimDialog } from "~/components/community/namecard-claim-dialo
 import { ExchangeCardPickerDialog } from "~/components/community/exchange/exchange-card-picker-dialog"
 import { useExchangeSubmit } from "~/components/community/exchange/use-exchange-submit"
 import { WallInsightsPanel } from "./components/wall-insights-panel"
-import { NamecardWallOrder } from "./components/namecard-wall-order"
 import { NamecardSupplementDialog } from "~/components/community/namecard-supplement-dialog"
 import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
 import {
@@ -52,11 +50,6 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "~/components/ui/collapsible"
 import {
   Empty,
   EmptyDescription,
@@ -101,6 +94,14 @@ import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+/** 名片墙的排序键：比名片册多「随机发现 / 最新发布」。 */
+const WALL_SORT_OPTIONS = [
+  { value: "random", label: "随机发现" },
+  { value: "created", label: "最新发布" },
+  { value: "name", label: "制作人名" },
+  { value: "series", label: "企划" },
+  { value: "date", label: "制作日期" },
+] satisfies { value: NamecardWallSort; label: string }[]
 /** 制作人检索与名片册同一停顿，避免每敲一个字就发一次列表请求。 */
 const SEARCH_DEBOUNCE_MS = 300
 const SESSION_REACTION_LIMIT = 10
@@ -183,17 +184,14 @@ function NamecardItem({
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   /** 轮播在 pointerup 就打开详情，click 捕获太晚；两条路径都要记下触发按钮。 */
   const captureTrigger = (target: EventTarget | null) => {
-    const button =
-      target instanceof Element ? target.closest("button") : null
+    const button = target instanceof Element ? target.closest("button") : null
     triggerRef.current = button instanceof HTMLButtonElement ? button : null
   }
   const tags = card.tags?.map((tag) => tag.name) ?? []
-  const producerName = card.producerName || `名片 #${card.cardNumber ?? card.id}`
+  const producerName =
+    card.producerName || `名片 #${card.cardNumber ?? card.id}`
   const producer = (
-    <FitText
-      text={producerName}
-      className="text-xs font-medium md:text-sm"
-    />
+    <FitText text={producerName} className="text-xs font-medium md:text-sm" />
   )
   return (
     <Card
@@ -675,7 +673,8 @@ export default function CommunityCardsPage() {
     const text = normalizeTagText(tag)
     if (!text) return
     const key = tagComparisonKey(text)
-    if (filters.tags.some((current) => tagComparisonKey(current) === key)) return
+    if (filters.tags.some((current) => tagComparisonKey(current) === key))
+      return
     if (filters.tags.length >= NAMECARD_TAG_FILTER_LIMIT) {
       toast.error(`最多同时筛选 ${NAMECARD_TAG_FILTER_LIMIT} 个标签`)
       return
@@ -867,6 +866,9 @@ export default function CommunityCardsPage() {
         onOpenChange={(open) => {
           if (!open) setSupplementCard(null)
         }}
+        onTagsChange={(tags) => {
+          if (supplementCard) updateCardTags(supplementCard.id, tags)
+        }}
         onSubmitted={() => {
           const submitted = supplementCard
           setSupplementCard(null)
@@ -891,6 +893,9 @@ export default function CommunityCardsPage() {
         open={canClaim && claimCard !== null}
         onOpenChange={(open) => {
           if (!open) setClaimCard(null)
+        }}
+        onTagsChange={(tags) => {
+          if (claimCard) updateCardTags(claimCard.id, tags)
         }}
         onSubmitted={() => {
           if (!claimCard) return
@@ -932,37 +937,23 @@ export default function CommunityCardsPage() {
         </h1>
       </header>
 
-      <Collapsible className="mt-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <NamecardWallOrder
-            sort={sort}
-            dir={dir}
-            onSortChange={(nextSort) => changeOrder(nextSort)}
-            onDirectionChange={(nextDir) => changeOrder(sort, nextDir)}
-            onReshuffle={() => changeOrder("random", undefined, true)}
-          />
-          <CollapsibleTrigger
-            render={<Button type="button" variant="outline" />}
-          >
-            <ListFilterIcon data-icon="inline-start" aria-hidden="true" />
-            {filtered ? "筛选（已应用）" : "筛选"}
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent keepMounted>
-          <div className="mt-3 rounded-lg border p-3">
-            <NamecardFilterBar
-              value={filters}
-              onChange={changeFilters}
-              hideSort
-              series={series}
-              catalog={catalog}
-              catalogLoading={catalogLoading}
-              showOwner={false}
-              showTags
-            />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      <div className="mt-4">
+        <NamecardFilterBar
+          value={filters}
+          onChange={changeFilters}
+          sort={sort}
+          dir={dir}
+          sortOptions={WALL_SORT_OPTIONS}
+          onSortChange={(nextSort) => changeOrder(nextSort)}
+          onDirectionChange={(nextDir) => changeOrder(sort, nextDir)}
+          onReshuffle={() => changeOrder("random", undefined, true)}
+          series={series}
+          catalog={catalog}
+          catalogLoading={catalogLoading}
+          showOwner={false}
+          showTags
+        />
+      </div>
 
       <section
         ref={fallbackRef}

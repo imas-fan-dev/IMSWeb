@@ -42,7 +42,7 @@ test.describe("namecard mobile browsing", () => {
       await card.getByRole("button", { name: "查看背面", exact: true }).click()
       await expect(back).toBeInViewport()
       await back.click()
-      const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+      const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
       await expect(detail).toBeVisible()
       await expect(
         detail.getByRole("button", { name: "放大制作人名片 1 背面" })
@@ -80,12 +80,12 @@ test.describe("namecard mobile browsing", () => {
       const pillBox = await detail
         .getByRole("button", { name: "👍，2 次反应", exact: true })
         .boundingBox()
-      // 名片墙与详情窗都使用紧凑反应档：32px 添加按钮、28px 胶囊、24px 圆形按钮。
-      expect(addBox?.width).toBeGreaterThanOrEqual(31.5)
-      expect(addBox?.height).toBeGreaterThanOrEqual(31.5)
-      expect(pillBox?.height).toBeCloseTo(28, 0)
-      expect(circleBox?.width).toBeCloseTo(24, 0)
-      expect(circleBox?.height).toBeCloseTo(24, 0)
+      // 墙与详情共用 20px 胶囊/可见块；触控热区由伪元素撑出，不改变布局。
+      expect(addBox?.width).toBeCloseTo(20, 0)
+      expect(addBox?.height).toBeCloseTo(20, 0)
+      expect(pillBox?.height).toBeCloseTo(20, 0)
+      expect(circleBox?.width).toBeCloseTo(20, 0)
+      expect(circleBox?.height).toBeCloseTo(20, 0)
       expect(circleBox!.y + circleBox!.height / 2).toBeCloseTo(
         pillBox!.y + pillBox!.height / 2,
         0
@@ -195,10 +195,10 @@ test.describe("namecard mobile browsing", () => {
           .map((element) => element.getBoundingClientRect().y + window.scrollY)
       )
       expect(after[0]).toBeCloseTo(after[1]!, 0)
-      // Three long mobile summary counts wrap onto an additional compact row
-      // (28px pill + 2px row gap). The next card in that masonry column
+      // Three long mobile summary counts wrap onto an additional chip row
+      // (20px pill + 4px row gap). The next card in that masonry column
       // follows it without moving the other column.
-      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(29.5)
+      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(21.5)
       expect(after[3]).toBeCloseTo(before[3]!, 0)
       await expect(
         page.getByRole("button", { name: /查看制作人名片 \d+ 正面/ })
@@ -436,7 +436,7 @@ test.describe("namecard mobile browsing", () => {
     await original.scrollIntoViewIfNeeded()
     const scrollY = await page.evaluate(() => window.scrollY)
     await original.click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     await expect(
       detail.getByRole("button", { name: /[上下]一张名片/ })

@@ -1,5 +1,5 @@
 import { LoaderCircleIcon, XIcon } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Button } from "~/components/ui/button"
@@ -18,6 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 
 import {
@@ -127,11 +128,27 @@ export function ExchangeCardPickerDialog({
 
   const exit = useCallback(() => onOpenChange(false), [onOpenChange])
 
-  const panel = open ? (
+  // 关闭时先把内容留住，等退场动画结束再卸载（弹层本身由 Dialog 处理）。
+  const [bodyMounted, setBodyMounted] = useState(open)
+  if (open && !bodyMounted) setBodyMounted(true)
+  useEffect(() => {
+    if (open) return
+    const timer = window.setTimeout(() => setBodyMounted(false), 180)
+    return () => window.clearTimeout(timer)
+  }, [open])
+  // 调用方会在关闭时立即清空目标；留住最后一份，退场期间内容不变。
+  const targetSnapshot = useMemo(
+    () => (open ? { target, targetCard, targetMissingCount } : null),
+    [open, target, targetCard, targetMissingCount]
+  )
+  const retainedTarget = useRetainedValue(targetSnapshot)
+  const shown = retainedTarget ?? { target, targetCard, targetMissingCount }
+
+  const panel = bodyMounted ? (
     <PickerPanel
-      target={target}
-      targetCard={targetCard}
-      targetMissingCount={targetMissingCount}
+      target={shown.target}
+      targetCard={shown.targetCard}
+      targetMissingCount={shown.targetMissingCount}
       variant={variant}
       submitting={submitting}
       onSubmit={submit}
