@@ -31,6 +31,7 @@ import {
 import { handleRejectRetiredWikiStaticAsset } from "@/domains/content/wiki/media/handlers/reject-retired-wiki-static-asset";
 import { createHandleSaveWikiEntityImage } from "@/domains/content/wiki/media/handlers/save-entity-image";
 import { createHandleServeWikiStoryCoverAsset } from "@/domains/content/wiki/media/handlers/serve-story-cover-asset";
+import { createHandleServeWikiDocumentMedia } from "@/domains/content/wiki/media/handlers/serve-document-media";
 import { createHandleServeWikiEntityIcon } from "@/domains/content/wiki/media/handlers/serve-wiki-entity-icon";
 import { createHandleServeWikiIdolImage } from "@/domains/content/wiki/media/handlers/serve-wiki-idol-image";
 import { createHandleUploadWikiAgencyIcon } from "@/domains/content/wiki/media/handlers/upload-agency-icon";
@@ -79,6 +80,12 @@ export function registerWikiMediaRoutes<E extends Env>(
     wikiPath('/story-cover-assets/:asset'),
     assetParam,
     createHandleServeWikiStoryCoverAsset(resolveServices),
+  );
+  app.on(
+    ["GET", "HEAD"],
+    wikiPath('/document-media/:asset'),
+    assetParam,
+    createHandleServeWikiDocumentMedia(resolveServices),
   );
   app.on(["GET", "HEAD"], cssPath('/*'), handleRejectRetiredWikiStaticAsset);
   app.on(

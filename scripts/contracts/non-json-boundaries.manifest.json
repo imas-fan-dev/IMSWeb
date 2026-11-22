@@ -443,6 +443,21 @@
       }
     },
     {
+      "id": "WIKI-DOCUMENT-MEDIA-01",
+      "sourceFile": "apps/api/src/domains/content/wiki/media/handlers/serve-document-media.ts",
+      "symbol": "createHandleServeWikiDocumentMedia",
+      "responseKind": "binary",
+      "reason": "Public document media delivery serves entry-scoped document images from object storage via GET and HEAD without exposing object keys.",
+      "jsonErrorSchema": {
+        "sourceFile": "packages/contracts/src/wiki.ts",
+        "symbol": "wikiHttpErrorResponseSchema"
+      },
+      "test": {
+        "file": "apps/api/tests/wiki/document-public-stories.contract.test.ts",
+        "symbol": "falls back to the id-addressed asset routes without exposing object keys"
+      }
+    },
+    {
       "id": "WIKI-IDOL-IMAGE-MEDIA-01",
       "sourceFile": "apps/api/src/domains/content/wiki/media/handlers/serve-wiki-idol-image.ts",
       "symbol": "createHandleServeWikiIdolImage",

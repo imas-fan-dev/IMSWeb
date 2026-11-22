@@ -111,7 +111,11 @@ export function StoryPage() {
   const stories = requestIsCurrent ? storyRequest.data : null
   const storiesError = requestIsCurrent ? storyRequest.error : null
   const loading = hasTarget && !requestIsCurrent
-  const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
+  const showsCastFilter = Boolean(
+    stories &&
+    stories.contentMode !== "document" &&
+    isGakumasSCardStories(stories)
+  )
   const highlightedCardId = useStoryCardTarget({
     hash: location.hash,
     ready: Boolean(stories),
@@ -152,7 +156,7 @@ export function StoryPage() {
   // above would read 0/0/0; derive them from the blocks instead.
   const documentCounts =
     stories?.contentMode === "document" && stories.document
-      ? documentSummary(stories.document)
+      ? documentSummary(stories.document, stories.categories)
       : null
 
   if (!hasTarget) {

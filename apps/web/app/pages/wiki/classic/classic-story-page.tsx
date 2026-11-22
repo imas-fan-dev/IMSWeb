@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useMemo, useState } from "react"
 import { useLocation, useSearchParams } from "react-router"
 
 import { BackToTop } from "~/components/shared/back-to-top"
+import { documentSummary } from "~/components/wiki/wiki-document-model"
 import { getWikiStories, isApiError } from "~/lib/api"
 import type {
   WikiPublicStories,
@@ -104,7 +105,11 @@ export function ClassicStoryPage() {
     ready: Boolean(stories),
     documentKey: requestKey,
   })
-  const showsCastFilter = Boolean(stories && isGakumasSCardStories(stories))
+  const showsCastFilter = Boolean(
+    stories &&
+    stories.contentMode !== "document" &&
+    isGakumasSCardStories(stories)
+  )
   const categories = useMemo(() => {
     if (!stories) return []
     const selectedCategories =
@@ -130,6 +135,11 @@ export function ClassicStoryPage() {
       (sum, category) => sum + category.cards.length,
       0
     ) ?? 0
+  const documentCounts =
+    stories?.contentMode === "document" && stories.document
+      ? documentSummary(stories.document, stories.categories)
+      : null
+  const displayCardCount = documentCounts ? documentCounts.cards : cardCount
   const style = {
     "--classic-story-color": accent,
     "--classic-story-ink": readableWikiAccent(accent),
@@ -189,12 +199,16 @@ export function ClassicStoryPage() {
         </div>
       ) : stories ? (
         <div className="wiki-classic-story-layout">
-          <ClassicStoryProfile stories={stories} cardCount={cardCount} />
+          <ClassicStoryProfile
+            stories={stories}
+            cardCount={displayCardCount}
+            sectionCount={documentCounts?.sections}
+          />
           <ClassicStoryContent
             stories={stories}
             categories={categories}
             selectedCategory={selectedCategory}
-            cardCount={cardCount}
+            cardCount={displayCardCount}
             highlightedCardId={highlightedCardId}
             castFilter={
               showsCastFilter

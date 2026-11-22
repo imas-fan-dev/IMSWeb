@@ -59,6 +59,8 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiExportStructuredEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryDocumentRevisionParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions/:revision", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "GET", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "HEAD", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",

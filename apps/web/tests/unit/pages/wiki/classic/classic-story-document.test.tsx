@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest"
 
 import { installFetchMock } from "@/tests/unit/support/api-client"
 import { renderPage } from "@/tests/unit/support/harness"
-import { makeWikiPublicIdol, makeWikiPublicStories } from "@/mocks/data/wiki"
+import {
+  makeWikiPublicIdol,
+  makeWikiPublicStories,
+  makeWikiPublicStoryCard,
+} from "@/mocks/data/wiki"
 import type { WikiPublicStoryDocument } from "~/lib/api"
 import { ClassicStoryPage } from "~/pages/wiki/classic/classic-story-page"
 
@@ -125,5 +129,134 @@ describe("ClassicStoryPage document mode", () => {
       await screen.findByRole("button", { name: /【初星】/ })
     ).toBeVisible()
     expect(screen.queryByTestId("wiki-document")).not.toBeInTheDocument()
+  })
+
+  it("shows AST and embedded category counts in the classic profile and hides empty legacy tabs", async () => {
+    const hybrid: WikiPublicStoryDocument = {
+      ...DOCUMENT,
+      blocks: [
+        ...DOCUMENT.blocks,
+        {
+          type: "cardGrid",
+          layout: "grid",
+          cols: 2,
+          ratio: null,
+          filter: null,
+          collapsed: false,
+          title: "卡片组",
+          cards: [
+            {
+              type: "card",
+              id: 11,
+              title: "【卡一】",
+              subtitle: "",
+              fit: "cover",
+              asset: null,
+              imageUrl: null,
+              presentationPolicy: "inherit",
+              tags: [],
+              links: [],
+            },
+          ],
+        },
+        { type: "storyCategory", categoryName: "SSR", collapsed: false },
+      ],
+    }
+    installFetchMock().mockResolvedValue(
+      Response.json(
+        makeWikiPublicStories({
+          idol: makeWikiPublicIdol({ name: "樱木真乃" }),
+          contentMode: "document",
+          document: hybrid,
+          categories: [
+            {
+              name: "SSR",
+              cards: [makeWikiPublicStoryCard({ id: 901, name: "【SSR】" })],
+            },
+          ],
+        })
+      )
+    )
+
+    renderPage(<ClassicStoryPage />, { route: ROUTE })
+
+    const profile = (
+      await screen.findByRole("heading", { name: "樱木真乃" })
+    ).closest("aside") as HTMLElement
+    expect(within(profile).getByText("章节")).toBeVisible()
+    expect(within(profile).queryByText("分类")).not.toBeInTheDocument()
+    const counts = profile.querySelector(
+      ".wiki-classic-story-counts"
+    ) as HTMLElement
+    expect(within(counts).getAllByText("2")).toHaveLength(2)
+  })
+
+  it("hides the empty category filter bar and legacy S-card cast filter in classic document mode", async () => {
+    const sCardDoc: WikiPublicStoryDocument = {
+      version: 1,
+      headings: [{ id: "图鉴", level: 2, text: "图鉴" }],
+      availableTags: ["千奈"],
+      blocks: [
+        {
+          type: "heading",
+          level: 2,
+          id: "图鉴",
+          children: [{ type: "text", value: "图鉴" }],
+        },
+        {
+          type: "cardGrid",
+          layout: "grid",
+          cols: 2,
+          ratio: null,
+          filter: "tags",
+          collapsed: false,
+          title: "S卡",
+          cards: [
+            {
+              type: "card",
+              id: 71,
+              title: "【S卡】",
+              subtitle: "",
+              fit: "cover",
+              asset: null,
+              imageUrl: null,
+              presentationPolicy: "inherit",
+              tags: ["千奈"],
+              links: [],
+            },
+          ],
+        },
+      ],
+    }
+    installFetchMock().mockResolvedValue(
+      Response.json(
+        makeWikiPublicStories({
+          agency: { id: 7, code: "gk", name: "学园偶像大师", color: "#f39800" },
+          idol: makeWikiPublicIdol({
+            id: 42,
+            name: "S卡",
+            folderName: "s_card",
+            entryKind: "story",
+            entrySubtype: "special",
+          }),
+          contentMode: "document",
+          document: sCardDoc,
+          categories: [],
+        })
+      )
+    )
+
+    renderPage(<ClassicStoryPage />, {
+      route: "/story/classic?agency=学园偶像大师&idol=S卡",
+    })
+
+    const document = await screen.findByTestId("wiki-document")
+    expect(
+      within(document).getByRole("group", { name: "按标签筛选" })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("region", { name: "出场偶像快速筛选" })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText("分类筛选")).not.toBeInTheDocument()
   })
 })

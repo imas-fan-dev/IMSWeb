@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "32341a86915c5f3d462b5e4d2a42723d73c4fa5d8c7cd7bedf3e54067bf0dbb8",
+    "semanticDigest": "f10b6f369b5f510708b21388ad52f8b121e78fd227fca0c6442fbf8ce321ab0a",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,13 +16,13 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 433,
-    "mountedMethodPaths": 333,
+    "mountedRegistrations": 435,
+    "mountedMethodPaths": 335,
     "noInputRoutes": 100,
-    "requestCarriers": 438,
+    "requestCarriers": 440,
     "policies": {
       "reject": 111,
-      "accept-and-project": 226,
+      "accept-and-project": 228,
       "passthrough": 17,
       "non-object-applicable": 84
     },
@@ -507,6 +507,26 @@
         "carriers": 1,
         "policy": "accept-and-project",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "wikiAssetParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/wiki/document-media/:asset",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/wiki",
+        "symbol": "wikiAssetParamsSchema",
+        "kind": "param",
+        "method": "HEAD",
+        "path": "/api/wiki/document-media/:asset",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
@@ -533,7 +553,7 @@
       "/api/refresh": 1,
       "/api/site-packages": 1,
       "/api/users": 2,
-      "/api/wiki": 18,
+      "/api/wiki": 20,
       "/assets/font": 2,
       "/assets/images": 16,
       "/css/*": 2,
@@ -4302,7 +4322,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:11559678afafe99b:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:433d4207ce11a86c:fb7f85e2:0",
       "carriers": [
         {
           "kind": "param",
@@ -7154,6 +7174,31 @@
     },
     {
       "method": "GET",
+      "path": "/api/wiki/document-media/:asset",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/serve-document-media.ts#anonymous:7db121a10cfdb628:c0244ac2:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+          },
+          "schemaSymbol": "wikiAssetParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
       "path": "/api/wiki/idol-media",
       "registration": {
         "file": "apps/api/src/domains/content/wiki/media/routes.ts"
@@ -7224,7 +7269,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/stories/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:9c708453f4c2e005:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:f5021e0c2b52800e:75c9f5f2:0",
       "carriers": [
         {
           "kind": "query",
@@ -8667,6 +8712,31 @@
           "expression": "request . method === \"HEAD\" ? null : \"Not Found\""
         }
       ]
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/wiki/document-media/:asset",
+      "registration": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+      },
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/serve-document-media.ts#anonymous:7db121a10cfdb628:c0244ac2:0",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+          },
+          "schemaSymbol": "wikiAssetParamsSchema",
+          "schemaModule": "@imsweb/contracts/wiki",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "accept-and-project"
+        }
+      ],
+      "responses": []
     },
     {
       "method": "HEAD",
@@ -12567,7 +12637,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/upload-entry-document-media.ts#anonymous:8272bda96d12ee46:0fe841df:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/upload-entry-document-media.ts#anonymous:80f26fb61f0b55c6:0fe841df:0",
       "carriers": [
         {
           "kind": "param",
@@ -12592,7 +12662,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:f9be0bf8ac917d06:5af3956d:0",
       "carriers": [
         {
           "kind": "param",
@@ -16279,7 +16349,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/documents/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:490f4ab56af945aa:84e2ef0b:0",
       "carriers": [
         {
           "kind": "param",
@@ -18684,7 +18754,7 @@
     {
       "method": "GET",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:11559678afafe99b:fb7f85e2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/get-entry-document.ts#anonymous:433d4207ce11a86c:fb7f85e2:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -19856,8 +19926,25 @@
     },
     {
       "method": "GET",
+      "path": "/api/wiki/document-media/:asset",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/serve-document-media.ts#anonymous:7db121a10cfdb628:c0244ac2:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+      },
+      "schemaSymbol": "wikiAssetParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "GET",
       "path": "/api/wiki/stories",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:9c708453f4c2e005:75c9f5f2:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/stories/handlers/list-public-stories.ts#anonymous:f5021e0c2b52800e:75c9f5f2:0",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -20485,6 +20572,23 @@
       "schemaModule": "@imsweb/contracts/platform",
       "schemaLocation": {
         "file": "apps/api/src/domains/identity/platform-profile/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "accept-and-project"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/wiki/document-media/:asset",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/media/handlers/serve-document-media.ts#anonymous:7db121a10cfdb628:c0244ac2:0",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
+      },
+      "schemaSymbol": "wikiAssetParamsSchema",
+      "schemaModule": "@imsweb/contracts/wiki",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/wiki/media/routes.ts"
       },
       "policy": "accept-and-project",
       "syntaxPolicy": "accept-and-project"
@@ -22559,7 +22663,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/media",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/upload-entry-document-media.ts#anonymous:8272bda96d12ee46:0fe841df:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/upload-entry-document-media.ts#anonymous:80f26fb61f0b55c6:0fe841df:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22576,7 +22680,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/preview",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:f9be0bf8ac917d06:5af3956d:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -22593,7 +22697,7 @@
     {
       "method": "POST",
       "path": "/api/admin/wiki/entries/:entryId/document/preview",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:dbe5714a65a33af1:5af3956d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/preview-entry-document.ts#anonymous:f9be0bf8ac917d06:5af3956d:0",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -24157,7 +24261,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:490f4ab56af945aa:84e2ef0b:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -24174,7 +24278,7 @@
     {
       "method": "PUT",
       "path": "/api/admin/wiki/entries/:entryId/document",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:c81d3ef9849da25d:84e2ef0b:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/documents/handlers/save-entry-document.ts#anonymous:490f4ab56af945aa:84e2ef0b:0",
       "kind": "json",
       "source": "validated",
       "location": {

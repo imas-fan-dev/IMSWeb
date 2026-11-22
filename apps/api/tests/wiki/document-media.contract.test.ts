@@ -581,12 +581,14 @@ describe('wiki document media and embedded categories', () => {
         });
     });
 
-    test('leaves no media row when the public read URL cannot be resolved', async () => {
+    test('falls back to the id-addressed document media route when no public read base is configured', async () => {
         const database = await createPostgresTestDatabase('wiki-doc-media-no-public');
         await new PostgresqlSchemaStrategy().initializeStory(database);
         const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
         const storage = new MemoryObjectStorage();
-        // No public read base configured: the deployment cannot serve the object.
+        // Local development runs without a public read base; upload must still
+        // succeed and return `/api/wiki/document-media/<id>.webp` without
+        // exposing raw object storage keys.
         storage.publicReadUrlBase = null;
         const images = new FixtureImageProcessor();
         const uploads = new FixtureUploadParser();
@@ -609,7 +611,7 @@ describe('wiki document media and embedded categories', () => {
         }));
         const { entryId } = await seedProject(database, 'nopublic');
 
-        uploadImage(uploads);
+        uploadImage(uploads, 'shot.png', 'local-dev-png');
         const response = await app.request(
             `http://wiki.test${adminWikiEntryDocumentMediaPath(entryId)}`,
             {
@@ -617,23 +619,18 @@ describe('wiki document media and embedded categories', () => {
                 headers: { Cookie: ACCESS_COOKIE, 'X-CSRFToken': CSRF_TOKEN },
             }
         );
-        assert.equal(response.status, 500);
-        assert.deepEqual(await response.json(), {
-            status: 'error',
-            msg: '保存文档图片失败',
-        });
-        assert.deepEqual(
-            await queryAll<{ id: number }>(
-                database,
-                'SELECT id FROM wiki_entry_document_media WHERE entry_id=?',
-                [entryId]
-            ),
-            []
+        assert.equal(response.status, 200);
+        const uploaded = await readContractJson(
+            response,
+            adminWikiEntryDocumentMediaUploadSchema
         );
-        assert.deepEqual(
-            [...storage.objects.keys()].filter((key) => key.includes('/document/')),
-            []
-        );
+        const expectedUrl = wikiPath(`/document-media/${uploaded.media.id}.webp`);
+        assert.equal(uploaded.media.imageUrl, expectedUrl);
+
+        const served = await app.request(`http://wiki.test${expectedUrl}`);
+        assert.equal(served.status, 200);
+        assert.equal(served.headers.get('content-type'), 'image/webp');
+        assert.equal(await served.text(), 'WEBP');
     });
 
     test('removes the uploaded object when the media row cannot be written', async () => {

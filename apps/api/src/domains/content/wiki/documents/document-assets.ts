@@ -4,17 +4,14 @@ import type {
     WikiDocumentWarning,
     WikiPublicStoryDocument,
 } from '@imsweb/contracts/wiki';
-import { imagePath } from '@imsweb/contracts/paths';
+import { wikiPath } from '@imsweb/contracts/paths';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { StoryRepository } from '@/ports/repositories';
 import type {
     WikiDocumentAssetSite,
     WikiDocumentCategorySite,
 } from '@/domains/content/wiki/documents/enhanced-markdown-compiler';
-import {
-    requirePublicObjectUrl,
-    resolvePublicObjectUrl,
-} from '@/utils/storage/public-object-url';
+import { resolvePublicObjectUrl } from '@/utils/storage/public-object-url';
 
 /**
  * Resolution of document image and category references against the database.
@@ -62,60 +59,34 @@ interface ResolvedAsset {
 }
 
 /**
- * Public read URL policy for document images.
+ * Site-owned fallback URL for a document asset.
  *
- * Both an entry upload and a shared cover resolve through
- * `ObjectStorage.createPublicReadUrl`, exactly like the structured cover assets
- * they sit next to, so no raw storage key ever reaches the wire. The API
- * refuses the request when the deployment has no public read base configured,
- * which is the same failure the shared cover library already surfaces.
- *
- * The URL depends only on the stored object, never on the reference that points
- * at it, so an upload can resolve it before the media row exists.
+ * Addresses shared covers via `/api/wiki/story-cover-assets/<id>.webp` and
+ * document uploads via `/api/wiki/document-media/<id>.webp`, so local
+ * deployments without a public read base still serve every asset without ever
+ * exposing raw object storage keys.
  */
-export function documentImageUrl(
-    storage: ObjectStorage
-): (objectKey: string) => Promise<string> {
-    return (objectKey) => requirePublicObjectUrl(storage, objectKey);
-}
-
-/**
- * The site's own image route for a document asset.
- *
- * Structured cards are served from `/image/<agency>/<entry>/<objectKey>`; the
- * document renderer uses the same route as its fallback so a deployment without
- * a public read base (local development) still shows the artwork.
- */
-export function documentAssetFallbackUrl(
-    agencyName: string,
-    entryName: string,
-    objectKey: string
-): string {
-    return imagePath(
-        `/${encodeURIComponent(agencyName)}/${encodeURIComponent(
-            entryName
-        )}/${objectKey}`
-    );
+export function documentAssetFallbackUrl(asset: WikiDocumentAssetRef): string {
+    return asset.kind === 'cover'
+        ? wikiPath(`/story-cover-assets/${asset.id}.webp`)
+        : wikiPath(`/document-media/${asset.id}.webp`);
 }
 
 /**
  * Resolver used by every document endpoint.
  *
  * Prefers the configured public read base (CDN/R2 in production) and falls back
- * to the site image route, so saving or reading a document never fails just
- * because the deployment has no public base — the same lenient contract the
- * structured cards already use.
+ * to the API's own id-addressed asset routes, so uploading, previewing, saving,
+ * and reading never fail with 503 when no public read base is configured.
  */
 export function documentAssetUrlResolver(
-    storage: ObjectStorage,
-    agencyName: string,
-    entryName: string
-): (objectKey: string) => Promise<string> {
-    return (objectKey) =>
+    storage: ObjectStorage
+): (asset: WikiDocumentAssetRef, objectKey: string) => Promise<string> {
+    return (asset, objectKey) =>
         resolvePublicObjectUrl(
             storage,
             objectKey,
-            documentAssetFallbackUrl(agencyName, entryName, objectKey)
+            documentAssetFallbackUrl(asset)
         );
 }
 
@@ -318,7 +289,7 @@ export async function resolveWikiDocumentAssets(input: {
     assetRefs: readonly WikiDocumentAssetSite[];
     categoryRefs: readonly WikiDocumentCategorySite[];
     assets: WikiDocumentAssetTable;
-    imageUrl: (objectKey: string) => Promise<string>;
+    imageUrl: (asset: WikiDocumentAssetRef, objectKey: string) => Promise<string>;
 }): Promise<WikiDocumentAssetResolution> {
     const warnings: WikiDocumentWarning[] = [];
     const resolved = new Map<string, ResolvedAsset>();
@@ -343,7 +314,7 @@ export async function resolveWikiDocumentAssets(input: {
             }
             if (!resolved.has(key)) {
                 resolved.set(key, {
-                    imageUrl: await input.imageUrl(record.objectKey),
+                    imageUrl: await input.imageUrl(asset, record.objectKey),
                     presentationPolicy: record.presentationPolicy,
                 });
                 coverAssetIds.push(asset.id);
@@ -365,7 +336,7 @@ export async function resolveWikiDocumentAssets(input: {
         }
         if (!resolved.has(key)) {
             resolved.set(key, {
-                imageUrl: await input.imageUrl(record.objectKey),
+                imageUrl: await input.imageUrl(asset, record.objectKey),
                 presentationPolicy: 'inherit',
             });
         }

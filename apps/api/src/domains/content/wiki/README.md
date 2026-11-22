@@ -23,8 +23,8 @@ wiki/
     routes.ts           # 剧情读写、卡片、来源、内容类型与来源平台目录、B 站解析与批量解析
     handlers/           # 11 个 action
   media/
-    routes.ts           # 实体图标/偶像图片/封面素材的上传、删除、服务与退役静态资源拒绝
-    handlers/           # 11 个 action
+    routes.ts           # 实体图标/偶像图片/封面素材/文档图片的上传、删除、服务与退役静态资源拒绝
+    handlers/           # 12 个 action
   documents/
     routes.ts           # 增强 Markdown 文档的读取、保存、预览、图片上传、结构化导出与历史版本读取
     enhanced-markdown-compiler.ts  # 纯函数：Markdown -> 版本化 AST + plainText + 行号告警

@@ -8,12 +8,16 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 interface ClassicStoryProfileProps {
   stories: WikiPublicStories
   cardCount: number
+  sectionCount?: number
 }
 
 export function ClassicStoryProfile({
   stories,
   cardCount,
+  sectionCount,
 }: ClassicStoryProfileProps) {
+  const isDocument =
+    stories.contentMode === "document" && sectionCount !== undefined
   return (
     <aside className="wiki-classic-story-profile">
       <p className="wiki-classic-story-project">
@@ -29,8 +33,8 @@ export function ClassicStoryProfile({
       </div>
       <dl className="wiki-classic-story-counts">
         <div>
-          <dt>分类</dt>
-          <dd>{stories.categories.length}</dd>
+          <dt>{isDocument ? "章节" : "分类"}</dt>
+          <dd>{isDocument ? sectionCount : stories.categories.length}</dd>
         </div>
         <div>
           <dt>卡片</dt>

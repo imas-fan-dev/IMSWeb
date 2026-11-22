@@ -44,15 +44,13 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
             ? stored.document
             : (await compileEnhancedMarkdown('')).document;
         const assetRefs = collectWikiDocumentAssetSites(document);
-        const [assets, imageUrl] = await Promise.all([
-            loadWikiDocumentAssetTable({
-                repository,
-                entryId,
-                projectId: entry.projectId,
-                assetRefs,
-            }),
-            documentAssetUrlResolver(services.storage!, entry.projectName, entry.name),
-        ]);
+        const assets = await loadWikiDocumentAssetTable({
+            repository,
+            entryId,
+            projectId: entry.projectId,
+            assetRefs,
+        });
+        const imageUrl = documentAssetUrlResolver(services.storage!);
         const resolved = await resolveWikiDocumentAssets({
             document,
             assetRefs,
@@ -79,7 +77,10 @@ export function createHandleGetWikiEntryDocument<E extends Env>(
             media: await Promise.all(
                 mediaRecords.map(async (record) => ({
                     id: record.id,
-                    imageUrl: await imageUrl(record.objectKey),
+                    imageUrl: await imageUrl(
+                        { kind: 'doc', id: record.id },
+                        record.objectKey
+                    ),
                     altText: record.altText,
                 }))
             ),

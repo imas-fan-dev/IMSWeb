@@ -157,13 +157,13 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 433,
-      mountedMethodPaths: 333,
+      mountedRegistrations: 435,
+      mountedMethodPaths: 335,
       noInputRoutes: 100,
-      requestCarriers: 438,
+      requestCarriers: 440,
       policies: {
         reject: 111,
-        "accept-and-project": 226,
+        "accept-and-project": 228,
         passthrough: 17,
         "non-object-applicable": 84,
       },
@@ -216,6 +216,8 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiExportStructuredEntryDocumentRequestSchema", kind: "json", method: "POST", path: "/api/admin/wiki/entries/:entryId/document/export-structured", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryIdParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/wiki", symbol: "adminWikiEntryDocumentRevisionParamsSchema", kind: "param", method: "GET", path: "/api/admin/wiki/entries/:entryId/document/revisions/:revision", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "GET", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "HEAD", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

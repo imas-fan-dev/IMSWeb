@@ -13,7 +13,7 @@ import {
     requireWikiServices,
     validateAndConvertStoryImage,
 } from '@/domains/content/wiki/service';
-import { documentImageUrl } from '@/domains/content/wiki/documents/document-assets';
+import { documentAssetUrlResolver } from '@/domains/content/wiki/documents/document-assets';
 import type { WikiEntryDocumentParams } from '@/domains/content/wiki/documents/document-request';
 import {
     parseUploadWikiEntryDocumentMediaRequest,
@@ -43,7 +43,8 @@ function documentMediaAltText(
  *
  * Accepts one multipart image, converts it to WebP through the shared media
  * port, stores it in object storage, and answers with the public read URL of
- * the new `doc:<id>` reference. The raw object key never leaves the API.
+ * the new `doc:<id>` reference (or `/api/wiki/document-media/<id>.webp` when
+ * no public read base is configured). The raw object key never leaves the API.
  */
 export function createHandleUploadWikiEntryDocumentMedia<E extends Env>(
     resolveServices: WikiServicesResolver<E>
@@ -81,18 +82,16 @@ export function createHandleUploadWikiEntryDocumentMedia<E extends Env>(
                     entry: String(entryId),
                 },
             });
-            // Resolve the public read URL before writing the row: a deployment
-            // without a public read base must fail here, not leave a media row
-            // pointing at an object the response could never serve.
-            const imageUrl = await documentImageUrl(services.storage!)(
-                createdKey
-            );
             const record = await repository.createWikiEntryDocumentMedia({
                 entryId,
                 projectId: entry.projectId,
                 objectKey: createdKey,
                 altText: documentMediaAltText(upload.fields, file.filename),
             });
+            const imageUrl = await documentAssetUrlResolver(services.storage!)(
+                { kind: 'doc', id: record.id },
+                createdKey
+            );
             await writeWikiAudit(
                 context,
                 services,

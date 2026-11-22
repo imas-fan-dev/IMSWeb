@@ -47,15 +47,13 @@ export function createHandleSaveWikiEntryDocument<E extends Env>(
         const entry = await repository.findWikiEntryDocumentTarget(entryId);
         if (!entry) return wikiJson(wikiErrorBody('找不到该内容页'), 404);
         const compiled = await compileEnhancedMarkdown(sourceMarkdown);
-        const [assets, imageUrl] = await Promise.all([
-            loadWikiDocumentAssetTable({
-                repository,
-                entryId,
-                projectId: entry.projectId,
-                assetRefs: compiled.assetRefs,
-            }),
-            documentAssetUrlResolver(services.storage!, entry.projectName, entry.name),
-        ]);
+        const assets = await loadWikiDocumentAssetTable({
+            repository,
+            entryId,
+            projectId: entry.projectId,
+            assetRefs: compiled.assetRefs,
+        });
+        const imageUrl = documentAssetUrlResolver(services.storage!);
         const resolved = await resolveWikiDocumentAssets({
             document: compiled.document,
             assetRefs: compiled.assetRefs,

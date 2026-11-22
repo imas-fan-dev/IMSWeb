@@ -1,8 +1,14 @@
 import { postgresTest as test } from '../postgres-test-database';
 import assert from 'node:assert/strict';
 import { describe } from 'vitest';
-import { defaultWikiImageTransform } from '@imsweb/contracts/wiki';
-import { adminWikiEntryDocumentPath } from '@imsweb/contracts/paths';
+import {
+    defaultWikiImageTransform,
+    wikiHttpErrorResponseSchema,
+} from '@imsweb/contracts/wiki';
+import {
+    adminWikiEntryDocumentPath,
+    wikiPath,
+} from '@imsweb/contracts/paths';
 import { createHonoApp } from '@/app';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlStoryRepository } from '@/infra/db/repositories/story-repository';
@@ -180,12 +186,12 @@ describe('public Wiki stories document payload', () => {
 });
 
 describe('public Wiki document media URLs', () => {
-    test('falls back to the site image route when no public read base is configured', async () => {
+    test('falls back to the id-addressed asset routes without exposing object keys', async () => {
         const database = await createPostgresTestDatabase('wiki-document-media-fallback');
         await new PostgresqlSchemaStrategy().initializeStory(database);
         const repository = new SqlStoryRepository(database, new PostgresqlSchemaStrategy());
         // A local development storage has no public read base at all; the public
-        // page must still render instead of answering 503.
+        // page must still render and serve image bytes without exposing keys.
         const storage = new MemoryObjectStorage();
         const app = createApp(repository, storage);
 
@@ -208,13 +214,26 @@ describe('public Wiki document media URLs', () => {
              VALUES (?, ?, ?, ?) RETURNING id`,
             [project!.id, '回退条目', 'entry_fallback', '#ffbad6']
         );
-        const objectKey = 'agencies/wfall/story-cover-assets/objects/abc/cover.webp';
+        const coverKey = 'agencies/wfall/story-cover-assets/objects/abc/cover.webp';
+        await storage.put(coverKey, new Uint8Array([1, 2, 3, 4]), {
+            contentType: 'image/webp',
+        });
         const asset = await queryOne<{ id: number }>(
             database,
             `INSERT INTO wiki_story_cover_assets (agency_id, name, object_key, display_order)
              VALUES (?, ?, ?, 0) RETURNING id`,
-            [project!.id, '回退封面', objectKey]
+            [project!.id, '回退封面', coverKey]
         );
+        const docKey = `wiki/projects/wfall/entries/${entry!.id}/document/shot.webp`;
+        await storage.put(docKey, new Uint8Array([5, 6, 7, 8]), {
+            contentType: 'image/webp',
+        });
+        const docMedia = await repository.createWikiEntryDocumentMedia({
+            entryId: entry!.id,
+            projectId: project!.id,
+            objectKey: docKey,
+            altText: '实景截图',
+        });
 
         const saved = await app.request(
             `http://wiki.test${adminWikiEntryDocumentPath(entry!.id)}`,
@@ -227,7 +246,12 @@ describe('public Wiki document media URLs', () => {
                 },
                 body: JSON.stringify({
                     contentMode: 'document',
-                    sourceMarkdown: `::media{asset="cover:${asset!.id}" caption="封面"}\n`,
+                    sourceMarkdown: [
+                        `::media{asset="cover:${asset!.id}" caption="封面"}`,
+                        '',
+                        `::media{asset="doc:${docMedia.id}" caption="截图"}`,
+                        '',
+                    ].join('\n'),
                     expectedRevision: 0,
                 }),
             }
@@ -244,14 +268,50 @@ describe('public Wiki document media URLs', () => {
         const body = (await response.json()) as {
             document: { blocks: Array<{ type: string; imageUrl?: string | null }> };
         };
-        const media = body.document.blocks.find((block) => block.type === 'media');
-        // Names are percent-encoded by the resolver so the route survives names
-        // containing `/`, `?` or `#`; the object key keeps its slashes.
-        assert.equal(
-            media?.imageUrl,
-            `/image/${encodeURIComponent('回退企划')}/${encodeURIComponent(
-                '回退条目'
-            )}/${objectKey}`
+        const mediaUrls = body.document.blocks
+            .filter((block) => block.type === 'media')
+            .map((block) => block.imageUrl);
+        const expectedCoverUrl = wikiPath(`/story-cover-assets/${asset!.id}.webp`);
+        const expectedDocUrl = wikiPath(`/document-media/${docMedia.id}.webp`);
+        assert.deepEqual(mediaUrls, [expectedCoverUrl, expectedDocUrl]);
+        assert.equal(expectedCoverUrl.includes(coverKey), false);
+        assert.equal(expectedDocUrl.includes(docKey), false);
+
+        const coverResponse = await app.request(`http://wiki.test${expectedCoverUrl}`);
+        assert.equal(coverResponse.status, 200);
+        assert.deepEqual(
+            new Uint8Array(await coverResponse.arrayBuffer()),
+            new Uint8Array([1, 2, 3, 4])
         );
+
+        const docGetResponse = await app.request(`http://wiki.test${expectedDocUrl}`);
+        assert.equal(docGetResponse.status, 200);
+        assert.equal(docGetResponse.headers.get('content-type'), 'image/webp');
+        assert.deepEqual(
+            new Uint8Array(await docGetResponse.arrayBuffer()),
+            new Uint8Array([5, 6, 7, 8])
+        );
+
+        const docHeadResponse = await app.request(`http://wiki.test${expectedDocUrl}`, {
+            method: 'HEAD',
+        });
+        assert.equal(docHeadResponse.status, 200);
+        assert.equal((await docHeadResponse.arrayBuffer()).byteLength, 0);
+
+        for (const badPath of [
+            wikiPath('/document-media/999999.webp'),
+            wikiPath('/document-media/invalid.webp'),
+        ]) {
+            const missingResponse = await app.request(`http://wiki.test${badPath}`);
+            assert.equal(missingResponse.status, 404);
+            const errorBody = await readContractJson(
+                missingResponse,
+                wikiHttpErrorResponseSchema
+            );
+            assert.deepEqual(errorBody, {
+                status: 'error',
+                msg: '图片不存在',
+            });
+        }
     });
 });

@@ -68,7 +68,7 @@ export function ClassicStoryContent({
       ) : null}
       {castFilter ? (
         <ClassicSCardCastFilter {...castFilter} />
-      ) : (
+      ) : stories.document && stories.categories.length === 0 ? null : (
         <div className="wiki-classic-story-tabs">
           <div>
             <Layers3Icon />

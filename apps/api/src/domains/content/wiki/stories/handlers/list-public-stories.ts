@@ -68,8 +68,6 @@ export function createHandleListPublicWikiStories<E extends Env>(
           idolRecord.id,
           agency.id,
           content.document,
-          agency.name,
-          idol.name,
         )
       : null;
     const aggregated = aggregateStories(
@@ -154,22 +152,22 @@ async function resolvePublicWikiDocument(
   entryId: number,
   projectId: number,
   document: WikiPublicStoryDocument,
-  agencyName: string,
-  entryName: string,
 ): Promise<WikiPublicStoryDocument> {
   const assetRefs = collectWikiDocumentAssetSites(document);
-  const [assets] = await Promise.all([
-    loadWikiDocumentAssetTable({ repository, entryId, projectId, assetRefs }),
-  ]);
+  const assets = await loadWikiDocumentAssetTable({
+    repository,
+    entryId,
+    projectId,
+    assetRefs,
+  });
   const resolved = await resolveWikiDocumentAssets({
     document,
     assetRefs,
     categoryRefs: [],
     assets,
-    // Public reads fall back to the site's own image route, exactly like
-    // structured cards do, so a deployment without a public read base (local
-    // development) still renders instead of answering 503.
-    imageUrl: documentAssetUrlResolver(storage, agencyName, entryName),
+    // Public reads fall back to the site's own id-addressed media routes so a
+    // deployment without a public read base still renders without exposing keys.
+    imageUrl: documentAssetUrlResolver(storage),
   });
   return resolved.document;
 }

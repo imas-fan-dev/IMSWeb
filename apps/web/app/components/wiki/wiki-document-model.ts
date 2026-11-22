@@ -333,10 +333,26 @@ export interface WikiDocumentSummary {
  * nested inside callouts, details, quotes, lists and tabs).
  */
 export function documentSummary(
-  document: WikiPublicStoryDocument
+  document: WikiPublicStoryDocument,
+  categories: readonly WikiPublicStoryCategory[] = []
 ): WikiDocumentSummary {
+  let sections = document.headings.length
   let cards = 0
   let sources = 0
+  const byName = new Map(
+    categories.map((category) => [category.name, category])
+  )
+  const countedCategories = new Set<string>()
+  const addCategory = (category: WikiPublicStoryCategory): void => {
+    if (countedCategories.has(category.name)) return
+    countedCategories.add(category.name)
+    sections += 1
+    cards += category.cards.length
+    sources += category.cards.reduce(
+      (count, card) => count + card.links.length,
+      0
+    )
+  }
   const visit = (blocks: readonly WikiDocumentBlock[]): void => {
     for (const block of blocks) {
       switch (block.type) {
@@ -349,6 +365,14 @@ export function documentSummary(
           break
         case "links":
           sources += block.links.length
+          break
+        case "storyCategory":
+          if (block.categoryName === null) {
+            categories.forEach(addCategory)
+          } else {
+            const category = byName.get(block.categoryName)
+            if (category) addCategory(category)
+          }
           break
         case "tabs":
           for (const tab of block.items) visit(tab.children)
@@ -367,5 +391,5 @@ export function documentSummary(
     }
   }
   visit(document.blocks)
-  return { sections: document.headings.length, cards, sources }
+  return { sections, cards, sources }
 }
