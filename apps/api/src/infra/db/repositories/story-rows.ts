@@ -3,7 +3,7 @@ import type { AgencyRecord, IdolRecord, WikiCategoryRecord, WikiGroupRecord } fr
 export const AGENCY_COLUMNS = `id, code, name_cn, color, wiki_enabled, display_order,
     banner_title, icon_object_key, icon_fit, icon_focal_x, icon_focal_y,
     icon_zoom, icon_rotation, icon_media_revision, fallback_artwork_object_key,
-    layout_revision`;
+    layout_revision, namecard_enabled`;
 export const IDOL_COLUMNS = `id, agency_id, name_cn, folder_name, color, wiki_enabled,
     display_order, text_color, wiki_url, avatar_object_key, avatar_fit, avatar_focal_x,
     avatar_focal_y, avatar_zoom, avatar_rotation, avatar_media_revision,
@@ -60,7 +60,11 @@ export function booleanValue(value: boolean | number): boolean {
 }
 
 export function agencyRecord(row: AgencyRecord): AgencyRecord {
-    return { ...row, wiki_enabled: booleanValue(row.wiki_enabled) };
+    return {
+        ...row,
+        wiki_enabled: booleanValue(row.wiki_enabled),
+        namecard_enabled: row.namecard_enabled == null ? null : booleanValue(row.namecard_enabled),
+    };
 }
 
 export function idolRecord<Row extends IdolRecord>(row: Row): Row {

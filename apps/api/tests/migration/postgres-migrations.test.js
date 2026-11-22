@@ -176,6 +176,7 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261118150000_namecard_sort_metadata', phase: 'post-data' },
                 { version: '20261119120000_namecard_exchange_gift', phase: 'pre-data' },
                 { version: '20261120120000_namecard_tags', phase: 'pre-data' },
+                { version: '20261121120000_namecard_project_visibility', phase: 'post-data' },
                 { version: '20261122120000_wiki_entry_documents', phase: 'post-data' },
                 { version: '20261122140000_wiki_entry_document_media', phase: 'post-data' }
             ]
@@ -736,7 +737,7 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 110);
+        assert.equal(catalog.count, 111);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
@@ -1128,9 +1129,10 @@ test.describe('PostgreSQL migration', () => {
         '20261118140000_namecard_drop_fudaba_card_favorites',
         '20261118150000_namecard_sort_metadata',
         '20261119120000_namecard_exchange_gift',
-        '20261120120000_namecard_tags',
-        '20261122120000_wiki_entry_documents',
-        '20261122140000_wiki_entry_document_media'
+            '20261120120000_namecard_tags',
+            '20261121120000_namecard_project_visibility',
+            '20261122120000_wiki_entry_documents',
+            '20261122140000_wiki_entry_document_media'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

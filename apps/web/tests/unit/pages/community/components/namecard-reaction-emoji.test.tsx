@@ -69,52 +69,46 @@ describe("NamecardReactionEmoji", () => {
       expect(image).toHaveAttribute("aria-hidden", "true")
       expect(image).toHaveAttribute("draggable", "false")
       expect(image).toHaveClass("size-5", "shrink-0")
-      expect(image).not.toHaveClass("size-3.5", "md:size-5")
+      expect(image).not.toHaveClass("size-3")
       expect(container.textContent).toBe("")
     }
   )
 
-  it("uses compact responsive sizing for images and failed assets, and restores the default variant", () => {
+  it("uses compact sizing for images and failed assets, and restores the default variant", () => {
     const emoji = NAMECARD_REACTIONS[0]
     const { container, rerender } = render(
       <NamecardReactionEmoji emoji={emoji} compact />
     )
     const image = container.querySelector("img")!
-    expect(image).toHaveClass("size-3.5", "md:size-5", "shrink-0")
+    expect(image).toHaveClass("size-3", "shrink-0")
     expect(image).toHaveAttribute("src", "/emoji/twemoji/2764.svg")
     expect(image).toHaveAttribute("aria-hidden", "true")
 
     rerender(<NamecardReactionEmoji emoji={emoji} compact={false} />)
     expect(image).toHaveClass("size-5", "shrink-0")
-    expect(image).not.toHaveClass("size-3.5", "md:size-5")
+    expect(image).not.toHaveClass("size-3")
 
     rerender(<NamecardReactionEmoji emoji={emoji} compact />)
     fireEvent.error(image)
     const fallback = container.querySelector("svg")
     expect(container.querySelector("img")).not.toBeInTheDocument()
-    expect(fallback).toHaveClass(
-      "lucide-smile",
-      "size-3.5",
-      "md:size-5",
-      "shrink-0"
-    )
+    expect(fallback).toHaveClass("lucide-smile", "size-3", "shrink-0")
     expect(fallback).toHaveAttribute("aria-hidden", "true")
     expect(container.textContent).toBe("")
 
     rerender(<NamecardReactionEmoji emoji={emoji} />)
     expect(fallback).toHaveClass("size-5", "shrink-0")
-    expect(fallback).not.toHaveClass("size-3.5", "md:size-5")
+    expect(fallback).not.toHaveClass("size-3")
   })
 
-  it("keeps unknown compact input decorative with the same responsive fallback size", () => {
+  it("keeps unknown compact input decorative with the compact fallback size", () => {
     const { container } = render(
       <NamecardReactionEmoji emoji="unknown" compact />
     )
     expect(container.querySelector("img")).not.toBeInTheDocument()
     expect(container.querySelector("svg")).toHaveClass(
       "lucide-smile",
-      "size-3.5",
-      "md:size-5",
+      "size-3",
       "shrink-0"
     )
     expect(container.querySelector("svg")).toHaveAttribute(

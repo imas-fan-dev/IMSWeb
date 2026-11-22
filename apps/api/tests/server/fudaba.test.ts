@@ -30,6 +30,7 @@ import { SqlCoreRepository } from '@/infra/db/repositories/core-repository';
 import { SqlAdminAccountRepository } from '@/infra/db/repositories/admin-account-repository';
 import { SqlNamecardTagRepository } from '@/infra/db/repositories/namecard-tag-repository';
 import { SqlFudabaRepository } from '@/infra/db/repositories/fudaba-repository';
+import { SqlWikiEntityRepository } from '@/infra/db/repositories/wiki-entity-repository';
 import { SqlNamecardNotificationRepository } from '@/infra/db/repositories/namecard-notification-repository';
 import { SqlPlatformAccountRepository } from '@/infra/db/repositories/platform-account-repository';
 import { S3ObjectStorage } from '@/infra/oss/s3/object-storage';
@@ -3930,6 +3931,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261118150000_namecard_sort_metadata',
                 '20261119120000_namecard_exchange_gift',
                 '20261120120000_namecard_tags',
+                '20261121120000_namecard_project_visibility',
                 '20261122120000_wiki_entry_documents',
                 '20261122140000_wiki_entry_document_media',
             ]);
@@ -10677,6 +10679,42 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
     describe('Fudaba public read repository', () => {
         postgresTest("PostgreSQL exposes the same Fudaba public read models", async () => {
             await assertPublicReadModels("postgresql");
+        });
+
+        postgresTest('project namecard visibility overrides Wiki without changing office eligibility', async () => {
+            const { database, repository } = await createFudabaRepositoryFixture();
+            const wiki = new SqlWikiEntityRepository(database);
+            const project = {
+                code: 'namecard-visibility-test',
+                name: '名片可见性测试企划',
+                color: '#123456',
+                bannerTitle: '名片可见性测试企划',
+                wikiEnabled: false
+            };
+            const includesProject = (rows: { code: string }[]) =>
+                rows.some((row) => row.code === project.code);
+            const assertCatalogs = async (cards: boolean, offices: boolean) => {
+                assert.equal(includesProject(await repository.listPublicSeries()), cards);
+                assert.equal(includesProject(await repository.listOwnerSeries()), cards);
+                assert.equal(includesProject(await repository.listOfficeSeries()), offices);
+            };
+
+            const created = await wiki.createWikiAgency({ ...project, namecardEnabled: true });
+            assert.equal(created.wiki_enabled, false);
+            assert.equal(created.namecard_enabled, true);
+            await assertCatalogs(true, false);
+
+            const update = { ...project, id: created.id, wikiEnabled: true };
+            const hidden = await wiki.updateWikiAgency({ ...update, namecardEnabled: false });
+            assert.equal(hidden.wiki_enabled, true);
+            assert.equal(hidden.namecard_enabled, false);
+            await assertCatalogs(false, true);
+
+            const unchanged = await wiki.updateWikiAgency({ ...update, bannerTitle: '新标题' });
+            assert.equal(unchanged.namecard_enabled, false);
+            const inherited = await wiki.updateWikiAgency({ ...update, namecardEnabled: null });
+            assert.equal(inherited.namecard_enabled, null);
+            await assertCatalogs(true, true);
         });
     });
 }

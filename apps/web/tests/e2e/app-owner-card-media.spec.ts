@@ -179,6 +179,7 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
     ["/api/community/exchange/me/cards", { items: [card] }],
     ["/api/community/exchange/me/cards/owner-card", { card }],
     ["/api/community/exchange/me/series", { items: [] }],
+    ["/api/community/exchange/me/office-series", { items: [] }],
     ["/api/community/exchange/me/offices", { items: [] }],
     [
       "/api/wiki/catalog",

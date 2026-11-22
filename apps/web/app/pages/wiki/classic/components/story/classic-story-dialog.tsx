@@ -1,4 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { type CSSProperties } from "react"
 
 import {
@@ -23,13 +24,14 @@ interface ClassicStoryDialogProps {
 }
 
 export function ClassicStoryDialog({
-  selected,
+  selected: incomingSelected,
   style,
   onClose,
 }: ClassicStoryDialogProps) {
+  const selected = useRetainedValue(incomingSelected)
   return (
     <Dialog
-      open={selected !== null}
+      open={incomingSelected !== null}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}

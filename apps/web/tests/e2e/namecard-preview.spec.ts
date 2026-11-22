@@ -48,7 +48,7 @@ test.describe("namecard preview", () => {
     await expect(frontTrigger.locator("img")).toBeVisible()
     await frontTrigger.click()
 
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     const previewTrigger = detail.getByRole("button", {
       name: "放大制作人名片 42 正面",
@@ -57,9 +57,11 @@ test.describe("namecard preview", () => {
     await expect(previewTrigger.locator("img")).toHaveAttribute("src", FRONT)
     await previewTrigger.click()
 
-    const preview = page.getByRole("dialog", {
-      name: /制作人名片 42 · (正面|背面)/,
-    })
+    const preview = page
+      .getByRole("dialog", {
+        name: /制作人名片 42 · (正面|背面)/,
+      })
+      .last()
     await expect(preview).toBeVisible()
     await expect(
       preview.getByRole("img", { name: "制作人名片 42 正面" })

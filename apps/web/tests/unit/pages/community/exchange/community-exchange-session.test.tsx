@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import CommunityExchangePage from "~/pages/community/exchange/community-exchange-page"
 
 const apiMocks = vi.hoisted(() => ({
-  getFudabaSeries: vi.fn(),
+  getFudabaOfficeSeries: vi.fn(),
   getFudabaOfficePage: vi.fn(),
   getFudabaCardPage: vi.fn(),
   sendSeries: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
-    getFudabaSeries: apiMocks.getFudabaSeries,
+    getFudabaOfficeSeries: apiMocks.getFudabaOfficeSeries,
     getFudabaOfficePage: apiMocks.getFudabaOfficePage,
     getFudabaCardPage: apiMocks.getFudabaCardPage,
   }
@@ -44,7 +44,7 @@ describe("CommunityExchangePage App filter memory", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.sessionStorage.clear()
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
+    apiMocks.getFudabaOfficeSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
     apiMocks.sendSeries.mockResolvedValue({ items: [] })
     apiMocks.sendOffices.mockResolvedValue({

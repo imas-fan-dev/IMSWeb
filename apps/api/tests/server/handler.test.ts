@@ -175,6 +175,7 @@ import { test } from 'vitest';
             'handleGetExchange',
             'handleGetQuickExchange',
             'handleGetQuickSettings',
+            'handleGetScanLandingStatus',
             'handleGetScanSessionStatus',
             'handleGiftCard',
             'handleListCollection',
@@ -249,6 +250,7 @@ import { test } from 'vitest';
             'createHandleSaveWikiEntityImage',
             'createHandleSaveWikiEntryDocument',
             'createHandleSaveWikiLayout',
+            'createHandleServeWikiDocumentMedia',
             'createHandleServeWikiEntityIcon',
             'createHandleServeWikiIdolImage',
             'createHandleServeWikiStoryCoverAsset',
@@ -535,7 +537,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 188);
+            assert.equal(Object.values(actual).flat().length, 190);
         });
 
 

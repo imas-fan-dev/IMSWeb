@@ -174,6 +174,7 @@ describe("Wiki admin dynamic data contract", () => {
                 name_cn: "未支持企划",
                 color: "#000000",
                 wiki_enabled: false,
+                namecard_enabled: true,
                 display_order: 88,
                 banner_title: "未来企划",
                 icon_object_key: null,
@@ -217,12 +218,16 @@ describe("Wiki admin dynamic data contract", () => {
         const body = (await response.json()) as any;
         assert.equal(body.status, "success");
         assert.equal(body.agencies.length, 8);
+        const namecardOnly = body.agencies.find((agency: { code: string }) => agency.code === "future");
+        assert.equal(namecardOnly.wikiEnabled, false);
+        assert.equal(namecardOnly.namecardEnabled, true);
         assert.deepEqual(body.agencies[5], {
             id: 6,
             code: "sc",
             name: "闪耀色彩",
             color: "#8dbbff",
             wikiEnabled: true,
+            namecardEnabled: null,
             bannerTitle: "闪耀色彩 Banner",
             displayOrder: 5,
             layoutRevision: 0,

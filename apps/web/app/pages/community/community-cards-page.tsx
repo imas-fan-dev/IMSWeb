@@ -8,6 +8,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { SubmitEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
+import {
+  namecardWallSeedSchema,
+  namecardWallSortSchema,
+  type NamecardCollectionDirection,
+  type NamecardWallSort,
+} from "@imsweb/contracts/namecards"
 
 import { NAMECARD_TAG_FILTER_LIMIT } from "@imsweb/contracts/namecards/runtime"
 
@@ -82,11 +88,20 @@ import {
 } from "~/lib/api"
 import type { Namecard, NamecardPage } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { createRandomId } from "~/lib/random-id"
 import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { cn } from "~/lib/utils"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 const NAMECARD_PAGE_SIZES = [12, 24, 48] as const
+/** 名片墙的排序键：比名片册多「随机发现 / 最新发布」。 */
+const WALL_SORT_OPTIONS = [
+  { value: "random", label: "随机发现" },
+  { value: "created", label: "最新发布" },
+  { value: "name", label: "制作人名" },
+  { value: "series", label: "企划" },
+  { value: "date", label: "制作日期" },
+] satisfies { value: NamecardWallSort; label: string }[]
 /** 制作人检索与名片册同一停顿，避免每敲一个字就发一次列表请求。 */
 const SEARCH_DEBOUNCE_MS = 300
 const SESSION_REACTION_LIMIT = 10
@@ -169,17 +184,14 @@ function NamecardItem({
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   /** 轮播在 pointerup 就打开详情，click 捕获太晚；两条路径都要记下触发按钮。 */
   const captureTrigger = (target: EventTarget | null) => {
-    const button =
-      target instanceof Element ? target.closest("button") : null
+    const button = target instanceof Element ? target.closest("button") : null
     triggerRef.current = button instanceof HTMLButtonElement ? button : null
   }
   const tags = card.tags?.map((tag) => tag.name) ?? []
-  const producerName = card.producerName || `名片 #${card.cardNumber ?? card.id}`
+  const producerName =
+    card.producerName || `名片 #${card.cardNumber ?? card.id}`
   const producer = (
-    <FitText
-      text={producerName}
-      className="text-xs font-medium md:text-sm"
-    />
+    <FitText text={producerName} className="text-xs font-medium md:text-sm" />
   )
   return (
     <Card
@@ -260,10 +272,24 @@ export default function CommunityCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const page = pageFromSearchParam(searchParams.get("page"))
   const pageSize = pageSizeFromSearchParam(searchParams.get("size"))
+  const sort =
+    namecardWallSortSchema.safeParse(searchParams.get("sort")).data ?? "created"
+  const seed = namecardWallSeedSchema.safeParse(searchParams.get("seed")).data
+  const rawDir = searchParams.get("dir")
+  const dir: NamecardCollectionDirection =
+    rawDir === "asc" || rawDir === "desc"
+      ? rawDir
+      : sort === "created" || sort === "date"
+        ? "desc"
+        : "asc"
   const [targetPage, setTargetPage] = useState(String(page))
   const [result, setResult] = useState<NamecardPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [lastLoadedPage, setLastLoadedPage] = useState(page)
+  const [requestedPage, setRequestedPage] = useState<number | null>(null)
+  const [appendError, setAppendError] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const [claimCard, setClaimCard] = useState<Namecard | null>(null)
   const [supplementCard, setSupplementCard] = useState<Namecard | null>(null)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
@@ -273,7 +299,9 @@ export default function CommunityCardsPage() {
   const [reactionsByCard, setReactionsByCard] = useState<
     Record<number, NamecardReactionState>
   >({})
-  const reactionRequests = useRef(new Set<number>())
+  // Keep IDs after the request settles: the next effect can run before the
+  // corresponding reaction state has committed.
+  const requestedReactionCardIds = useRef(new Set<number>())
   const reactionVersions = useRef(new Map<number, number>())
   const reactionEmojiVersions = useRef(new Map<number, Map<string, number>>())
   const reactionMutations = useRef(new Set<number>())
@@ -288,46 +316,64 @@ export default function CommunityCardsPage() {
   const [series, setSeries] = useState<readonly SeriesOption[]>([])
   const { catalog, loading: catalogLoading } = useNamecardCharacterCatalog(true)
 
-  /** 共享筛选状态 → 公开墙的查询参数：内部 `exchange` 在墙上叫 `created`。 */
+  const {
+    seriesCodes,
+    group,
+    characterIds,
+    tags,
+    matchAll,
+    excludeOther,
+    excludeCross,
+    declaration,
+    invert,
+  } = filters
   const query = useMemo(() => {
-    const { sort, dir, seriesCodes, group, characterIds, tags, matchAll } =
-      filters
     return {
-      sort: sort === "exchange" ? ("created" as const) : sort,
-      dir,
+      sort,
+      seed: sort === "random" ? seed : undefined,
+      dir: sort === "random" ? undefined : dir,
       q: search || undefined,
       series: seriesCodes,
       group: group.trim() || undefined,
       character: characterIds,
       tags,
       match: matchAll ? ("all" as const) : ("any" as const),
-      excludeOther: filters.excludeOther,
-      excludeCross: filters.excludeCross,
-      declaration: filters.declaration ?? undefined,
-      invert: filters.invert,
+      excludeOther,
+      excludeCross,
+      declaration: declaration ?? undefined,
+      invert,
     }
-  }, [filters, search])
-  const filterKey = [
-    query.sort,
-    query.dir,
-    query.q ?? "",
-    query.series.join(","),
-    query.group ?? "",
-    query.character.join(","),
-    query.tags.join(","),
-    query.match,
-    query.excludeOther,
-    query.excludeCross,
-    query.declaration ?? "",
-    query.invert,
-  ].join("|")
-  const listContext = `${page}:${pageSize}:${filterKey}`
+  }, [
+    seriesCodes,
+    group,
+    characterIds,
+    tags,
+    matchAll,
+    excludeOther,
+    excludeCross,
+    declaration,
+    invert,
+    search,
+    sort,
+    seed,
+    dir,
+  ])
+  const random = sort === "random"
+  const listContext = JSON.stringify([
+    page,
+    pageSize,
+    query,
+    random ? reload : null,
+  ])
   const [loadedContext, setLoadedContext] = useState(listContext)
   if (loadedContext !== listContext) {
     setLoadedContext(listContext)
     setLoading(true)
     setError(false)
     setResult(null)
+    setLastLoadedPage(page)
+    setRequestedPage(null)
+    setAppendError(false)
     setTargetPage(String(page))
   }
   const detail = useNamecardDetailSession(searchParams.toString())
@@ -337,6 +383,11 @@ export default function CommunityCardsPage() {
   )
   const { fallbackRef, remember, prepareRestore, restore } =
     useNamecardDetailReturn(searchParams.toString())
+  const nextPage =
+    random && result && lastLoadedPage < result.totalPage
+      ? lastLoadedPage + 1
+      : null
+
   // 【交换】入口：页面层一个选卡窗口，详情窗只负责打开它——详情窗保持打开，
   // 选卡窗口叠在上面。
   const [exchangeRequest, setExchangeRequest] = useState<{
@@ -359,8 +410,15 @@ export default function CommunityCardsPage() {
       next.set("size", String(pageSize))
       changed = true
     }
+    if (sort === "random" && !seed) {
+      // 初次浏览在挂载后建立种子，预渲染与水合阶段不生成随机值。
+      next.set("sort", "random")
+      next.set("seed", createRandomId())
+      next.delete("dir")
+      changed = true
+    }
     if (changed) setSearchParams(next, { replace: true })
-  }, [page, pageSize, searchParams, setSearchParams])
+  }, [page, pageSize, searchParams, seed, setSearchParams, sort])
 
   useEffect(() => {
     const timer = setTimeout(
@@ -386,6 +444,7 @@ export default function CommunityCardsPage() {
   }, [])
 
   useEffect(() => {
+    if (query.sort === "random" && !query.seed) return
     let active = true
     void getNamecardPage(page, pageSize, query)
       .send()
@@ -402,6 +461,63 @@ export default function CommunityCardsPage() {
       active = false
     }
   }, [page, pageSize, query, reload])
+
+  useEffect(() => {
+    if (!requestedPage) return
+    let active = true
+    void getNamecardPage(requestedPage, pageSize, query)
+      .send()
+      .then((next) => {
+        if (!active) return
+        setLastLoadedPage(requestedPage)
+        setResult((current) => {
+          if (!current) return next
+          const seen = new Set(current.list.map((card) => card.id))
+          return {
+            ...next,
+            list: [
+              ...current.list,
+              ...next.list.filter((card) => !seen.has(card.id)),
+            ],
+          }
+        })
+      })
+      .catch(() => {
+        if (active) setAppendError(true)
+      })
+      .finally(() => {
+        if (active) setRequestedPage(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [requestedPage, pageSize, query])
+
+  const detailOpen = detail.card !== null
+  useEffect(() => {
+    const target = sentinelRef.current
+    if (
+      !target ||
+      !nextPage ||
+      requestedPage ||
+      appendError ||
+      detailOpen ||
+      typeof IntersectionObserver === "undefined"
+    )
+      return
+    let active = true
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (active && entry?.isIntersecting) setRequestedPage(nextPage)
+      },
+      { rootMargin: "0px 0px 160px 0px" }
+    )
+    observer.observe(target)
+    return () => {
+      active = false
+      observer.disconnect()
+    }
+  }, [appendError, detailOpen, nextPage, requestedPage])
 
   // 站内信与「随机补充一张」用 ?card=<编号> 深链到任意一张名片，当前页里
   // 通常没有它，所以要单独取一次。
@@ -438,12 +554,8 @@ export default function CommunityCardsPage() {
   useEffect(() => {
     if (!result) return
     for (const card of result.list) {
-      if (
-        reactionsByCard[card.id] !== undefined ||
-        reactionRequests.current.has(card.id)
-      )
-        continue
-      reactionRequests.current.add(card.id)
+      if (requestedReactionCardIds.current.has(card.id)) continue
+      requestedReactionCardIds.current.add(card.id)
       const version = reactionVersions.current.get(card.id) ?? 0
       void getNamecardReactions(card.id)
         .send()
@@ -472,9 +584,8 @@ export default function CommunityCardsPage() {
             },
           }))
         })
-        .finally(() => reactionRequests.current.delete(card.id))
     }
-  }, [result, reactionsByCard])
+  }, [result])
 
   function changePage(nextPage: number) {
     setTargetPage(String(nextPage))
@@ -498,10 +609,29 @@ export default function CommunityCardsPage() {
     setSearchParams(next)
   }
 
+  function changeOrder(
+    nextSort: NamecardWallSort,
+    nextDir?: NamecardCollectionDirection,
+    reshuffle = false
+  ) {
+    const next = new URLSearchParams(searchParams)
+    next.set("sort", nextSort)
+    next.set("page", "1")
+    if (nextSort === "random") {
+      if (reshuffle || !seed) next.set("seed", createRandomId())
+      next.delete("dir")
+    } else if (nextDir) {
+      next.set("dir", nextDir)
+    } else {
+      next.delete("dir")
+    }
+    setSearchParams(next)
+  }
+
   function changeFilters(next: NamecardFilterValue) {
     setFilters(next)
     if (page === 1) return
-    // 任一筛选/排序变化都回第 1 页；URL 同步仍走下面的 page/size effect。
+    // 筛选变化回第 1 页，但保留这轮随机顺序。
     const params = new URLSearchParams(searchParams)
     params.set("page", "1")
     params.set("size", String(pageSize))
@@ -543,7 +673,8 @@ export default function CommunityCardsPage() {
     const text = normalizeTagText(tag)
     if (!text) return
     const key = tagComparisonKey(text)
-    if (filters.tags.some((current) => tagComparisonKey(current) === key)) return
+    if (filters.tags.some((current) => tagComparisonKey(current) === key))
+      return
     if (filters.tags.length >= NAMECARD_TAG_FILTER_LIMIT) {
       toast.error(`最多同时筛选 ${NAMECARD_TAG_FILTER_LIMIT} 个标签`)
       return
@@ -735,6 +866,9 @@ export default function CommunityCardsPage() {
         onOpenChange={(open) => {
           if (!open) setSupplementCard(null)
         }}
+        onTagsChange={(tags) => {
+          if (supplementCard) updateCardTags(supplementCard.id, tags)
+        }}
         onSubmitted={() => {
           const submitted = supplementCard
           setSupplementCard(null)
@@ -759,6 +893,9 @@ export default function CommunityCardsPage() {
         open={canClaim && claimCard !== null}
         onOpenChange={(open) => {
           if (!open) setClaimCard(null)
+        }}
+        onTagsChange={(tags) => {
+          if (claimCard) updateCardTags(claimCard.id, tags)
         }}
         onSubmitted={() => {
           if (!claimCard) return
@@ -804,7 +941,12 @@ export default function CommunityCardsPage() {
         <NamecardFilterBar
           value={filters}
           onChange={changeFilters}
-          timeLabel="创建时间"
+          sort={sort}
+          dir={dir}
+          sortOptions={WALL_SORT_OPTIONS}
+          onSortChange={(nextSort) => changeOrder(nextSort)}
+          onDirectionChange={(nextDir) => changeOrder(sort, nextDir)}
+          onReshuffle={() => changeOrder("random", undefined, true)}
           series={series}
           catalog={catalog}
           catalogLoading={catalogLoading}
@@ -815,8 +957,8 @@ export default function CommunityCardsPage() {
 
       <section
         ref={fallbackRef}
-        tabIndex={-1}
         className="mt-3 md:mt-6"
+        tabIndex={-1}
         aria-label="公开名片"
         aria-busy={loading}
       >
@@ -899,127 +1041,154 @@ export default function CommunityCardsPage() {
                 />
               ))}
             </div>
-            <nav
-              ref={paginationRef}
-              aria-label="名片分页"
-              className="mt-4 grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_44px] items-center gap-2 border-t pt-3 md:mt-6 md:grid-cols-[auto_minmax(0,1fr)_auto_auto] md:gap-y-4 md:pt-4"
-            >
-              <div className="col-span-2 col-start-3 row-start-2 flex min-w-0 items-center gap-1 justify-self-end md:col-span-1 md:col-start-1 md:row-start-1 md:gap-2 md:justify-self-start">
-                <FieldLabel
-                  htmlFor="namecard-page-size"
-                  className="shrink-0 text-xs font-normal text-muted-foreground md:text-sm"
-                >
-                  每页<span className="sr-only md:not-sr-only">显示</span>
-                </FieldLabel>
-                <Select
-                  items={NAMECARD_PAGE_SIZES.map((size) => ({
-                    label: `${size} 张`,
-                    value: String(size),
-                  }))}
-                  value={String(pageSize)}
-                  onValueChange={changePageSize}
-                >
-                  <SelectTrigger
-                    id="namecard-page-size"
-                    aria-label="每页显示"
-                    className="h-11 min-h-11 w-20 md:w-24"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {NAMECARD_PAGE_SIZES.map((size) => (
-                        <SelectItem
-                          key={size}
-                          value={String(size)}
-                          className="min-h-11"
-                        >
-                          {size} 张
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+            {random ? (
+              <div
+                ref={sentinelRef}
+                className="flex min-h-16 items-center justify-center pt-3 text-sm text-muted-foreground"
+              >
+                {requestedPage ? (
+                  <p role="status">正在加载更多名片…</p>
+                ) : nextPage ? (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {appendError && <p role="status">暂时无法加载更多名片</p>}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setAppendError(false)
+                        setRequestedPage(nextPage)
+                      }}
+                    >
+                      {appendError ? "重试加载更多" : "加载更多名片"}
+                    </Button>
+                  </div>
+                ) : (
+                  <p role="status">已浏览完本轮名片</p>
+                )}
               </div>
-
-              <span
-                className="col-span-2 col-start-1 row-start-2 min-w-0 text-xs/5 text-muted-foreground tabular-nums md:col-span-1 md:col-start-3 md:row-start-1 md:text-sm"
-                aria-live="polite"
+            ) : (
+              <nav
+                ref={paginationRef}
+                aria-label="名片分页"
+                className="mt-4 grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_44px] items-center gap-2 border-t pt-3 md:mt-6 md:grid-cols-[auto_minmax(0,1fr)_auto_auto] md:gap-y-4 md:pt-4"
               >
-                第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
-                {result.total} 张
-              </span>
+                <div className="col-span-2 col-start-3 row-start-2 flex min-w-0 items-center gap-1 justify-self-end md:col-span-1 md:col-start-1 md:row-start-1 md:gap-2 md:justify-self-start">
+                  <FieldLabel
+                    htmlFor="namecard-page-size"
+                    className="shrink-0 text-xs font-normal text-muted-foreground md:text-sm"
+                  >
+                    每页<span className="sr-only md:not-sr-only">显示</span>
+                  </FieldLabel>
+                  <Select
+                    items={NAMECARD_PAGE_SIZES.map((size) => ({
+                      label: `${size} 张`,
+                      value: String(size),
+                    }))}
+                    value={String(pageSize)}
+                    onValueChange={changePageSize}
+                  >
+                    <SelectTrigger
+                      id="namecard-page-size"
+                      aria-label="每页显示"
+                      className="h-11 min-h-11 w-20 md:w-24"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {NAMECARD_PAGE_SIZES.map((size) => (
+                          <SelectItem
+                            key={size}
+                            value={String(size)}
+                            className="min-h-11"
+                          >
+                            {size} 张
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <form
-                className="col-span-2 col-start-2 row-start-1 flex min-w-0 items-center justify-center gap-1 md:col-span-1 md:col-start-4 md:gap-2"
-                onSubmit={jumpToPage}
-                noValidate
-              >
-                <FieldLabel
-                  htmlFor="namecard-target-page"
-                  className="sr-only font-normal text-muted-foreground md:not-sr-only md:shrink-0"
+                <span
+                  className="col-span-2 col-start-1 row-start-2 min-w-0 text-xs/5 text-muted-foreground tabular-nums md:col-span-1 md:col-start-3 md:row-start-1 md:text-sm"
+                  aria-live="polite"
                 >
-                  跳至
-                </FieldLabel>
-                <Input
-                  id="namecard-target-page"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={Math.max(result.totalPage, 1)}
-                  value={targetPage}
-                  className="h-11 w-14 min-w-0 text-center tabular-nums md:w-20"
-                  onChange={(event) => setTargetPage(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      event.preventDefault()
-                      setTargetPage(String(page))
-                    }
-                  }}
-                />
-                <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-                  <span className="md:hidden">
-                    / {Math.max(result.totalPage, 1)}
-                  </span>
-                  <span className="hidden md:inline">页</span>
+                  第 {page} / {Math.max(result.totalPage, 1)} 页，共{" "}
+                  {result.total} 张
                 </span>
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  className="h-11 min-w-11 shrink-0 px-2 md:px-3"
-                  disabled={targetPage === String(page)}
-                >
-                  跳转
-                </Button>
-              </form>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="上一页"
-                title="上一页"
-                className="col-start-1 row-start-1 size-11 justify-self-start md:row-start-2 md:w-auto md:px-3"
-                disabled={page <= 1}
-                onClick={() => changePage(page - 1)}
-              >
-                <ArrowLeftIcon aria-hidden="true" />
-                <span className="hidden md:inline">上一页</span>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="下一页"
-                title="下一页"
-                className="col-start-4 row-start-1 size-11 justify-self-end md:row-start-2 md:w-auto md:px-3"
-                disabled={page >= result.totalPage}
-                onClick={() => changePage(page + 1)}
-              >
-                <span className="hidden md:inline">下一页</span>
-                <ArrowRightIcon aria-hidden="true" />
-              </Button>
-            </nav>
+                <form
+                  className="col-span-2 col-start-2 row-start-1 flex min-w-0 items-center justify-center gap-1 md:col-span-1 md:col-start-4 md:gap-2"
+                  onSubmit={jumpToPage}
+                  noValidate
+                >
+                  <FieldLabel
+                    htmlFor="namecard-target-page"
+                    className="sr-only font-normal text-muted-foreground md:not-sr-only md:shrink-0"
+                  >
+                    跳至
+                  </FieldLabel>
+                  <Input
+                    id="namecard-target-page"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={Math.max(result.totalPage, 1)}
+                    value={targetPage}
+                    className="h-11 w-14 min-w-0 text-center tabular-nums md:w-20"
+                    onChange={(event) => setTargetPage(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault()
+                        setTargetPage(String(page))
+                      }
+                    }}
+                  />
+                  <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+                    <span className="md:hidden">
+                      / {Math.max(result.totalPage, 1)}
+                    </span>
+                    <span className="hidden md:inline">页</span>
+                  </span>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="h-11 min-w-11 shrink-0 px-2 md:px-3"
+                    disabled={targetPage === String(page)}
+                  >
+                    跳转
+                  </Button>
+                </form>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="上一页"
+                  title="上一页"
+                  className="col-start-1 row-start-1 size-11 justify-self-start md:row-start-2 md:w-auto md:px-3"
+                  disabled={page <= 1}
+                  onClick={() => changePage(page - 1)}
+                >
+                  <ArrowLeftIcon aria-hidden="true" />
+                  <span className="hidden md:inline">上一页</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="下一页"
+                  title="下一页"
+                  className="col-start-4 row-start-1 size-11 justify-self-end md:row-start-2 md:w-auto md:px-3"
+                  disabled={page >= result.totalPage}
+                  onClick={() => changePage(page + 1)}
+                >
+                  <span className="hidden md:inline">下一页</span>
+                  <ArrowRightIcon aria-hidden="true" />
+                </Button>
+              </nav>
+            )}
           </>
         ) : null}
       </section>

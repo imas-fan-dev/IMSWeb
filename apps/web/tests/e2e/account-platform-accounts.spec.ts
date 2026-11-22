@@ -123,6 +123,7 @@ test("adds platform accounts by pasting a link, then edits and removes them from
   })
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
   ]) {

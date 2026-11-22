@@ -33,6 +33,13 @@ import {
   FieldSet,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
 import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
 import { CatalogBindingControl } from "~/components/admin/catalog-binding-control"
 import {
@@ -79,6 +86,7 @@ export type WikiEntityEditorTarget =
 type EntityForm = WikiEntryDraft & {
   code: string
   bannerTitle: string
+  namecardEnabled: boolean | null
 }
 
 function initialForm(target: WikiEntityEditorTarget): EntityForm {
@@ -92,6 +100,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
       color: target.entity?.color ?? "#777777",
       textColor: "#ffffff",
       wikiEnabled: target.entity?.wikiEnabled ?? true,
+      namecardEnabled: target.entity?.namecardEnabled ?? null,
       groupIds: [],
       entryKind: "other",
       entrySubtype: null,
@@ -107,6 +116,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
       color: target.entity?.color ?? target.agency.color ?? "#777777",
       textColor: "#ffffff",
       wikiEnabled: true,
+      namecardEnabled: null,
       groupIds: [],
       entryKind: "other",
       entrySubtype: null,
@@ -116,6 +126,7 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
     ...initialEntryDraft(target.agency, target.entity),
     code: "",
     bannerTitle: "",
+    namecardEnabled: null,
   }
 }
 
@@ -204,6 +215,7 @@ function WikiEntityEditorDialogContent({
           color: form.color,
           bannerTitle: form.bannerTitle.trim() || form.name.trim(),
           wikiEnabled: form.wikiEnabled,
+          namecardEnabled: form.namecardEnabled,
         }
         if (target.entity) {
           await updateWikiAgency(target.entity.id, payload).send()
@@ -448,6 +460,45 @@ function WikiEntityEditorDialogContent({
                         在公开 Wiki 显示
                       </FieldLabel>
                     </FieldContent>
+                  </Field>
+                ) : null}
+
+                {target.kind === "agency" ? (
+                  <Field>
+                    <FieldLabel htmlFor="wiki-entity-namecard-enabled">
+                      名片企划可见性
+                    </FieldLabel>
+                    <Select
+                      value={
+                        form.namecardEnabled === null
+                          ? "inherit"
+                          : form.namecardEnabled
+                            ? "visible"
+                            : "hidden"
+                      }
+                      onValueChange={(value) =>
+                        update(
+                          "namecardEnabled",
+                          value === "inherit" ? null : value === "visible"
+                        )
+                      }
+                    >
+                      <SelectTrigger
+                        id="wiki-entity-namecard-enabled"
+                        aria-describedby="wiki-entity-namecard-description"
+                        className="w-full"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inherit">沿用原有规则</SelectItem>
+                        <SelectItem value="visible">在名片显示</SelectItem>
+                        <SelectItem value="hidden">在名片隐藏</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription id="wiki-entity-namecard-description">
+                      只影响名片区的企划显示、选择和筛选，不改变 Wiki 或剧情站的显示。
+                    </FieldDescription>
                   </Field>
                 ) : null}
 

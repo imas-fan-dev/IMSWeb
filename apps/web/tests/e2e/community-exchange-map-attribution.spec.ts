@@ -88,7 +88,7 @@ function installMapMocks(
   api.expect({
     name: "attribution exchange series",
     method: "GET",
-    path: "/api/community/exchange/series",
+    path: "/api/community/exchange/office-series",
     responses: { 200: fudabaSeriesListSchema },
     times: seriesReads,
     handle: () => ({ status: 200, json: { items: [] } }),

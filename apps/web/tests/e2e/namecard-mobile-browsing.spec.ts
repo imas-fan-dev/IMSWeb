@@ -29,7 +29,7 @@ test.describe("namecard mobile browsing", () => {
         reactionReads: 12,
         reactionWrites: 1,
       })
-      await page.goto("/community/cards?page=1&size=12")
+      await page.goto("/community/cards?page=1&size=12&sort=created")
       await applyNamecardSafeArea(page)
       const front = page.getByRole("button", { name: "查看制作人名片 1 正面" })
       await expect(front).toBeVisible()
@@ -42,7 +42,7 @@ test.describe("namecard mobile browsing", () => {
       await card.getByRole("button", { name: "查看背面", exact: true }).click()
       await expect(back).toBeInViewport()
       await back.click()
-      const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+      const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
       await expect(detail).toBeVisible()
       await expect(
         detail.getByRole("button", { name: "放大制作人名片 1 背面" })
@@ -80,12 +80,12 @@ test.describe("namecard mobile browsing", () => {
       const pillBox = await detail
         .getByRole("button", { name: "👍，2 次反应", exact: true })
         .boundingBox()
-      // 名片墙与详情窗都使用紧凑反应档：32px 添加按钮、28px 胶囊、24px 圆形按钮。
-      expect(addBox?.width).toBeGreaterThanOrEqual(31.5)
-      expect(addBox?.height).toBeGreaterThanOrEqual(31.5)
-      expect(pillBox?.height).toBeCloseTo(28, 0)
-      expect(circleBox?.width).toBeCloseTo(24, 0)
-      expect(circleBox?.height).toBeCloseTo(24, 0)
+      // 墙与详情共用 20px 胶囊/可见块；触控热区由伪元素撑出，不改变布局。
+      expect(addBox?.width).toBeCloseTo(20, 0)
+      expect(addBox?.height).toBeCloseTo(20, 0)
+      expect(pillBox?.height).toBeCloseTo(20, 0)
+      expect(circleBox?.width).toBeCloseTo(20, 0)
+      expect(circleBox?.height).toBeCloseTo(20, 0)
       expect(circleBox!.y + circleBox!.height / 2).toBeCloseTo(
         pillBox!.y + pillBox!.height / 2,
         0
@@ -172,7 +172,7 @@ test.describe("namecard mobile browsing", () => {
     )
     const release = browsing.holdReactions(1)
     try {
-      await page.goto("/community/cards?page=1&size=12")
+      await page.goto("/community/cards?page=1&size=12&sort=created")
       await expectNamecardGalleryGeometry(page)
       const cards = page.locator("[data-namecard-item]")
       // 辅助校验会把第三张滚动到视口中央，比较位置时必须用文档坐标。
@@ -195,10 +195,10 @@ test.describe("namecard mobile browsing", () => {
           .map((element) => element.getBoundingClientRect().y + window.scrollY)
       )
       expect(after[0]).toBeCloseTo(after[1]!, 0)
-      // Three long mobile summary counts wrap onto an additional compact row
-      // (28px pill + 2px row gap). The next card in that masonry column
+      // Three long mobile summary counts wrap onto an additional chip row
+      // (20px pill + 4px row gap). The next card in that masonry column
       // follows it without moving the other column.
-      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(29.5)
+      expect(after[2]! - before[2]!).toBeGreaterThanOrEqual(21.5)
       expect(after[3]).toBeCloseTo(before[3]!, 0)
       await expect(
         page.getByRole("button", { name: /查看制作人名片 \d+ 正面/ })
@@ -240,7 +240,7 @@ test.describe("namecard mobile browsing", () => {
       { cards: 1, reactionReads: 12, reactionWrites: 0 }
     )
     await page.setViewportSize({ width: 402, height: 874 })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     const first = page.locator("[data-namecard-item]").first()
     const summary = first.getByLabel("名片反应摘要")
     await expect(summary.getByRole("button", { name: /次反应$/ })).toHaveCount(
@@ -330,7 +330,7 @@ test.describe("namecard mobile browsing", () => {
       ),
       { cards: 1, reactionReads: 48, reactionWrites: 0 }
     )
-    await page.goto("/community/cards?page=1&size=48")
+    await page.goto("/community/cards?page=1&size=48&sort=created")
     const cards = page.locator("[data-namecard-item]")
     await expect(cards).toHaveCount(48)
     await expect(
@@ -382,11 +382,11 @@ test.describe("namecard mobile browsing", () => {
       reactionReads: 26,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     await expectNamecardPaginationGeometry(page)
     await attachNamecardScreenshot(page, testInfo, "compact-pagination")
     await page.getByRole("button", { name: "下一页", exact: true }).click()
-    await expect(page).toHaveURL(/page=2&size=12$/)
+    await expect(page).toHaveURL(/page=2&size=12&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 13 正面" })
     ).toBeInViewport()
@@ -400,7 +400,7 @@ test.describe("namecard mobile browsing", () => {
     ).toBeDisabled()
     await input.fill("3")
     await input.press("Enter")
-    await expect(page).toHaveURL(/page=3&size=12$/)
+    await expect(page).toHaveURL(/page=3&size=12&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 25 正面" })
     ).toBeInViewport()
@@ -409,7 +409,7 @@ test.describe("namecard mobile browsing", () => {
     ).toBeDisabled()
     await page.getByRole("combobox", { name: "每页显示" }).click()
     await page.getByRole("option", { name: "48 张", exact: true }).click()
-    await expect(page).toHaveURL(/page=1&size=48$/)
+    await expect(page).toHaveURL(/page=1&size=48&sort=created$/)
     await expect(
       page.getByRole("button", { name: "查看制作人名片 1 正面" })
     ).toBeInViewport()
@@ -429,20 +429,20 @@ test.describe("namecard mobile browsing", () => {
       reactionReads: 12,
       reactionWrites: 0,
     })
-    await page.goto("/community/cards?page=1&size=12")
+    await page.goto("/community/cards?page=1&size=12&sort=created")
     const original = page.getByRole("button", {
       name: "查看制作人名片 12 背面",
     })
     await original.scrollIntoViewIfNeeded()
     const scrollY = await page.evaluate(() => window.scrollY)
     await original.click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     await expect(
       detail.getByRole("button", { name: /[上下]一张名片/ })
     ).toHaveCount(0)
     await expect(detail.getByText(/第 \d+ \/ \d+ 张/)).toHaveCount(0)
-    await expect(page).toHaveURL(/page=1&size=12$/)
+    await expect(page).toHaveURL(/page=1&size=12&sort=created$/)
     expect(browsing.requests).toEqual([1])
 
     const previewTrigger = detail.getByRole("button", {
@@ -473,7 +473,7 @@ test.describe("namecard mobile browsing", () => {
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
       .toBeCloseTo(scrollY, 0)
-    await expect(page).toHaveURL(/page=1&size=12$/)
+    await expect(page).toHaveURL(/page=1&size=12&sort=created$/)
     expect(browsing.requests).toEqual([1])
   })
 })

@@ -3,16 +3,13 @@ import { useState } from "react"
 import {
   ArrowDownNarrowWideIcon,
   ArrowDownWideNarrowIcon,
-  ChevronDownIcon,
+  ListFilterIcon,
   SearchIcon,
-  SlidersHorizontalIcon,
+  ShuffleIcon,
 } from "lucide-react"
 
 import type { NamecardCharacterCatalog } from "@imsweb/contracts/fudaba/characters"
-import type {
-  NamecardCollectionDirection,
-  NamecardCollectionSort,
-} from "@imsweb/contracts/namecards"
+import type { NamecardCollectionDirection } from "@imsweb/contracts/namecards"
 
 import { Button } from "~/components/ui/button"
 import { Field, FieldLabel } from "~/components/ui/field"
@@ -25,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { NAMECARD_COLLECTION_DEFAULT_DIRECTION } from "~/lib/namecards/collection-query"
 import { cn } from "~/lib/utils"
 import type { SeriesOption } from "~/components/community/series-multi-select"
 
@@ -39,12 +35,13 @@ import {
 import { SeriesFilterSelect } from "./series-filter-select"
 import { TagFilterSelect } from "./tag-filter-select"
 
-/** 名片册 / 名片墙共用的筛选状态：纯值，不含两个「显示」开关（PRD §4）。 */
+/**
+ * 名片册 / 名片墙共用的筛选状态：纯值，不含排序（各页自己的口径）与
+ * 两个「显示」开关（PRD §4）。
+ */
 export interface NamecardFilterValue {
   /** 制作人名称；团体名片按团体名称检索。 */
   q: string
-  sort: NamecardCollectionSort
-  dir: NamecardCollectionDirection
   characterIds: number[]
   /** 【同时包含】：名片必须包含全部已选角色。 */
   matchAll: boolean
@@ -66,8 +63,6 @@ export interface NamecardFilterValue {
 
 export const DEFAULT_NAMECARD_FILTERS: NamecardFilterValue = {
   q: "",
-  sort: "exchange",
-  dir: NAMECARD_COLLECTION_DEFAULT_DIRECTION.exchange,
   characterIds: [],
   matchAll: false,
   excludeOther: false,
@@ -86,27 +81,24 @@ const DECLARATION_ITEMS = [
   { value: "ai", label: "AI" },
 ]
 
-function sortItems(timeLabel: string) {
-  return [
-    { value: "exchange", label: timeLabel },
-    { value: "name", label: "制作人名" },
-    { value: "series", label: "企划" },
-    { value: "date", label: "制作日期" },
-  ]
-}
-
 /**
  * 名片册的筛选控件区（PRD §2 / §4）。
  *
- * 受控：所有取值来自 `value`，改动一律回传 `onChange`，控件自己不记状态
- * （高级筛选面板的展开与收拢是本组件的界面状态，不进查询）。名片墙复用同一份
- * 组件时用 `timeLabel` 把「交换时间」换成「创建时间」。
+ * 受控：筛选取值来自 `value`、改动回传 `onChange`；排序键、方向与可选项
+ * 由各页传入，控件只负责显示与回传。排序与制作人搜索始终可见；其余筛选
+ * 收在同一个「筛选」面板里（默认折叠，桌面与移动端一致），展开状态是本组件
+ * 的界面状态，不进查询。
  */
-export function NamecardFilterBar({
+export function NamecardFilterBar<TSort extends string>({
   id = "namecard-filters",
   value,
   onChange,
-  timeLabel = "交换时间",
+  sort,
+  dir,
+  sortOptions,
+  onSortChange,
+  onDirectionChange,
+  onReshuffle,
   series,
   catalog,
   catalogLoading = false,
@@ -117,8 +109,15 @@ export function NamecardFilterBar({
   id?: string
   value: NamecardFilterValue
   onChange: (next: NamecardFilterValue) => void
-  /** 排序里「交换时间」那一条的文案；名片墙传「创建时间」。 */
-  timeLabel?: string
+  /** 当前排序键：名片墙与名片册各有自己的取值集合。 */
+  sort: TSort
+  dir: NamecardCollectionDirection
+  /** 当前页面支持的排序项；文案与顺序由调用方决定。 */
+  sortOptions: readonly { value: TSort; label: string }[]
+  onSortChange: (sort: TSort) => void
+  onDirectionChange: (dir: NamecardCollectionDirection) => void
+  /** 只有随机排序提供：换成另一轮随机顺序。 */
+  onReshuffle?: () => void
   series: readonly SeriesOption[]
   catalog: NamecardCharacterCatalog | null
   catalogLoading?: boolean
@@ -131,105 +130,49 @@ export function NamecardFilterBar({
   /** 标签筛选只在名片墙出现（名片册没有这个查询参数）。 */
   showTags?: boolean
 }) {
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   // 清空筛选时换 key 重挂角色选择器，把它的搜索框、企划与分类也一起复位。
   const [resetToken, setResetToken] = useState(0)
-  const advancedCount =
-    value.characterIds.length +
-    value.seriesCodes.length +
-    (value.group.trim() ? 1 : 0) +
-    (value.excludeCross ? 1 : 0)
+  // 任一筛选项生效就把触发按钮标成「已应用」，与旧名片墙文案一致。
+  const filtersApplied =
+    value.q.trim() !== "" ||
+    value.characterIds.length > 0 ||
+    value.seriesCodes.length > 0 ||
+    value.tags.length > 0 ||
+    value.group.trim() !== "" ||
+    value.owner !== null ||
+    value.matchAll ||
+    value.excludeOther ||
+    value.excludeCross ||
+    value.invert ||
+    value.declaration !== null
 
-  function changeSort(sort: string) {
-    const next = sort as NamecardCollectionSort
-    if (next === value.sort) return
-    // 换排序键就回到该键的默认方向，避免「按名称 + 倒序」这种意外组合。
-    onChange({
-      ...value,
-      sort: next,
-      dir: NAMECARD_COLLECTION_DEFAULT_DIRECTION[next],
-    })
-  }
-
-  /** 只清筛选，保留排序键与方向。 */
+  /** 只清筛选；排序键与方向归调用方持有，不在这里动。 */
   function resetFilters() {
     setResetToken((current) => current + 1)
-    onChange({
-      ...DEFAULT_NAMECARD_FILTERS,
-      sort: value.sort,
-      dir: value.dir,
-    })
+    onChange({ ...DEFAULT_NAMECARD_FILTERS })
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end">
-        <Field id={`${id}-search-field`} className="min-w-0 flex-1">
-          <FieldLabel htmlFor={`${id}-search`}>制作人名称</FieldLabel>
-          <div className="relative">
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              id={`${id}-search`}
-              type="text"
-              value={value.q}
-              placeholder="搜索制作人名称"
-              disabled={disabled}
-              className="pr-8 pl-9"
-              onChange={(event) =>
-                onChange({ ...value, q: event.currentTarget.value })
-              }
-            />
-            {value.q ? (
-              <ClearInputButton
-                label="清空制作人名称"
-                onClick={() => onChange({ ...value, q: "" })}
-              />
-            ) : null}
-          </div>
-        </Field>
-
-        {showTags ? (
-          <div className="min-w-0 md:w-80 lg:w-96">
-            <TagFilterSelect
-              id={`${id}-tags`}
-              value={value.tags}
-              disabled={disabled}
-              onChange={(tags) => onChange({ ...value, tags })}
-            />
-          </div>
-        ) : null}
-
-        {showOwner ? (
-          <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">
-            <FieldLabel htmlFor={`${id}-owner`}>所属用户</FieldLabel>
-            <OwnerFilterSelect
-              key={resetToken}
-              id={`${id}-owner`}
-              value={value.owner}
-              disabled={disabled}
-              onChange={(owner) => onChange({ ...value, owner })}
-            />
-          </Field>
-        ) : null}
-
-        <div className="flex items-end gap-2">
-          <Field className="min-w-0">
+    <div className="flex flex-col">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-end gap-2">
+          <Field className="min-w-28 flex-1">
             <FieldLabel htmlFor={`${id}-sort`}>排序方式</FieldLabel>
             <Select
-              items={sortItems(timeLabel)}
-              value={value.sort}
+              items={sortOptions}
+              value={sort}
               disabled={disabled}
-              onValueChange={(next) => changeSort(String(next))}
+              onValueChange={(next) => {
+                if (next && next !== sort) onSortChange(next)
+              }}
             >
-              <SelectTrigger id={`${id}-sort`} className="w-full min-w-40">
+              <SelectTrigger id={`${id}-sort`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="start">
                 <SelectGroup>
-                  {sortItems(timeLabel).map((item) => (
+                  {sortOptions.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
                       {item.label}
                     </SelectItem>
@@ -238,68 +181,121 @@ export function NamecardFilterBar({
               </SelectContent>
             </Select>
           </Field>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 shrink-0"
-            disabled={disabled}
-            aria-label={
-              value.dir === "desc"
-                ? "当前降序，切换为升序"
-                : "当前升序，切换为降序"
-            }
-            title={value.dir === "desc" ? "降序" : "升序"}
-            onClick={() =>
-              onChange({
-                ...value,
-                dir: value.dir === "desc" ? "asc" : "desc",
-              })
-            }
-          >
-            {value.dir === "desc" ? (
-              <ArrowDownWideNarrowIcon aria-hidden="true" />
-            ) : (
-              <ArrowDownNarrowWideIcon aria-hidden="true" />
-            )}
-          </Button>
+          {sort === "random" && onReshuffle ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={onReshuffle}
+            >
+              <ShuffleIcon data-icon="inline-start" aria-hidden="true" />
+              换个顺序
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              disabled={disabled}
+              aria-label={
+                dir === "desc" ? "当前降序，切换为升序" : "当前升序，切换为降序"
+              }
+              title={dir === "desc" ? "降序" : "升序"}
+              onClick={() => onDirectionChange(dir === "desc" ? "asc" : "desc")}
+            >
+              {dir === "desc" ? (
+                <ArrowDownWideNarrowIcon aria-hidden="true" />
+              ) : (
+                <ArrowDownNarrowWideIcon aria-hidden="true" />
+              )}
+            </Button>
+          )}
         </div>
 
         <Button
           type="button"
-          variant="ghost"
-          className="md:ml-auto"
-          onClick={resetFilters}
+          variant="outline"
+          aria-expanded={filtersOpen}
+          aria-controls={`${id}-panel`}
+          onClick={() => setFiltersOpen((current) => !current)}
         >
-          清空筛选
+          <ListFilterIcon data-icon="inline-start" aria-hidden="true" />
+          {filtersApplied ? "筛选（已应用）" : "筛选"}
         </Button>
       </div>
 
-      <Button
-        type="button"
-        variant="outline"
-        className="justify-center gap-2 md:hidden"
-        aria-expanded={advancedOpen}
-        aria-controls={`${id}-advanced`}
-        onClick={() => setAdvancedOpen((current) => !current)}
-      >
-        <SlidersHorizontalIcon aria-hidden="true" />
-        高级筛选
-        {advancedCount ? `（${advancedCount}）` : ""}
-        <ChevronDownIcon
-          aria-hidden="true"
-          className={cn("transition-transform", advancedOpen && "rotate-180")}
-        />
-      </Button>
-
       <div
-        id={`${id}-advanced`}
+        id={`${id}-panel`}
         className={cn(
-          "flex-col gap-3 rounded-lg border p-3 md:flex md:flex-row md:items-start",
-          advancedOpen ? "flex" : "hidden"
+          "mt-3 flex-col gap-3 rounded-lg border p-3",
+          filtersOpen ? "flex" : "hidden"
         )}
       >
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <Field id={`${id}-search-field`} className="min-w-0 flex-1">
+              <FieldLabel htmlFor={`${id}-search`}>制作人名称</FieldLabel>
+              <div className="relative">
+                <SearchIcon
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  id={`${id}-search`}
+                  type="text"
+                  value={value.q}
+                  placeholder="搜索制作人名称"
+                  disabled={disabled}
+                  className="pr-8 pl-9"
+                  onChange={(event) =>
+                    onChange({ ...value, q: event.currentTarget.value })
+                  }
+                />
+                {value.q ? (
+                  <ClearInputButton
+                    label="清空制作人名称"
+                    onClick={() => onChange({ ...value, q: "" })}
+                  />
+                ) : null}
+              </div>
+            </Field>
+
+            {showTags ? (
+              <div className="min-w-0 md:w-80 lg:w-96">
+                <TagFilterSelect
+                  id={`${id}-tags`}
+                  value={value.tags}
+                  disabled={disabled}
+                  onChange={(tags) => onChange({ ...value, tags })}
+                />
+              </div>
+            ) : null}
+
+            {showOwner ? (
+              <Field id={`${id}-owner-field`} className="min-w-0 md:w-56">
+                <FieldLabel htmlFor={`${id}-owner`}>所属用户</FieldLabel>
+                <OwnerFilterSelect
+                  key={resetToken}
+                  id={`${id}-owner`}
+                  value={value.owner}
+                  disabled={disabled}
+                  onChange={(owner) => onChange({ ...value, owner })}
+                />
+              </Field>
+            ) : null}
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="max-md:hidden md:ml-auto"
+              onClick={resetFilters}
+            >
+              清空筛选
+            </Button>
+          </div>
+
+        <div className="flex flex-col gap-3 md:flex-row md:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-end">
             <div className="min-w-0 md:flex-1">
               <CharacterFilterSelect
@@ -416,6 +412,17 @@ export function NamecardFilterBar({
             onCheckedChange={(invert) => onChange({ ...value, invert })}
           />
         </div>
+        </div>
+
+        {/* 移动端把清空放在展开面板底部，拇指够得着；桌面在筛选行里。 */}
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full md:hidden"
+          onClick={resetFilters}
+        >
+          清空筛选
+        </Button>
       </div>
     </div>
   )

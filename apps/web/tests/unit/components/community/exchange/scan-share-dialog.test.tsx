@@ -82,7 +82,12 @@ describe("ScanShareDialog", () => {
     expect(
       screen.getByRole("img", { name: "扫码交换二维码" })
     ).toBeInTheDocument()
-    expect(screen.getByText("等待对方扫码")).toBeVisible()
+    // 一次性 + 有效期：上海时区到分钟（EXPIRES_AT = 20:00 Asia/Shanghai）。
+    const warning = screen.getByText(
+      /此二维码仅可交换一次，有效期至 2026-11-19 20:00/
+    )
+    expect(warning).toBeVisible()
+    expect(warning).toHaveClass("text-warning")
   })
 
   it("polls until committed, announces success and refreshes namecard data", async () => {

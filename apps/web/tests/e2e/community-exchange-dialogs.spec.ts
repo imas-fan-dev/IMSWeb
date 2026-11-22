@@ -35,7 +35,7 @@ async function installDialogApis(
 ) {
   await installEmptyWikiCatalogMock(api, { min: 0, max: 8 })
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET",
     { min: 1, max: 4 }
@@ -402,6 +402,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     ],
     ["/api/community/exchange/me/cards", { items: [ownedCard] }, 3],
     ["/api/community/exchange/me/series", { items: [] }, 2],
+    ["/api/community/exchange/me/office-series", { items: [] }, 2],
     ["/api/community/exchange/me/offices", { items: [ownedOffice] }, 2],
     // One explicit management opening loads owner detail; PUT returns the saved office.
     [

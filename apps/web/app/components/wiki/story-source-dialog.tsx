@@ -11,6 +11,7 @@ import {
 } from "~/components/ui/dialog"
 import { WikiStorySourceIcon } from "~/components/wiki/wiki-story-source-icon"
 import type { StorySourceSelection } from "~/components/wiki/story-source-model"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { safeExternalStoryUrl } from "~/pages/wiki/wiki-model"
 
 /**
@@ -101,6 +102,8 @@ export function StorySourceDialog({
   selection: StorySourceSelection | null
   onClose: () => void
 }) {
+  // 关闭时先置空，退场期间保留最后一次选中的来源详情。
+  const shownSelection = useRetainedValue(selection)
   return (
     <Dialog
       open={selection !== null}
@@ -110,19 +113,19 @@ export function StorySourceDialog({
     >
       <DialogContent>
         <DialogHeader>
-          {selection?.groupTitle ? (
+          {shownSelection?.groupTitle ? (
             <p className="text-sm text-muted-foreground">
-              {selection.groupTitle}
+              {shownSelection.groupTitle}
             </p>
           ) : null}
-          <DialogTitle>{selection?.title}</DialogTitle>
-          {selection?.subtitle ? (
-            <DialogDescription>{selection.subtitle}</DialogDescription>
+          <DialogTitle>{shownSelection?.title}</DialogTitle>
+          {shownSelection?.subtitle ? (
+            <DialogDescription>{shownSelection.subtitle}</DialogDescription>
           ) : null}
         </DialogHeader>
         <div className="space-y-2">
-          {selection?.links.length ? (
-            selection.links.map((link) => (
+          {shownSelection?.links.length ? (
+            shownSelection.links.map((link) => (
               <StorySourceLinkRow key={link.key} link={link} />
             ))
           ) : (

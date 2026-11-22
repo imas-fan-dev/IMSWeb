@@ -39,6 +39,12 @@ export const CARD_SHARE_UNAVAILABLE_MESSAGE = "这张名片当前不开放交换
 /** 快速清单分享 404（找不到这位制作人）时页面整页渲染的文案。 */
 export const QUICK_SHARE_MISSING_MESSAGE = "找不到这位制作人"
 
+/** 扫码落地页：令牌无效/已失效时的整页文案（与后端同一句话）。 */
+export const SCAN_LANDING_INVALID_MESSAGE = "二维码无效或已失效"
+const SCAN_LANDING_COMMITTED_MESSAGE = "这个二维码已经完成过一次交换"
+const SCAN_LANDING_EXPIRED_MESSAGE = "这个二维码已过期"
+const SCAN_LANDING_OWN_MESSAGE = "这是你自己的二维码"
+
 const LOGIN_REQUIRED_MESSAGE = "登录后才能交换"
 const LOGIN_ACTION: ShareStatusAction = { kind: "login", label: "去登录" }
 const MANAGE_ACTION: ShareStatusAction = { kind: "manage", label: "去名片管理" }
@@ -82,6 +88,32 @@ export function quickShareStatus({
 }): ShareStatus {
   if (allCollected) {
     return { message: "你已经拥有这些名片", action: null }
+  }
+  if (!loggedIn) {
+    return { message: LOGIN_REQUIRED_MESSAGE, action: LOGIN_ACTION }
+  }
+  return { message: SHARE_EXCHANGE_READY_MESSAGE, action: null }
+}
+
+/**
+ * 扫码落地页：先看状态，再按登录与否给出下一步。名片可见性由接口决定，
+ * 这里只负责把状态翻成文案与入口。
+ */
+export function scanLandingStatus({
+  state,
+  loggedIn,
+}: {
+  state: "active" | "committed" | "expired" | "own-card"
+  loggedIn: boolean
+}): ShareStatus {
+  if (state === "own-card") {
+    return { message: SCAN_LANDING_OWN_MESSAGE, action: MANAGE_ACTION }
+  }
+  if (state === "committed") {
+    return { message: SCAN_LANDING_COMMITTED_MESSAGE, action: null }
+  }
+  if (state === "expired") {
+    return { message: SCAN_LANDING_EXPIRED_MESSAGE, action: null }
   }
   if (!loggedIn) {
     return { message: LOGIN_REQUIRED_MESSAGE, action: LOGIN_ACTION }

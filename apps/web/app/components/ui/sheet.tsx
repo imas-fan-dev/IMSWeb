@@ -7,8 +7,14 @@ import { NativeTabBarSuppression } from "~/components/ui/native-tab-bar-suppress
 import { cn } from "~/lib/utils"
 import { XIcon } from "lucide-react"
 
-function Sheet({ ...props }: SheetPrimitive.Root.Props) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+const SheetOpenContext = React.createContext<boolean | undefined>(undefined)
+
+function Sheet({ open, ...props }: SheetPrimitive.Root.Props) {
+  return (
+    <SheetOpenContext.Provider value={open}>
+      <SheetPrimitive.Root data-slot="sheet" open={open} {...props} />
+    </SheetOpenContext.Provider>
+  )
 }
 
 function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
@@ -48,6 +54,15 @@ function SheetContent({
   showCloseButton?: boolean
   showDragHandle?: boolean
 }) {
+  // 与 Dialog 相同：退场期间用打开时的子树快照兜底。
+  const open = React.useContext(SheetOpenContext)
+  const [snapshot, setSnapshot] = React.useState<React.ReactNode>(children)
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== undefined && open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSnapshot(children)
+  }
+  const content = open === false ? snapshot : children
   const { t } = useTranslation()
   const popupRef = React.useRef<HTMLDivElement | null>(null)
   // 拖拽到阈值后借 Base UI 的 Close 收尾，才能沿用它的退场动画与 onOpenChange 语义。
@@ -127,7 +142,7 @@ function SheetContent({
           tabIndex={-1}
           className="hidden"
         />
-        {children}
+        {content}
         {side === "bottom" ? (
           <div
             aria-hidden="true"

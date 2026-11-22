@@ -8,6 +8,7 @@ import {
   exchangeMyHistoryPath,
   exchangePath,
   exchangeQuickPath,
+  exchangeScanLandingPath,
   namecardPath,
 } from "@imsweb/contracts/paths"
 import {
@@ -22,6 +23,7 @@ import {
   namecardExchangeHistoryQuerySchema,
   namecardListErrorResponseSchema,
   namecardQuickExchangeSchema,
+  namecardScanLandingSchema,
   randomOwnerlessCardErrorSchema,
   randomOwnerlessCardSchema,
   publicNamecardResponseSchema,
@@ -34,6 +36,7 @@ import {
 import type {
   NamecardCollectionDirection,
   NamecardCollectionSort,
+  NamecardWallSort,
 } from "@imsweb/contracts/namecards"
 import { NAMECARD_REACTION_EMOJIS } from "@imsweb/contracts/fudaba/runtime"
 
@@ -161,7 +164,8 @@ export function getPublicCard(cardNumber: number) {
  * 墙不认 owner / includeOwn / includeHidden。
  */
 export interface NamecardWallListFilters {
-  sort?: "created" | "name" | "series" | "date"
+  sort?: NamecardWallSort
+  seed?: string
   dir?: NamecardCollectionDirection
   q?: string
   series?: readonly string[]
@@ -188,7 +192,11 @@ function namecardWallSearch(
     size: String(size),
   })
   if (filters.sort) params.set("sort", filters.sort)
-  if (filters.dir) params.set("dir", filters.dir)
+  if (filters.sort === "random") {
+    if (filters.seed) params.set("seed", filters.seed)
+  } else if (filters.dir) {
+    params.set("dir", filters.dir)
+  }
   const q = filters.q?.trim()
   if (q) params.set("q", q)
   for (const code of filters.series ?? []) params.append("series", code)
@@ -366,6 +374,24 @@ export function getCardSharePage(slug: string) {
       select: (payload) => ({
         ...payload,
         card: normalizeNamecard(payload.card),
+      }),
+    })
+  )
+}
+
+/**
+ * 扫码落地页：出示方、本次名片与状态。已用 / 过期时 `cards` 为空；
+ * 自己打开自己的码回 `own-card`。
+ */
+export function getScanLandingPage(token: string) {
+  return apiClient.Get(
+    exchangeScanLandingPath(token),
+    parsed(namecardScanLandingSchema, {
+      errorSchema: namecardErrorResponseSchema,
+      cacheFor: NO_CLIENT_CACHE,
+      select: (payload) => ({
+        ...payload,
+        cards: payload.cards.map(normalizeNamecard),
       }),
     })
   )

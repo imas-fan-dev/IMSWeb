@@ -802,7 +802,6 @@ function ProfileWorkspace({
               initialTarget={
                 activeSection === "offices" ? initialOfficeTarget : null
               }
-              series={state.series}
               homeCity={state.profile.homeCity}
               readOnly={exchangeReadOnly}
               onWriteClosed={closeWrites}

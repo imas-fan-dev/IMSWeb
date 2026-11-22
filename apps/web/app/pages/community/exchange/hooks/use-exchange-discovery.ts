@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import {
   getFudabaOfficePage,
-  getFudabaSeries,
+  getFudabaOfficeSeries,
   isApiError,
   type FudabaOffice,
   type FudabaOfficePage,
@@ -69,7 +69,7 @@ export function useExchangeDiscovery({
 
     try {
       const [seriesResult, officeResult] = await Promise.all([
-        getFudabaSeries().send(),
+        getFudabaOfficeSeries().send(),
         getFudabaOfficePage({
           city: city || undefined,
           series: seriesCodes.length ? seriesCodes : undefined,

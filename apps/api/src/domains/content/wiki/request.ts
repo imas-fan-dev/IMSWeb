@@ -16,6 +16,7 @@ export interface CreateWikiAgencyRequest {
     color: string;
     bannerTitle: string;
     wikiEnabled: boolean;
+    namecardEnabled: boolean | null;
 }
 
 export interface UpdateWikiAgencyRequest {
@@ -23,6 +24,7 @@ export interface UpdateWikiAgencyRequest {
     color?: string;
     bannerTitle?: string;
     wikiEnabled?: boolean;
+    namecardEnabled?: boolean | null;
 }
 
 export interface CreateWikiGroupRequest {
@@ -362,6 +364,9 @@ export function validateCreateWikiAgencyRequest(
                 ? name
                 : requiredText(body.bannerTitle, "横幅标题"),
         wikiEnabled: booleanValue(body.wikiEnabled, "wikiEnabled", true),
+        namecardEnabled: body.namecardEnabled === null
+            ? null
+            : optionalBoolean(body.namecardEnabled, "namecardEnabled") ?? null,
     };
 }
 
@@ -374,6 +379,9 @@ export function validateUpdateWikiAgencyRequest(
         color: optionalColor(body.color, "企划颜色") ?? undefined,
         bannerTitle: optionalText(body.bannerTitle, "横幅标题"),
         wikiEnabled: optionalBoolean(body.wikiEnabled, "wikiEnabled"),
+        namecardEnabled: body.namecardEnabled === null
+            ? null
+            : optionalBoolean(body.namecardEnabled, "namecardEnabled"),
     };
 }
 

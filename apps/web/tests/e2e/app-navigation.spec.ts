@@ -10,7 +10,7 @@ import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
-const cardsUrl = "/community/cards?page=2&size=12"
+const cardsUrl = "/community/cards?page=2&size=12&sort=created"
 const nav = (page: Page) => page.getByRole("navigation", { name: "主导航" })
 
 function resourcesDirectory(api: ApiDispatcher) {
@@ -438,6 +438,7 @@ test.describe("app navigation", () => {
     )
     for (const path of [
       "/api/community/exchange/me/series",
+      "/api/community/exchange/me/office-series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
     ]) {

@@ -60,6 +60,7 @@ function agencyResponse(agency: AgencyRecord) {
         name: agency.name_cn,
         color: agency.color,
         wikiEnabled: agency.wiki_enabled,
+        namecardEnabled: agency.namecard_enabled,
         bannerTitle: agency.banner_title,
         displayOrder: agency.display_order,
         layoutRevision: agency.layout_revision,
@@ -155,7 +156,8 @@ export function createHandleUpdateWikiAgency<E extends Env>(
                 name: body.name ?? existing.name_cn,
                 color: body.color ?? existing.color,
                 bannerTitle: body.bannerTitle ?? (existing.banner_title || existing.name_cn),
-                wikiEnabled: body.wikiEnabled ?? existing.wiki_enabled
+                wikiEnabled: body.wikiEnabled ?? existing.wiki_enabled,
+                namecardEnabled: body.namecardEnabled
             });
             return wikiJson({ status: 'success', agency: agencyResponse(agency) });
         } catch (error) {

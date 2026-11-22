@@ -168,6 +168,10 @@ export function exchangeScanSessionPath(): string {
   return exchangePath("scan/sessions")
 }
 
+/** 扫码落地页：二维码里的站点链接对应的公开读取。 */
+export function exchangeScanLandingPath(token: string): string {
+  return exchangePath(`scan/${encodeURIComponent(token)}`)
+}
 export function exchangeScanCommitPath(token: string): string {
   return exchangePath(`scan/sessions/${encodeURIComponent(token)}/commit`)
 }

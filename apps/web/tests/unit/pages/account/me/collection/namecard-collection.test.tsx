@@ -176,6 +176,7 @@ describe("NamecardCollection", () => {
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("所属用户"), "未来")
 
     await waitFor(
@@ -196,6 +197,7 @@ describe("NamecardCollection", () => {
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("所属用户"), "未来")
     await user.click(await screen.findByRole("button", { name: "春日未来" }))
 
@@ -214,11 +216,12 @@ describe("NamecardCollection", () => {
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("所属用户"), "未来")
     await user.click(await screen.findByRole("button", { name: "春日未来" }))
     await waitFor(() => expect(lastQuery()).toMatchObject({ owner: "acc-1" }))
 
-    await user.click(screen.getByRole("button", { name: "清空筛选" }))
+    await user.click(screen.getAllByRole("button", { name: "清空筛选" })[0])
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ owner: undefined }))
     expect(screen.getByLabelText("所属用户")).toBeVisible()
@@ -248,17 +251,79 @@ describe("NamecardCollection", () => {
     })
   })
 
-  it("passes the debounced search and every advanced filter to the query", async () => {
+  it("maps sort changes onto the query with each key's default direction", async () => {
     const user = userEvent.setup()
     renderCollection()
     await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
 
+    await user.click(screen.getByRole("combobox", { name: "排序方式" }))
+    await user.click(await screen.findByRole("option", { name: "制作人名" }))
+    await waitFor(() =>
+      expect(lastQuery()).toMatchObject({ sort: "name", dir: "asc", page: 1 })
+    )
+
+    await user.click(screen.getByRole("combobox", { name: "排序方式" }))
+    await user.click(await screen.findByRole("option", { name: "制作日期" }))
+    await waitFor(() =>
+      expect(lastQuery()).toMatchObject({ sort: "date", dir: "desc", page: 1 })
+    )
+  })
+
+  it("flips the direction without changing the sort", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.click(
+      screen.getByRole("button", { name: "当前降序，切换为升序" })
+    )
+    await waitFor(() =>
+      expect(lastQuery()).toMatchObject({ sort: "exchange", dir: "asc" })
+    )
+  })
+
+  it("keeps the chosen sort after clearing the filters", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.click(screen.getByRole("combobox", { name: "排序方式" }))
+    await user.click(await screen.findByRole("option", { name: "制作人名" }))
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
+    await user.type(screen.getByLabelText("制作人名称"), "春香")
+    await waitFor(
+      () =>
+        expect(lastQuery()).toMatchObject({
+          sort: "name",
+          dir: "asc",
+          q: "春香",
+        }),
+      { timeout: 3000 }
+    )
+
+    await user.click(screen.getAllByRole("button", { name: "清空筛选" })[0])
+    await waitFor(
+      () =>
+        expect(lastQuery()).toMatchObject({
+          sort: "name",
+          dir: "asc",
+          q: undefined,
+        }),
+      { timeout: 3000 }
+    )
+  })
+
+  it("passes the debounced search and every collapsed filter to the query", async () => {
+    const user = userEvent.setup()
+    renderCollection()
+    await waitFor(() => expect(apiMocks.sendPage).toHaveBeenCalled())
+
+    await user.click(screen.getByRole("button", { name: /^筛选/ }))
     await user.type(screen.getByLabelText("制作人名称"), "春香")
     await waitFor(() => expect(lastQuery()).toMatchObject({ q: "春香" }), {
       timeout: 3000,
     })
 
-    await user.click(screen.getByRole("button", { name: /高级筛选/ }))
     await user.click(screen.getByRole("textbox", { name: "搜索担当角色" }))
     await user.click(screen.getByRole("checkbox", { name: /天海春香/ }))
     await user.click(screen.getByRole("checkbox", { name: /同时包含/ }))

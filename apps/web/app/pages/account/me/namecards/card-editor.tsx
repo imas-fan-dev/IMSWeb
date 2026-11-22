@@ -301,6 +301,9 @@ export function CardEditor({
         expectedRevision: latest.revision,
       }).send()
       setDraft(cardFields(result.card))
+      // 提交后页面行可能从 live 换到 pending（或反之）；用最终修订重种槽位，
+      // 免得画廊继续拿着上一轮的图片地址。
+      seedSlots(result.card)
       onSaved(result.card)
       // Saving exactly what is on the wall again drops the waiting revision
       // instead of queueing an identical one.

@@ -5,7 +5,8 @@ import {
   PlusIcon,
   ShieldCheckIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { toast } from "sonner"
 
 import {
@@ -37,29 +38,34 @@ import {
 import {
   createFudabaLegacyCardClaim,
   getFudabaOwnerCards,
-  getWikiCatalog,
+  getFudabaOwnerSeries,
   isApiError,
   type FudabaCardClaim,
   type FudabaOwnerCard,
   type Namecard,
-  type WikiPublicCatalog,
+  type FudabaSeries,
 } from "~/lib/api"
 
 const NEW_CARD_VALUE = "__new__"
 
 export function NamecardClaimDialog({
-  card,
+  card: incomingCard,
   open,
   onOpenChange,
   onSubmitted,
+  onTagsChange,
 }: {
   card: Namecard | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmitted: (claim: FudabaCardClaim) => void
+  /** 标签由编辑器即时落库，这里只把最新值转给名片墙。 */
+  onTagsChange?: (tags: string[]) => void
 }) {
+  // 关闭时调用方先置空卡片，弹层还要退场：留住最后一张卡再淡出。
+  const card = useRetainedValue(incomingCard)
   const platform = useOptionalPlatformSession()
-  const [catalog, setCatalog] = useState<WikiPublicCatalog | null>(null)
+  const [catalog, setCatalog] = useState<FudabaSeries[] | null>(null)
   // 提交前只改预览；审核通过时服务端才真正旋转。
   const [rotations, setRotations] = useState<Record<number, number>>({})
   const mediaSlots = useMemo(
@@ -74,14 +80,20 @@ export function NamecardClaimDialog({
     card ? wallCardDraftFromCard(card) : null
   )
   const [submitting, setSubmitting] = useState(false)
+  const notifiedTags = useRef<string[]>(
+    card ? wallCardDraftFromCard(card).tags : []
+  )
 
   useEffect(() => {
     if (!open || platform.status !== "authenticated" || catalog) return
     let active = true
-    void Promise.all([getWikiCatalog().send(), getFudabaOwnerCards().send()])
+    void Promise.all([
+      getFudabaOwnerSeries().send(),
+      getFudabaOwnerCards().send(),
+    ])
       .then(([catalogResult, cardsResult]) => {
         if (!active) return
-        setCatalog(catalogResult)
+        setCatalog(catalogResult.items)
         setOwnerCards(cardsResult.items)
         setLoadError(false)
       })
@@ -102,11 +114,7 @@ export function NamecardClaimDialog({
       ? { ...draft, producerName: sessionName }
       : draft
 
-  const series = (catalog?.agencies ?? []).map((agency) => ({
-    code: agency.code,
-    displayName: agency.name,
-    color: agency.color,
-  }))
+  const series = catalog ?? []
   // 只有已通过审核的名片才能作为绑定目标。
   const bindable = ownerCards.filter(
     (item) => item.publicationStatus === "published"
@@ -282,7 +290,16 @@ export function NamecardClaimDialog({
                   draft={filled ?? draft}
                   series={series}
                   disabled={submitting}
-                  onChange={setDraft}
+                  onChange={(next) => {
+                    if (
+                      next.tags.join("\u0000") !==
+                      notifiedTags.current.join("\u0000")
+                    ) {
+                      notifiedTags.current = [...next.tags]
+                      onTagsChange?.(next.tags)
+                    }
+                    setDraft(next)
+                  }}
                 />
               )}
             </>

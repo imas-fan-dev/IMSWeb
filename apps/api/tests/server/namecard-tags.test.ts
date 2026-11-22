@@ -221,6 +221,15 @@ describe('namecard tags', () => {
             await numbers(['Vocaloid', 'rock']),
             [first, second, third].sort()
         );
+        // 预设名/别名与自由标签同口径：输入子串也能命中。
+        // 卡片存的是别名「遊戯王」，搜索预设名里的 tcg 仍应命中。
+        await tags.createPreset({
+            name: '游戏王 (TCG)',
+            aliases: ['遊戯王'],
+            now: NOW
+        });
+        await replace(second, ['遊戯王']);
+        assert.deepEqual(await numbers(['tcg']), [second]);
         // 命中的标签确实带预设 id。
         const stored = await tags.listForCards([first]);
         assert.equal(stored.get(first)?.[0]?.presetId, preset.id);

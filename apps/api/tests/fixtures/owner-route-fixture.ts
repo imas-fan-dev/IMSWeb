@@ -629,6 +629,7 @@ export class OwnerRouteFixture {
 
     readonly fudaba = {
         listOwnerSeries: () => this.fudaba.listPublicSeries(),
+        listOfficeSeries: () => this.fudaba.listPublicSeries(),
         listPublicSeries: async () => [{
             id: 1,
             code: '765',

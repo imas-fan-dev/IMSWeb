@@ -87,7 +87,8 @@ function shareSiteOrigin(): string {
 
 /**
  * 把扫描/相册得到的文本归一成交换目标；不是本站二维码时返回 null。
- * 只接受站点根下的 `/exchange/card/<slug>` 与 `/exchange/<handle>`，其它路径一律不认。
+ * 只接受站点根下的 `/exchange/scan/<token>`、`/exchange/card/<slug>` 与
+ * `/exchange/<handle>`，其它路径一律不认。
  */
 export function parseScannedExchangeContent(
   value: string | null
@@ -108,9 +109,12 @@ export function parseScannedExchangeContent(
   const segments = url.pathname.split("/").filter(Boolean)
   if (segments[0] !== "exchange" || segments.length > 3) return null
   if (segments.length === 3) {
-    const [, scope, slug] = segments
-    return scope === "card" && CARD_SHARE_SLUG_PATTERN.test(slug)
-      ? { kind: "card-share", slug }
+    const [, scope, value] = segments
+    if (scope === "scan") {
+      return SCAN_TOKEN_PATTERN.test(value) ? { kind: "token", token: value } : null
+    }
+    return scope === "card" && CARD_SHARE_SLUG_PATTERN.test(value)
+      ? { kind: "card-share", slug: value }
       : null
   }
   if (segments.length === 2) {

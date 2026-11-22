@@ -9,6 +9,7 @@ import {
   downloadBlob,
   drawQrCode,
   qrMatrix,
+  scanShareLinkFor,
   quickShareTarget,
   QR_CANVAS_SIZE,
   selectText,
@@ -54,6 +55,19 @@ describe("shareLinkFor", () => {
   it("escapes the handle so odd values cannot break the URL", () => {
     expect(shareLinkFor("a b", "https://idol-master.top")).toBe(
       "https://idol-master.top/exchange/a%20b"
+    )
+  })
+})
+
+describe("scanShareLinkFor", () => {
+  const TOKEN = "b".repeat(64)
+
+  it("builds the /exchange/scan/<token> link from the shareable origin", () => {
+    expect(scanShareLinkFor(TOKEN, "https://idol-master.top/")).toBe(
+      `https://idol-master.top/exchange/scan/${TOKEN}`
+    )
+    expect(scanShareLinkFor(TOKEN)).toBe(
+      `${window.location.origin}/exchange/scan/${TOKEN}`
     )
   })
 })

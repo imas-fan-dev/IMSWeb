@@ -458,7 +458,10 @@ export function resolveApiContract(
     }
 
   const exchange = "/api/community/exchange"
-  if (method === "GET" && path === `${exchange}/series`)
+  if (
+    method === "GET" &&
+    (path === `${exchange}/series` || path === `${exchange}/office-series`)
+  )
     return { responses: { 200: fudabaSeriesListSchema, ...fudabaErrors } }
   if (method === "GET" && path === `${exchange}/characters`)
     return {
@@ -511,7 +514,10 @@ export function resolveApiContract(
       query: fudabaPlaceSearchQuerySchema,
       responses: { 200: fudabaPlaceSearchResponseSchema, ...fudabaErrors },
     }
-  if (method === "GET" && path === `${exchange}/me/series`)
+  if (
+    method === "GET" &&
+    (path === `${exchange}/me/series` || path === `${exchange}/me/office-series`)
+  )
     return {
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaSeriesListSchema, ...fudabaErrors },

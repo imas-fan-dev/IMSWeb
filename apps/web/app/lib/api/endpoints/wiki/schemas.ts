@@ -134,6 +134,7 @@ export type WikiAgencySubmission = {
   color: string
   bannerTitle: string
   wikiEnabled: boolean
+  namecardEnabled?: boolean | null
 }
 
 export type WikiGroupSubmission = {

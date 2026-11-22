@@ -909,6 +909,7 @@ export interface FudabaRepository {
     }): Promise<FudabaOfficeReviewResult>;
     releaseOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<boolean>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    listOfficeSeries(): Promise<FudabaPublicSeriesRecord[]>;
     /**
      * Every taggable series, including ones without a wiki section: an owner
      * must be able to file a card that belongs to no published branch under

@@ -20,6 +20,8 @@ const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     // Document mode read/write paths depend on both Wiki additive migrations:
     // media and cover references would silently break with only the newer one.
     '20261122120000_wiki_entry_documents',
+    '20261121120000_namecard_project_visibility',
+    '20261105190000_character_profile_authority',
     '20261105120000_platform_profile_slug_not_numeric',
     // Tags write/read columns the wall and card editor rely on; a deployment
     // that skipped the additive migration would fail on first use.

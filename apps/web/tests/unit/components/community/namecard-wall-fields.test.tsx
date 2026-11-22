@@ -21,8 +21,8 @@ import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 const apiMocks = vi.hoisted(() => ({
   sendCharacterCatalog: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
-  sendWikiCatalog: vi.fn(),
-  getWikiCatalog: vi.fn(),
+  sendOwnerSeries: vi.fn(),
+  getFudabaOwnerSeries: vi.fn(),
   sendOwnerCards: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
 }))
@@ -41,7 +41,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
-    getWikiCatalog: apiMocks.getWikiCatalog,
+    getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
   }
 })
@@ -181,13 +181,13 @@ beforeEach(() => {
   apiMocks.getNamecardCharacterCatalog.mockReturnValue({
     send: apiMocks.sendCharacterCatalog,
   })
-  apiMocks.sendWikiCatalog.mockResolvedValue({
-    agencies: [
-      { code: "765", name: "765PRO ALLSTARS", color: "#f34e6c" },
-      { code: "cg", name: "CINDERELLA GIRLS", color: "#2681c8" },
+  apiMocks.sendOwnerSeries.mockResolvedValue({
+    items: [
+      { code: "765", displayName: "765PRO ALLSTARS", color: "#f34e6c" },
+      { code: "cg", displayName: "CINDERELLA GIRLS", color: "#2681c8" },
     ],
   })
-  apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendWikiCatalog })
+  apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendOwnerSeries })
   apiMocks.sendOwnerCards.mockResolvedValue({ items: [] })
   apiMocks.getFudabaOwnerCards.mockReturnValue({
     send: apiMocks.sendOwnerCards,
@@ -358,25 +358,18 @@ describe("wallCardPayload", () => {
     ).toEqual({})
   })
 
-  it("sends tags only when the list changed, for both window modes", () => {
-    const tagged = draft({ ...live, tags: ["765"] })
+  it("keeps tags out of the review payload", () => {
+    const liveTags: string[] = ["765"]
+    const tagged = draft({ ...live, tags: liveTags })
 
-    expect(wallCardPayload("claim", tagged, tagged)).toEqual({})
-    expect(wallCardChanged("claim", tagged, tagged)).toBe(false)
-
+    // 标签由 NamecardTagEditor 直接写标签接口，审核载荷不再重复携带。
     const added = { ...tagged, tags: ["765", "娘"] }
-    expect(wallCardPayload("claim", added, tagged)).toEqual({
-      tags: ["765", "娘"],
-    })
-    expect(wallCardPayload("supplement", added, tagged)).toEqual({
-      tags: ["765", "娘"],
-    })
-    expect(wallCardChanged("supplement", added, tagged)).toBe(true)
-
-    // 清空也要提交，否则服务端会保留旧标签。
-    expect(wallCardPayload("claim", { ...tagged, tags: [] }, tagged)).toEqual({
-      tags: [],
-    })
+    expect(wallCardPayload("claim", added, tagged)).toEqual({})
+    expect(wallCardPayload("supplement", added, tagged)).toEqual({})
+    expect(wallCardChanged("supplement", added, tagged)).toBe(false)
+    expect(wallCardPayload("claim", { ...tagged, tags: [] }, tagged)).toEqual(
+      {}
+    )
   })
 })
 
