@@ -317,3 +317,55 @@ function filterBlock(
       return matches(blockTexts(block), query) ? block : null
   }
 }
+
+/** Header counters a `document` story page shows instead of structured counts. */
+export interface WikiDocumentSummary {
+  sections: number
+  cards: number
+  sources: number
+}
+
+/**
+ * Counts what the compiled AST actually renders.
+ *
+ * A document page carries no structured categories, so the modern header must
+ * derive its numbers from the block tree (including cards and source links
+ * nested inside callouts, details, quotes, lists and tabs).
+ */
+export function documentSummary(
+  document: WikiPublicStoryDocument
+): WikiDocumentSummary {
+  let cards = 0
+  let sources = 0
+  const visit = (blocks: readonly WikiDocumentBlock[]): void => {
+    for (const block of blocks) {
+      switch (block.type) {
+        case "cardGrid":
+          cards += block.cards.length
+          sources += block.cards.reduce(
+            (count, card) => count + card.links.length,
+            0
+          )
+          break
+        case "links":
+          sources += block.links.length
+          break
+        case "tabs":
+          for (const tab of block.items) visit(tab.children)
+          break
+        case "blockquote":
+        case "callout":
+        case "details":
+          visit(block.children)
+          break
+        case "list":
+          for (const item of block.items) visit(item.children)
+          break
+        default:
+          break
+      }
+    }
+  }
+  visit(document.blocks)
+  return { sections: document.headings.length, cards, sources }
+}

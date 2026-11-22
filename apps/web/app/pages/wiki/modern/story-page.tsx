@@ -14,6 +14,7 @@ import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { WikiTransformedImage } from "~/components/shared/wiki-transformed-image"
 import { WikiDocumentRenderer } from "~/components/wiki/wiki-document-renderer"
+import { documentSummary } from "~/components/wiki/wiki-document-model"
 import { WikiViewSwitchIcon } from "~/components/wiki/wiki-view-switch-icon"
 import { Button, buttonVariants } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -147,6 +148,12 @@ export function StoryPage() {
       category.cards.reduce((count, card) => count + card.links.length, 0),
     0
   )
+  // A `document` entry renders its compiled AST, so the structured counters
+  // above would read 0/0/0; derive them from the blocks instead.
+  const documentCounts =
+    stories?.contentMode === "document" && stories.document
+      ? documentSummary(stories.document)
+      : null
 
   if (!hasTarget) {
     return (
@@ -239,9 +246,19 @@ export function StoryPage() {
                   {stories.idol.name}
                 </h1>
                 <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground sm:mt-3 sm:gap-x-5 sm:text-sm">
-                  <span>{visibleCategories.length} 个分类</span>
-                  <span>{cardCount ?? 0} 张卡片</span>
-                  <span>{linkCount ?? 0} 个内容来源</span>
+                  {documentCounts ? (
+                    <>
+                      <span>{documentCounts.sections} 个章节</span>
+                      <span>{documentCounts.cards} 张卡片</span>
+                      <span>{documentCounts.sources} 个内容来源</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{visibleCategories.length} 个分类</span>
+                      <span>{cardCount ?? 0} 张卡片</span>
+                      <span>{linkCount ?? 0} 个内容来源</span>
+                    </>
+                  )}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
                   <NavigationLink
