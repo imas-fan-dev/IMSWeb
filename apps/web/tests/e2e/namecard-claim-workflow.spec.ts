@@ -279,7 +279,7 @@ test.describe("namecard claim workflow", () => {
 
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
@@ -452,7 +452,7 @@ test.describe("namecard claim workflow", () => {
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     // 打开详情本身可能已经把页面滚到名片处；以认领弹窗打开前的位置为基准，
     // 断言弹窗不会再次移动页面。
@@ -744,7 +744,7 @@ test.describe("namecard claim workflow", () => {
       await page.waitForURL(/\/community\/cards\?card=42$/)
       // The deep link opens the detail dialog for that card on the wall.
       await expect(
-        page.getByRole("dialog", { name: /制作人名片/ })
+        page.getByRole("dialog", { name: /制作人名片/ }).last()
       ).toBeVisible()
     })
   })

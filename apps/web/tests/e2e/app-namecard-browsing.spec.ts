@@ -104,7 +104,7 @@ test.describe("app namecard browsing", () => {
     await original.scrollIntoViewIfNeeded()
     const scrollY = await page.evaluate(() => window.scrollY)
     await original.click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     await expect(
       detail.getByRole("button", { name: /[上下]一张名片/ })
@@ -184,7 +184,7 @@ test.describe("app namecard browsing", () => {
       "提交于 2026年9月1日 16:00:00（北京时间）"
     )
     await first.getByRole("button", { name: "查看制作人名片 13 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await detail.getByRole("button", { name: "添加反应" }).click()
     await expectNamecardReactionGraphics(page)
     await attachNamecardScreenshot(page, testInfo, "app-uniform-reactions")
