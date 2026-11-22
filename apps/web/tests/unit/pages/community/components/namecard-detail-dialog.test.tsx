@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ComponentProps } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -246,16 +246,51 @@ describe("NamecardDetailDialog", () => {
     expect(screen.queryByRole("button", { name: "添加标签" })).toBeNull()
   })
 
-  it("renders the smaller reaction size", async () => {
+  it("renders one reaction row: 20px chips ordered by count with stable ties", async () => {
     renderDialog(
       {},
-      { reactions: { reactions: { "\u{1F525}": 2 }, loading: false } }
+      {
+        reactions: {
+          reactions: { "❤️": 2, "👍": 5, "😂": 2, "🤣": 5, "✨": 0 },
+          loading: false,
+        },
+      }
     )
 
-    const chip = await screen.findByRole("button", {
-      name: "\u{1F525}，2 次反应",
-    })
-    expect(chip).toHaveClass("h-7", { exact: false })
+    const row = await screen.findByLabelText("名片全部反应")
+    const chips = within(row).getAllByRole("button", { name: /次反应$/ })
+    expect(chips.map((chip) => chip.getAttribute("aria-label"))).toEqual([
+      "👍，5 次反应",
+      "🤣，5 次反应",
+      "❤️，2 次反应",
+      "😂，2 次反应",
+    ])
+    for (const chip of chips) {
+      expect(chip).toHaveClass("h-5", "rounded-sm")
+      expect(chip.querySelector("img")).toHaveClass("size-3")
+    }
+
+    const add = within(row).getByRole("button", { name: "添加反应" })
+    expect(add).toHaveClass("size-5", "before:-inset-y-3")
+    expect(add.querySelector("span")).toHaveClass("size-5", "rounded-sm")
+  })
+
+  it("toggles a reaction when its detail chip is clicked", async () => {
+    const user = userEvent.setup()
+    const onReact = vi.fn().mockResolvedValue(true)
+    renderDialog(
+      {},
+      {
+        reactions: { reactions: { "👍": 1 }, loading: false },
+        onReact,
+      }
+    )
+
+    await user.click(
+      await screen.findByRole("button", { name: "👍，1 次反应" })
+    )
+
+    expect(onReact).toHaveBeenCalledWith("👍")
   })
 
   it("replaces the exchange entry with the collection hide toggle", async () => {

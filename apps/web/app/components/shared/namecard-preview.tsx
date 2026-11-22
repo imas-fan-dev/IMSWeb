@@ -1,8 +1,18 @@
 import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import { CardImage } from "~/components/shared/card-image"
-import type { NamecardPage } from "~/components/shared/namecard-pages"
+import { useRetainedValue } from "~/lib/use-retained-value"
+import {
+  namecardPages,
+  type NamecardPage,
+} from "~/components/shared/namecard-pages"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -37,9 +47,9 @@ function clampScale(value: number) {
 }
 
 export function NamecardPreview({
-  card,
-  pages,
-  index,
+  card: incomingCard,
+  pages: incomingPages,
+  index: incomingIndex,
   onIndexChange,
   onOpenChange,
   finalFocus,
@@ -52,6 +62,16 @@ export function NamecardPreview({
   onOpenChange: (open: boolean) => void
   finalFocus?: () => HTMLElement | null
 }) {
+  // 退场动画期间父组件已把预览状态清空；保留最后一组内容，避免闪白。
+  const card = useRetainedValue(incomingCard)
+  // 关闭时父组件把 pages 也清空；直接从保留的卡片重建，避免再存一份数组。
+  const pages = useMemo(
+    () => (incomingPages.length ? incomingPages : card ? namecardPages(card) : []),
+    [incomingPages, card]
+  )
+  const [lastIndex, setLastIndex] = useState(incomingIndex)
+  if (incomingCard && incomingIndex !== lastIndex) setLastIndex(incomingIndex)
+  const index = incomingCard ? incomingIndex : lastIndex
   const [view, setView] = useState<ViewState>({
     scale: 1,
     offset: { x: 0, y: 0 },
@@ -218,7 +238,7 @@ export function NamecardPreview({
 
   return (
     <Dialog
-      open={card !== null}
+      open={incomingCard !== null}
       onOpenChange={(open) => {
         if (!open) closePreview()
       }}

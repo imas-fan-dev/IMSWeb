@@ -58,7 +58,7 @@ function installMapMocks(api: ApiDispatcher) {
   api.expect({
     name: "App map series",
     method: "GET",
-    path: "/api/community/exchange/series",
+    path: "/api/community/exchange/office-series",
     responses: { 200: fudabaSeriesListSchema },
     times: { min: 1, max: 4 },
     handle: () => ({ status: 200, json: series }),

@@ -27,67 +27,23 @@ async function waitForNextPaint(page: Page) {
   )
 }
 
-const catalog = {
-  status: "success",
-  agencies: [
-    {
-      id: 1,
-      code: "765",
-      name: "765PRO",
-      color: "#f34e6c",
-      bannerTitle: "765PRO",
-      iconUrl: null,
-      idolCount: 1,
-      entryCount: 1,
-      imageTransform: {
-        fit: "cover",
-        focalX: 0.5,
-        focalY: 0.5,
-        zoom: 1,
-        rotation: 0,
-      },
+const seriesCatalog = {
+  items: [
+    { id: 1, code: "765", displayName: "765PRO", color: "#f34e6c" },
+    { id: 2, code: "cg", displayName: "灰姑娘女孩", color: "#2581c7" },
+  ].map((item, displayOrder) => ({
+    ...item,
+    displayOrder,
+    iconUrl: null,
+    imageTransform: {
+      fit: "cover",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
     },
-    {
-      id: 2,
-      code: "cg",
-      name: "灰姑娘女孩",
-      color: "#2581c7",
-      bannerTitle: "CINDERELLA GIRLS",
-      iconUrl: null,
-      idolCount: 1,
-      entryCount: 1,
-      imageTransform: {
-        fit: "cover",
-        focalX: 0.5,
-        focalY: 0.5,
-        zoom: 1,
-        rotation: 0,
-      },
-    },
-  ],
-  searchEntries: [
-    {
-      id: 1,
-      name: "天海春香",
-      agencyId: 1,
-      agencyCode: "765",
-      agencyName: "765PRO",
-      agencyColor: "#f34e6c",
-      entryKind: "idol",
-      entrySubtype: null,
-    },
-    {
-      id: 2,
-      name: "涩谷凛",
-      agencyId: 2,
-      agencyCode: "cg",
-      agencyName: "灰姑娘女孩",
-      agencyColor: "#2581c7",
-      entryKind: "idol",
-      entrySubtype: null,
-    },
-  ],
-  selection: null,
+    activeOfficeCount: 0,
+  })),
 }
 
 const favoriteCharacter = { id: 1, name: "天海春香", seriesCode: "765" }
@@ -206,6 +162,7 @@ test.describe("namecard claim workflow", () => {
     page,
   }, testInfo) => {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     const consoleErrors: string[] = []
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
@@ -213,9 +170,9 @@ test.describe("namecard claim workflow", () => {
     page.on("pageerror", (error) => consoleErrors.push(error.message))
 
     await api.mockRoute(
-      "**/api/wiki/catalog**",
+      "**/api/community/exchange/me/series",
       async (route) => {
-        await route.fulfill({ json: catalog })
+        await route.fulfill({ json: seriesCatalog })
       },
       "GET"
     )
@@ -322,7 +279,7 @@ test.describe("namecard claim workflow", () => {
 
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
@@ -417,10 +374,11 @@ test.describe("namecard claim workflow", () => {
   // keeps both in place and scrolls only the body.
   async function mockClaimSurface(page: Page) {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     await api.mockRoute(
-      "**/api/wiki/catalog**",
+      "**/api/community/exchange/me/series",
       async (route) => {
-        await route.fulfill({ json: catalog })
+        await route.fulfill({ json: seriesCatalog })
       },
       "GET"
     )
@@ -494,7 +452,7 @@ test.describe("namecard claim workflow", () => {
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     // 打开详情本身可能已经把页面滚到名片处；以认领弹窗打开前的位置为基准，
     // 断言弹窗不会再次移动页面。
@@ -705,6 +663,7 @@ test.describe("namecard claim workflow", () => {
       )
       for (const path of [
         "/api/community/exchange/me/series",
+        "/api/community/exchange/me/office-series",
         "/api/community/exchange/me/cards",
         "/api/community/exchange/me/offices",
       ]) {
@@ -785,7 +744,7 @@ test.describe("namecard claim workflow", () => {
       await page.waitForURL(/\/community\/cards\?card=42$/)
       // The deep link opens the detail dialog for that card on the wall.
       await expect(
-        page.getByRole("dialog", { name: /制作人名片/ })
+        page.getByRole("dialog", { name: /制作人名片/ }).last()
       ).toBeVisible()
     })
   })

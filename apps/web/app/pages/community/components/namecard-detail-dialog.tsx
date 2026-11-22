@@ -7,8 +7,7 @@ import {
   ShieldCheckIcon,
   SquarePenIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import type { MouseEvent } from "react"
+import { useEffect, useState } from "react"
 
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { creditParts } from "~/components/community/namecard-credit-format"
@@ -30,25 +29,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "~/components/ui/popover"
-import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
+import { getFudabaSeries } from "~/lib/api"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import type { FudabaSeries, Namecard, NamecardReactions } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
-import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
+import {
+  NamecardReactionPicker,
+  NamecardReactionRow,
+  orderedNamecardReactions,
+} from "~/pages/community/components/namecard-reaction-row"
 import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
 import { CardShareDialog } from "~/pages/account/me/namecards/components/card-share-dialog"
 import { useCardShareDialog } from "~/pages/exchange/use-card-share-dialog"
 
-const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
@@ -60,186 +57,9 @@ const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
 })
 
-type ReactionEntry = readonly [string, number]
-
-function activeNamecardReactions(reactions: NamecardReactions) {
-  return Object.entries(reactions).filter(
-    ([emoji, count]) => count > 0 && NAMECARD_REACTION_SET.has(emoji)
-  )
-}
-
-function mobileNamecardReactionSummary(reactions: NamecardReactions) {
-  return activeNamecardReactions(reactions)
-    .map((entry, index) => ({ entry, index }))
-    .sort(
-      (left, right) =>
-        right.entry[1] - left.entry[1] || left.index - right.index
-    )
-    .slice(0, 3)
-    .map(({ entry }) => entry)
-}
-
 export type NamecardReactionState = {
   reactions: NamecardReactions
   loading: boolean
-}
-
-function ReactionChip({
-  entry: [emoji, count],
-  compact,
-  size = "default",
-  className,
-  disabled,
-  onClick,
-}: {
-  entry: ReactionEntry
-  className?: string
-  compact?: boolean
-  /** `sm`：名片墙瓦片与详情窗把反应区整体收一档。 */
-  size?: "default" | "sm"
-  disabled?: boolean
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
-}) {
-  return (
-    <Button
-      type="button"
-      className={cn(
-        "h-8 min-h-8 min-w-8 shrink-0 gap-0.5 rounded-full border border-border bg-background px-1 text-[11px] tabular-nums max-md:focus-visible:ring-inset md:min-w-0 md:gap-1.5 md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30",
-        size === "sm" &&
-          "h-7 min-h-7 min-w-7 gap-0.5 px-1 text-[10px] md:h-7 md:min-h-7 md:gap-0.5 md:px-1.5 md:text-xs [&_svg]:size-3 [&_img]:size-3",
-        !compact && "max-w-none grow-0",
-        compact &&
-          (String(count).length > 3
-            ? "max-w-none grow-0"
-            : "max-w-14 grow md:max-w-none md:grow-0"),
-        className
-      )}
-      variant="ghost"
-      disabled={disabled}
-      aria-label={`${emoji}，${count} 次反应`}
-      onClick={onClick}
-    >
-      <NamecardReactionEmoji emoji={emoji} compact={compact} />
-      {count}
-    </Button>
-  )
-}
-
-function NamecardReactionPicker({
-  reactions,
-  busy,
-  onReact,
-  className,
-  closeBelowMd = false,
-  size = "default",
-}: {
-  reactions: NamecardReactions
-  busy: boolean
-  onReact: (emoji: string) => Promise<boolean>
-  className?: string
-  closeBelowMd?: boolean
-  size?: "default" | "sm"
-}) {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const [closedByBreakpoint, setClosedByBreakpoint] = useState(false)
-  useEffect(() => {
-    if (!closeBelowMd || !open) return
-    const desktop = window.matchMedia("(min-width: 48rem)")
-    const closeOnNarrowViewport = () => {
-      if (desktop.matches) return
-      setClosedByBreakpoint(true)
-      setOpen(false)
-    }
-    closeOnNarrowViewport()
-    desktop.addEventListener("change", closeOnNarrowViewport)
-    return () => desktop.removeEventListener("change", closeOnNarrowViewport)
-  }, [closeBelowMd, open])
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (nextOpen) setClosedByBreakpoint(false)
-        setOpen(nextOpen)
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <Button
-            ref={triggerRef}
-            type="button"
-            size="icon"
-            variant="ghost"
-            className={cn(
-              "size-11 rounded-full bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground max-md:focus-visible:ring-inset dark:hover:bg-transparent",
-              size === "sm" && "size-8 min-h-8 md:size-8 md:min-h-8",
-              className
-            )}
-            title="添加反应"
-            aria-label="添加反应"
-            disabled={busy}
-          />
-        }
-      >
-        <span
-          className={cn(
-            "flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input",
-            size === "sm" && "size-6 [&_svg]:size-3.5"
-          )}
-        >
-          <PlusIcon aria-hidden="true" />
-        </span>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={6}
-        style={{ animation: "none" }}
-        className="max-h-(--available-height) w-72 max-w-(--available-width) overflow-y-auto"
-        finalFocus={
-          closeBelowMd && closedByBreakpoint
-            ? () => {
-                const row = triggerRef.current?.parentElement
-                const card = triggerRef.current?.closest("[data-namecard-item]")
-                const buttons = [
-                  ...(row?.querySelectorAll<HTMLButtonElement>("button") ?? []),
-                  ...(card?.querySelectorAll<HTMLButtonElement>("button") ??
-                    []),
-                ]
-                return (
-                  buttons.find(
-                    (button) =>
-                      !button.disabled && button.getClientRects().length > 0
-                  ) ?? false
-                )
-              }
-            : undefined
-        }
-      >
-        <PopoverTitle className="mb-2">选择反应</PopoverTitle>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1">
-          {NAMECARD_REACTIONS.map((emoji) => (
-            <Button
-              key={emoji}
-              type="button"
-              size="icon"
-              variant={reactions[emoji] ? "secondary" : "ghost"}
-              className="size-11 text-base"
-              disabled={busy}
-              aria-label={`${emoji}，添加反应`}
-              onClick={() => {
-                void onReact(emoji).then((success) => {
-                  if (success) setOpen(false)
-                })
-              }}
-            >
-              <NamecardReactionEmoji emoji={emoji} />
-            </Button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 export function NamecardReactionSummary({
@@ -248,66 +68,52 @@ export function NamecardReactionSummary({
   busy,
   onOpen,
   onReact,
-  size = "default",
 }: NamecardReactionState & {
   busy: boolean
   onOpen: (trigger: HTMLButtonElement) => void
   onReact: (emoji: string) => Promise<boolean>
-  /** `sm`：名片墙瓦片与详情窗的反应区整体收一档。 */
+  /** 兼容旧调用方：胶囊尺寸已统一，`size` 不再改变高度。 */
   size?: "default" | "sm"
 }) {
-  const all = activeNamecardReactions(reactions)
-  const mobile = mobileNamecardReactionSummary(reactions)
+  const all = orderedNamecardReactions(reactions)
   return (
     <div
-      className={cn(
-        "flex min-h-8 min-w-0 flex-wrap items-center gap-0.75 md:gap-1.5",
-        size === "sm" && "min-h-7 gap-0.5 md:gap-1"
-      )}
+      className="flex min-h-5 min-w-0 flex-wrap items-center"
+      data-slot="namecard-reaction-summary"
       aria-label="名片反应摘要"
       aria-busy={loading || busy}
     >
-      {mobile.map((entry) => (
-        <ReactionChip
-          key={`mobile-${entry[0]}`}
-          entry={entry}
-          compact
-          size={size}
-          onClick={(event) => onOpen(event.currentTarget)}
-          className="md:hidden"
-        />
-      ))}
-      {all.map((entry) => (
-        <ReactionChip
-          key={`desktop-${entry[0]}`}
-          entry={entry}
-          compact
-          size={size}
-          disabled={!IS_APP_TARGET && busy}
-          onClick={(event) => {
-            if (IS_APP_TARGET) onOpen(event.currentTarget)
-            else void onReact(entry[0])
-          }}
-          className="max-md:hidden"
-        />
-      ))}
-      {!IS_APP_TARGET ? (
-        <NamecardReactionPicker
-          reactions={reactions}
-          busy={busy}
-          onReact={onReact}
-          size={size}
-          className="max-md:hidden"
-          closeBelowMd
-        />
-      ) : null}
+      <NamecardReactionRow
+        reactions={reactions}
+        limit={3}
+        chipClassName="md:hidden"
+        onChipClick={(_entry, event) => onOpen(event.currentTarget)}
+      />
+      <NamecardReactionRow
+        reactions={reactions}
+        chipClassName="max-md:hidden"
+        chipDisabled={!IS_APP_TARGET && busy}
+        onChipClick={(entry, event) => {
+          if (IS_APP_TARGET) onOpen(event.currentTarget)
+          else void onReact(entry[0])
+        }}
+      >
+        {!IS_APP_TARGET ? (
+          <NamecardReactionPicker
+            reactions={reactions}
+            busy={busy}
+            onReact={onReact}
+            className="max-md:hidden"
+            closeBelowMd
+          />
+        ) : null}
+      </NamecardReactionRow>
       {all.length === 0 && !loading ? (
         <Button
           type="button"
           variant="ghost"
           className={cn(
-            "h-8 min-h-8 rounded-full border border-dashed px-2 text-xs text-muted-foreground",
-            size === "sm" && "h-7 min-h-7 px-1.5 text-[11px]",
+            "h-5 min-h-5 rounded-sm border border-dashed px-1.5 text-[10px] text-muted-foreground",
             !IS_APP_TARGET && "md:hidden"
           )}
           onClick={(event) => onOpen(event.currentTarget)}
@@ -387,10 +193,10 @@ const EMPTY_REACTION_STATE: NamecardReactionState = {
 }
 
 export function NamecardDetailDialog({
-  card,
+  card: incomingCard,
   canClaim = false,
   initialSide,
-  reactions = EMPTY_REACTION_STATE,
+  reactions: incomingReactions = EMPTY_REACTION_STATE,
   busy = false,
   exchangeTarget,
   exchangeTargetCard,
@@ -460,11 +266,18 @@ export function NamecardDetailDialog({
    */
   authorizeMedia?: boolean
 }) {
+  // 关闭时父组件会立刻把 card 置空；但对话框还要播退场动画。保留最后一张卡，
+  // 让内容在淡出期间保持完整，不再出现「先空白再消失」。
+  const card = useRetainedValue(incomingCard)
+  // 关闭时父组件也会把反应数据换成空态；同样留住，退场期间不闪空。
+  const reactions =
+    useRetainedValue(incomingCard ? incomingReactions : null) ??
+    EMPTY_REACTION_STATE
   const navigate = useNavigation()
   const platform = useOptionalPlatformSession()
   const platformCanReport =
     platform.status === "authenticated" || platform.status === "restricted"
-  const entries = activeNamecardReactions(reactions.reactions)
+  const entries = orderedNamecardReactions(reactions.reactions)
   // inline 编辑器自己保存，但详情窗是受控视图：保存成功后先把本地 chips 换掉，
   // 再通知调用方刷新列表里的同一张卡（弹窗可能不重挂）。
   const [savedTagState, setSavedTagState] = useState<{
@@ -547,7 +360,7 @@ export function NamecardDetailDialog({
 
   return (
     <Dialog
-      open={card !== null}
+      open={incomingCard !== null}
       onOpenChange={onOpenChange}
       disablePointerDismissal={!dismissible}
     >
@@ -643,24 +456,17 @@ export function NamecardDetailDialog({
                 <section aria-labelledby="namecard-detail-reactions">
                   <h2
                     id="namecard-detail-reactions"
-                    className="mb-2 font-medium"
+                    className="mb-1 font-medium"
                   >
                     全部反应
                   </h2>
-                  <div
-                    className="flex min-h-11 flex-wrap items-center gap-1.5"
-                    aria-label="名片全部反应"
-                    aria-busy={reactions.loading || busy}
+                  <NamecardReactionRow
+                    reactions={reactions.reactions}
+                    busy={reactions.loading || busy}
+                    label="名片全部反应"
+                    chipDisabled={busy}
+                    onChipClick={(entry) => void react(entry[0])}
                   >
-                    {entries.map((entry) => (
-                      <ReactionChip
-                        key={entry[0]}
-                        entry={entry}
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => void react(entry[0])}
-                      />
-                    ))}
                     {!reactions.loading && entries.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         还没有反应
@@ -670,9 +476,8 @@ export function NamecardDetailDialog({
                       reactions={reactions.reactions}
                       busy={busy}
                       onReact={react}
-                      size="sm"
                     />
-                  </div>
+                  </NamecardReactionRow>
                 </section>
               )}
             </div>

@@ -32,6 +32,7 @@ import {
 import { EXCHANGE_COMPLETED_MESSAGE } from "./use-exchange-submit"
 import { ScanOverlay } from "./scan-overlay"
 import type { ScanExchangeState } from "./use-scan-exchange"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { useScanExchange } from "./use-scan-exchange"
 
 const SCAN_TITLE = "扫码"
@@ -66,12 +67,13 @@ export function ScanExchangeDialog({
 }
 
 function ScanExchangeBody({
-  cardNumbers,
+  cardNumbers: incomingCardNumbers,
   onClose,
 }: {
   cardNumbers: readonly number[]
   onClose: () => void
 }) {
+  const cardNumbers = useRetainedValue(incomingCardNumbers) ?? []
   const desktop = useDesktopAccountWorkspace()
   const exchange = useScanExchange({ cardNumbers, onCancel: onClose })
 

@@ -649,6 +649,7 @@ export class OwnerRouteFixture {
         { hash: string; preview: string | null }
     >();
     readonly fudaba = {
+        listOfficeSeries: () => this.fudaba.listPublicSeries(),
         listOwnerSeries: () => this.fudaba.listPublicSeries(),
         messages: {
             saveMediaPreview: async (

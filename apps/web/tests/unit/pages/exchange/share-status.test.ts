@@ -7,6 +7,7 @@ import {
   SHARE_EXCHANGE_READY_MESSAGE,
   cardShareStatus,
   quickShareStatus,
+  scanLandingStatus,
 } from "~/pages/exchange/share-status"
 
 describe("card share status", () => {
@@ -81,6 +82,37 @@ describe("quick share status", () => {
     ).toEqual({
       message: "登录后才能交换",
       action: { kind: "login", label: "去登录" },
+    })
+  })
+})
+
+describe("scan landing status", () => {
+  it("tells the owner it is their own code", () => {
+    expect(scanLandingStatus({ state: "own-card", loggedIn: true })).toEqual({
+      message: "这是你自己的二维码",
+      action: { kind: "manage", label: "去名片管理" },
+    })
+  })
+
+  it("stops at the terminal states without offering an entry", () => {
+    expect(scanLandingStatus({ state: "committed", loggedIn: true })).toEqual({
+      message: "这个二维码已经完成过一次交换",
+      action: null,
+    })
+    expect(scanLandingStatus({ state: "expired", loggedIn: false })).toEqual({
+      message: "这个二维码已过期",
+      action: null,
+    })
+  })
+
+  it("asks for login before an active code can be used", () => {
+    expect(scanLandingStatus({ state: "active", loggedIn: false })).toEqual({
+      message: "登录后才能交换",
+      action: { kind: "login", label: "去登录" },
+    })
+    expect(scanLandingStatus({ state: "active", loggedIn: true })).toEqual({
+      message: SHARE_EXCHANGE_READY_MESSAGE,
+      action: null,
     })
   })
 })

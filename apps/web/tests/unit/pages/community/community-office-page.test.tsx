@@ -34,7 +34,7 @@ const apiMocks = vi.hoisted(() => ({
   getFudabaWallLayout: vi.fn(),
   placeFudabaMessage: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
-  getFudabaSeries: vi.fn(),
+  getFudabaOfficeSeries: vi.fn(),
   getPlatformProfile: vi.fn(),
   saveFudabaCardPlacement: vi.fn(),
   sendOwnerCards: vi.fn(),
@@ -74,7 +74,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     placeFudabaMessage: apiMocks.placeFudabaMessage,
 
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
-    getFudabaSeries: apiMocks.getFudabaSeries,
+    getFudabaOfficeSeries: apiMocks.getFudabaOfficeSeries,
     getPlatformProfile: apiMocks.getPlatformProfile,
     saveFudabaCardPlacement: apiMocks.saveFudabaCardPlacement,
   }
@@ -248,7 +248,7 @@ describe("CommunityOfficePage", () => {
     apiMocks.getFudabaOwnerCards.mockReturnValue({
       send: apiMocks.sendOwnerCards,
     })
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
+    apiMocks.getFudabaOfficeSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getPlatformProfile.mockReturnValue({ send: apiMocks.sendProfile })
     apiMocks.saveFudabaCardPlacement.mockReturnValue({
       send: apiMocks.sendPlacement,

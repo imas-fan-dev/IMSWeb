@@ -2,7 +2,6 @@ import type {
   FudabaMixedWallResponse,
   FudabaWallLayoutItem,
 } from "@imsweb/contracts/fudaba/messages"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { platformProfileWithHandle } from "./fixtures/platform-auth"
 import { cardLabel } from "~/pages/community/exchange/components/card-label"
@@ -52,7 +51,6 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
   isMobile,
 }, testInfo) => {
   test.setTimeout(60000)
-  installEmptyWikiCatalogMock(api)
   const backgroundTimes = testInfo.project.name.startsWith("app-")
     ? 0
     : { min: 1, max: 8 }
@@ -107,7 +105,7 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
     { min: 1, max: 5 }
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET",
     { min: 1, max: 3 }
@@ -138,9 +136,7 @@ test("全墙1000占位、远处逐物件加载、定位选择与动态便签 @mo
         createdAt: timestamp,
         interactions: {
           likes: 0,
-          favorites: 0,
           viewerLiked: false,
-          viewerFavorited: false,
         },
         viewerOwned: true,
         placement: placement(

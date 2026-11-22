@@ -93,6 +93,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   )
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
   ]) {
@@ -402,6 +403,7 @@ test("desktop root and section preserve pending, failed, retry and successful lo
   )
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
   ]) {
@@ -518,6 +520,7 @@ for (const section of ["offices", "namecards"] as const) {
     )
     const ownerPaths = [
       "/api/community/exchange/me/series",
+      "/api/community/exchange/me/office-series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
     ]

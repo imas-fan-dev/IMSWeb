@@ -25,7 +25,7 @@ test.describe("exchange Web search geometry", () => {
         localStorage.setItem("imsweb.language", "zh-CN")
       )
       await api.mockRoute(
-        "/api/community/exchange/series",
+        "/api/community/exchange/office-series",
         (route) => route.fulfill({ json: { items: [] } }),
         "GET",
         1

@@ -9,6 +9,7 @@ export interface AgencyRecord {
     name_cn: string;
     color: string;
     wiki_enabled: boolean;
+    namecard_enabled: boolean | null;
     display_order: number;
     banner_title: string;
     icon_object_key: string | null;
@@ -109,6 +110,7 @@ export interface CreateWikiAgencyInput {
     color: string;
     bannerTitle: string;
     wikiEnabled: boolean;
+    namecardEnabled?: boolean | null;
 }
 
 export interface UpdateWikiAgencyInput {
@@ -117,6 +119,7 @@ export interface UpdateWikiAgencyInput {
     color: string;
     bannerTitle: string;
     wikiEnabled: boolean;
+    namecardEnabled?: boolean | null;
 }
 
 export interface CreateWikiGroupInput {

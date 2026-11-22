@@ -44,7 +44,7 @@ export function installMapGuideScene(
   api.expect({
     name: "guide series",
     method: "GET",
-    path: "/api/community/exchange/series",
+    path: "/api/community/exchange/office-series",
     responses: { 200: fudabaSeriesListSchema },
     times: { min: 1, max: 8 },
     handle: () => ({ status: 200, json: { items: [] } }),

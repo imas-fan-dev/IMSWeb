@@ -199,8 +199,8 @@ export class SqlWikiEntityRepository {
                 this.database,
                 `INSERT INTO agencies
                     (code, name_cn, color, wiki_enabled, display_order, banner_title,
-                     layout_revision)
-                 SELECT ?, ?, ?, ?, COALESCE(MAX(display_order) + 1, 0), ?, 0
+                     layout_revision, namecard_enabled)
+                 SELECT ?, ?, ?, ?, COALESCE(MAX(display_order) + 1, 0), ?, 0, ?
                  FROM agencies`,
                 [
                     input.code,
@@ -208,6 +208,7 @@ export class SqlWikiEntityRepository {
                     input.color,
                     input.wikiEnabled,
                     input.bannerTitle,
+                    input.namecardEnabled ?? null,
                 ],
             ),
             sqlStatement(
@@ -239,13 +240,16 @@ export class SqlWikiEntityRepository {
         await executeSql(
             this.database,
             `UPDATE agencies
-             SET name_cn=?, color=?, banner_title=?, wiki_enabled=?
+             SET name_cn=?, color=?, banner_title=?, wiki_enabled=?,
+                 namecard_enabled=CASE WHEN ? THEN ?::boolean ELSE namecard_enabled END
              WHERE id=?`,
             [
                 input.name,
                 input.color,
                 input.bannerTitle,
                 input.wikiEnabled,
+                input.namecardEnabled !== undefined,
+                input.namecardEnabled ?? null,
                 input.id,
             ],
         );

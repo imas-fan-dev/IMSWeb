@@ -1,5 +1,4 @@
 import { mockWallScene } from "./fixtures/wall-scene"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { expect, test } from "./fixtures/test"
 test("loads the complete wall observation area and replaces distant content without paging @mobile", async ({
@@ -7,7 +6,6 @@ test("loads the complete wall observation area and replaces distant content with
   api,
   isMobile,
 }, testInfo) => {
-  installEmptyWikiCatalogMock(api)
   const backgroundTimes = testInfo.project.name.startsWith("app-")
     ? 0
     : { min: 1, max: 8 }
@@ -20,7 +18,7 @@ test("loads the complete wall observation area and replaces distant content with
     localStorage.setItem("imsweb.language", "zh-CN")
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET"
   )
@@ -58,9 +56,7 @@ test("loads the complete wall observation area and replaces distant content with
     createdAt: "2026-08-02T08:00:00.000Z",
     interactions: {
       likes: 0,
-      favorites: 0,
       viewerLiked: false,
-      viewerFavorited: false,
     },
     viewerOwned: false,
     placement: {
@@ -219,9 +215,14 @@ test("loads the complete wall observation area and replaces distant content with
   await page.clock.runFor(250)
   expect(requests).toHaveLength(beforePan)
   await viewport.focus()
+  // Keep the key burst inside one debounce interval on slow test hosts.
+  await page.clock.pauseAt(
+    new Date(await page.evaluate(() => Date.now() + 1000))
+  )
   for (let index = 0; index < 25; index++)
     await page.keyboard.press("ArrowRight")
   await page.clock.runFor(250)
+  await page.clock.resume()
   await expect(page.locator("[data-card-id]")).toHaveCount(1)
   await expect(page.locator('[data-card-id="window-card-60"]')).toHaveAttribute(
     "data-placement-x",

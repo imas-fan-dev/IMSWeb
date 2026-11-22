@@ -9,7 +9,7 @@ test("merges range offices with their count while retaining the portrait search 
     localStorage.setItem("imsweb.language", "zh-CN")
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) =>
       route.fulfill({
         json: {

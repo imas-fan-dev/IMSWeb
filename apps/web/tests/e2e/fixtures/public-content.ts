@@ -108,6 +108,7 @@ export type SeededPublicApiRegistration = {
     | "/api/community/exchange/map/offices"
     | "/api/community/exchange/offices"
     | "/api/community/exchange/series"
+    | "/api/community/exchange/office-series"
     | "/api/events"
     | "/api/homepage-links"
     | "/api/birthdays"
@@ -197,11 +198,15 @@ function installLiveScheduleMock(api: ApiDispatcher, times: ApiTimes) {
   })
 }
 
-function installExchangeSeriesMock(api: ApiDispatcher, times: ApiTimes) {
+function installExchangeSeriesMock(
+  api: ApiDispatcher,
+  times: ApiTimes,
+  suffix: "/series" | "/office-series"
+) {
   api.expect({
     name: "deterministic public exchange series",
     method: "GET",
-    path: exchangePath("/series"),
+    path: exchangePath(suffix),
     responses: { 200: fudabaSeriesListSchema },
     times,
     handle: () => ({ status: 200, json: emptyExchangeSeries }),
@@ -273,7 +278,9 @@ export function installSeededPublicApis(
     } else if (path === "/api/community/exchange/offices") {
       installExchangeOfficesMock(api, times)
     } else if (path === "/api/community/exchange/series") {
-      installExchangeSeriesMock(api, times)
+      installExchangeSeriesMock(api, times, "/series")
+    } else if (path === "/api/community/exchange/office-series") {
+      installExchangeSeriesMock(api, times, "/office-series")
     } else if (path === "/api/events") {
       installEventsMock(api, times)
     } else if (path === "/api/homepage-links") {

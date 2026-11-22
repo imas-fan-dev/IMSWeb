@@ -798,7 +798,7 @@ export class SqlFudabaMessageRepository implements FudabaMessagesRepository {
             SELECT 1 FROM fudaba_card_series entry
             JOIN agencies series ON series.code=entry.series_code
             WHERE entry.card_id=card.id
-              AND (series.wiki_enabled OR series.code='namecard-other')
+              AND COALESCE(series.namecard_enabled, series.wiki_enabled OR series.code='namecard-other')
         )`;
         const messageSql = `SELECT message.id,'message' AS kind,placement.pinned_at,placement.world_x AS x,placement.world_y AS y,placement.rotation,121.0 AS rx,message.display_height / 2.0 AS ry FROM fudaba_messages message JOIN fudaba_message_placements placement ON placement.message_id=message.id JOIN fudaba_offices office ON office.id=message.office_id JOIN platform_accounts author ON author.id=message.author_account_id JOIN platform_accounts owner ON owner.id=office.owner_account_id WHERE message.office_id=? AND ${publicMessage}`;
         const clauses: string[] = [];

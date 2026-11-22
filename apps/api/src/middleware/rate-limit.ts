@@ -164,6 +164,13 @@ export const FUDABA_MAP_READ_LIMIT = {
   windowSeconds: 15 * 60,
 } as const;
 
+// 扫码落地页只读：给网页预览留出刷新空间，同时挡住令牌探测。
+export const SCAN_LANDING_READ_LIMIT = {
+    bucket: 'namecard-scan-landing-ip',
+    limit: 120,
+    windowSeconds: 60,
+} as const;
+
 // Viewport traffic must not consume the budget needed to bootstrap the map.
 export const FUDABA_MAP_CONFIG_READ_LIMIT = {
     bucket: 'fudaba-map-config-ip',
@@ -246,6 +253,14 @@ function requestSpecificLimit(
     if (method === 'GET' && pathname === exchangePath('/map/offices')) {
         return FUDABA_MAP_READ_LIMIT;
     }
+  if (
+    method === "GET" &&
+    pathname.startsWith(exchangePath('/scan/')) &&
+    !pathname.startsWith(exchangePath('/scan/sessions/'))
+  ) {
+    // 属主轮询（`/scan/sessions/:token`）有 1.5s 一次的节奏，不能共享这份预算。
+    return SCAN_LANDING_READ_LIMIT;
+  }
   if (method === "PUT" && pathname === platformApiPath('/me/avatar')) {
     return PLATFORM_AVATAR_UPLOAD_LIMIT;
   }

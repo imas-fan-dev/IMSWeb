@@ -217,51 +217,53 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
     expect(await request.headerValue("cookie")).toBeNull()
     await route.fulfill({ body: avatarFixture, contentType: "image/svg+xml" })
   })
-  await api.mockRoute(
-    "**/api/community/exchange/me/series",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [
-            {
-              id: 1,
-              code: "765",
-              displayName: "765PRO",
-              color: "#f34f6d",
-              iconUrl: "/brand/series/wall/765pro.webp",
-              imageTransform: {
-                fit: "contain",
-                focalX: 0.5,
-                focalY: 0.5,
-                zoom: 1,
-                rotation: 0,
+  for (const path of ["series", "office-series"]) {
+    await api.mockRoute(
+      `**/api/community/exchange/me/${path}`,
+      async (route) => {
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: 1,
+                code: "765",
+                displayName: "765PRO",
+                color: "#f34f6d",
+                iconUrl: "/brand/series/wall/765pro.webp",
+                imageTransform: {
+                  fit: "contain",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                displayOrder: 0,
+                activeOfficeCount: 1,
               },
-              displayOrder: 0,
-              activeOfficeCount: 1,
-            },
-            {
-              id: 2,
-              code: "cg",
-              displayName: "灰姑娘女孩",
-              color: "#2581c7",
-              iconUrl: null,
-              imageTransform: {
-                fit: "cover",
-                focalX: 0.5,
-                focalY: 0.5,
-                zoom: 1,
-                rotation: 0,
+              {
+                id: 2,
+                code: "cg",
+                displayName: "灰姑娘女孩",
+                color: "#2581c7",
+                iconUrl: null,
+                imageTransform: {
+                  fit: "cover",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                displayOrder: 1,
+                activeOfficeCount: 1,
               },
-              displayOrder: 1,
-              activeOfficeCount: 1,
-            },
-          ],
-        },
-      })
-    },
-    "GET",
-    workspaceReads
-  )
+            ],
+          },
+        })
+      },
+      "GET",
+      workspaceReads
+    )
+  }
   await api.mockRoute(
     "**/api/wiki/catalog",
     async (route) => {

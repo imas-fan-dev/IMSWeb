@@ -1028,8 +1028,9 @@ function repeatableQueryTextList(maxItems: number, maxLength: number) {
     .pipe(z.array(z.string().trim().min(1).max(maxLength)).max(maxItems))
 }
 
-/** 名片墙排序键：墙上没有交换时间，`created` 用名片创建时间。 */
+/** 名片墙排序键：`created` 用创建时间，`random` 用浏览种子。 */
 export const namecardWallSortSchema = z.enum([
+  "random",
   "created",
   "name",
   "series",
@@ -1037,6 +1038,8 @@ export const namecardWallSortSchema = z.enum([
 ])
 
 export type NamecardWallSort = z.infer<typeof namecardWallSortSchema>
+
+export const namecardWallSeedSchema = z.string().max(64).regex(/^[A-Za-z0-9_-]+$/)
 
 /**
  * 名片墙列表：筛选与排序参数与名片册同名，`created` 取代交换时间；
@@ -1050,7 +1053,9 @@ export const namecardListQuerySchema = legacyStripRequestObject({
   page: z.unknown().optional(),
   size: z.unknown().optional(),
   sort: namecardWallSortSchema.optional(),
-  /** 缺省值取决于 `sort`：创建时间与制作日期倒序，其余正序（读取侧补默认值）。 */
+  /** 随机排序必须提供种子，同一轮的所有分页共享它。 */
+  seed: namecardWallSeedSchema.optional(),
+  /** 随机排序忽略方向；其他排序的默认值由读取侧补齐。 */
   dir: namecardCollectionDirectionSchema.optional(),
   q: queryText(64),
   series: repeatableQueryTextList(16, 40),
@@ -1076,6 +1081,9 @@ export const namecardListQuerySchema = legacyStripRequestObject({
    * 反向排除：把内容筛选整体取反；没有任何内容条件时等价于不筛。
    */
   invert: queryBoolean,
+}).refine(({ sort, seed }) => sort !== "random" || seed !== undefined, {
+  path: ["seed"],
+  message: "随机排序需要种子",
 })
 
 /** 复用 `fudabaCardQuerySchema` 的 series 写法：重复出现即多值。 */
@@ -1240,6 +1248,19 @@ export const namecardScanSessionStatusResponseSchema = exactJsonResponse({
   exchangeId: z.string().min(1).nullable(),
 })
 
+/**
+ * 扫码方 / 浏览器落地页：出示方与本次名片，只在还能交换时给名片。
+ * `own-card` 是出示方自己打开了链接，与分享页同口径。
+ */
+export const namecardScanLandingSchema = exactJsonResponse({
+  state: z.enum(["active", "committed", "expired", "own-card"]),
+  expiresAt: z.string().min(1),
+  /** 只有 active / own-card 才给出示方；已用 / 过期不再露出是谁的码。 */
+  owner: namecardShareOwnerSchema.nullable(),
+  cards: z.array(namecardSchema),
+  targetMissingCount: z.number().int().nonnegative(),
+})
+
 export type NamecardExchangeSource = z.infer<typeof namecardExchangeSourceSchema>
 export type NamecardExchangeStatus = z.infer<typeof namecardExchangeStatusSchema>
 export type NamecardExchangeSkipped = z.infer<
@@ -1291,6 +1312,7 @@ export type NamecardScanSession = z.infer<typeof namecardScanSessionSchema>
 export type NamecardScanSessionStatusResponse = z.infer<
   typeof namecardScanSessionStatusResponseSchema
 >
+export type NamecardScanLanding = z.infer<typeof namecardScanLandingSchema>
 export type NamecardScanSessionRequest = z.infer<
   typeof namecardScanSessionRequestSchema
 >

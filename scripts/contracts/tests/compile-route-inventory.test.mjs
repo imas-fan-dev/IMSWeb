@@ -141,26 +141,30 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 440,
-      mountedMethodPaths: 340,
-      noInputRoutes: 100,
-      requestCarriers: 453,
-      policies: {
-        reject: 120,
-        "accept-and-project": 219,
-        passthrough: 17,
-        "non-object-applicable": 97,
-      },
-      responses: { total: 873, json: 807, nonJson: 66 },
-      unresolved: 0,
-    });
+  "mountedRegistrations": 443,
+  "mountedMethodPaths": 343,
+  "noInputRoutes": 100,
+  "requestCarriers": 456,
+  "policies": {
+    "reject": 122,
+    "accept-and-project": 220,
+    "passthrough": 17,
+    "non-object-applicable": 97
+  },
+  "responses": {
+    "total": 878,
+    "json": 812,
+    "nonJson": 66
+  },
+  "unresolved": 0
+});
     assert.deepEqual(current.baseline, {
-      mountedMethodPaths: 294, carriers: 373, reject: 86, acceptAndProject: 186,
+      mountedMethodPaths: 296, carriers: 375, reject: 88, acceptAndProject: 186,
       passthrough: 17, nonObjectApplicable: 84,
     });
     assert.deepEqual(current.reconciliation.baselineCompatible, {
-      mountedMethodPaths: 294, requestCarriers: 373,
-      policies: { reject: 86, "accept-and-project": 186, passthrough: 17, "non-object-applicable": 84 },
+      mountedMethodPaths: 296, requestCarriers: 375,
+      policies: { reject: 88, "accept-and-project": 186, passthrough: 17, "non-object-applicable": 84 },
     });
     assert.deepEqual(current.reconciliation.explicitAdminAdditions, [
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject", actualCarriers: 1 },
@@ -189,6 +193,7 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "DELETE", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/admin/community/exchange/messages", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/me/messages", carriers: 1, policy: "reject", actualCarriers: 1 },

@@ -19,6 +19,7 @@ export async function handleListNamecards(
             limit: size,
             offset: (page - 1) * size,
             sort: query.sort,
+            ...(query.seed ? { seed: query.seed } : {}),
             dir: query.dir,
             ...(query.q ? { q: query.q } : {}),
             ...(query.series.length > 0

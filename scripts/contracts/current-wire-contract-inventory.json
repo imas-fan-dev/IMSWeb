@@ -3,42 +3,42 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "db40e745a8ed44525543b4fde526eb79426bbe0c09515bb10bd513fbcaecd796",
+    "semanticDigest": "a3bd1f34db51bf78b58c0b378d00e1ee0a22adb6158621cf4e9d308101564a5d",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
   "baseline": {
-    "mountedMethodPaths": 294,
-    "carriers": 373,
-    "reject": 86,
+    "mountedMethodPaths": 296,
+    "carriers": 375,
+    "reject": 88,
     "acceptAndProject": 186,
     "passthrough": 17,
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 440,
-    "mountedMethodPaths": 340,
+    "mountedRegistrations": 443,
+    "mountedMethodPaths": 343,
     "noInputRoutes": 100,
-    "requestCarriers": 453,
+    "requestCarriers": 456,
     "policies": {
-      "reject": 120,
-      "accept-and-project": 219,
+      "reject": 122,
+      "accept-and-project": 220,
       "passthrough": 17,
       "non-object-applicable": 97
     },
     "responses": {
-      "total": 873,
-      "json": 807,
+      "total": 878,
+      "json": 812,
       "nonJson": 66
     },
     "unresolved": 0
   },
   "reconciliation": {
     "baselineCompatible": {
-      "mountedMethodPaths": 294,
-      "requestCarriers": 373,
+      "mountedMethodPaths": 296,
+      "requestCarriers": 375,
       "policies": {
-        "reject": 86,
+        "reject": 88,
         "accept-and-project": 186,
         "passthrough": 17,
         "non-object-applicable": 84
@@ -399,6 +399,16 @@
         "actualCarriers": 1
       },
       {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardScanTokenParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/community/exchange/scan/:token",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
+      },
+      {
         "module": "@imsweb/contracts/fudaba/messages",
         "symbol": "fudabaMessageIdParamsSchema",
         "kind": "param",
@@ -666,7 +676,7 @@
       "/api/cards": 8,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 80,
+      "/api/community": 83,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -3559,7 +3569,7 @@
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
       },
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "carriers": [
         {
           "kind": "query",
@@ -4480,7 +4490,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/list-admin-catalog.ts#anonymous:8b051a15b19d33a1:71cdc4bb:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/list-admin-catalog.ts#anonymous:5a1397441b00e060:71cdc4bb:0",
       "carriers": [
         {
           "kind": "no-input",
@@ -5697,6 +5707,37 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+          "kind": "json",
+          "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "registration": {
         "file": "apps/api/src/domains/community/fudaba/offices/routes.ts"
@@ -5997,6 +6038,37 @@
         }
       ],
       "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "carriers": [
+        {
+          "kind": "query",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "schemaSymbol": "fudabaEmptyQuerySchema",
+          "schemaModule": "@imsweb/contracts/fudaba",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+          "kind": "json",
+          "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+        }
+      ]
     },
     {
       "method": "GET",
@@ -6450,6 +6522,47 @@
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
           "kind": "json",
           "expression": "result . model satisfies NamecardQuickExchangeResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardScanTokenParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+          "kind": "json",
+          "expression": "{ state , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , owner : owner ? { accountId : session . account_id , uid : owner . uid , pageSlug : owner . page_slug , displayName : owner . display_name , } : null , cards , targetMissingCount , } satisfies NamecardScanLandingResponse"
         }
       ]
     },
@@ -10123,7 +10236,7 @@
       "registration": {
         "file": "apps/api/src/domains/content/wiki/catalog/routes.ts"
       },
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "carriers": [
         {
           "kind": "param",
@@ -18873,7 +18986,7 @@
     {
       "method": "GET",
       "path": "/api/admin/community/exchange/office-series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "kind": "query",
       "source": "validated",
       "location": {
@@ -19703,6 +19816,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "handlerSymbol": "handleListFudabaOwnerOffices",
       "kind": "query",
@@ -19869,6 +19999,23 @@
         "file": "apps/api/src/domains/community/fudaba/messages/routes.ts"
       },
       "policy": "non-object-applicable",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "kind": "query",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "schemaSymbol": "fudabaEmptyQuerySchema",
+      "schemaModule": "@imsweb/contracts/fudaba",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/fudaba/directory/routes.ts"
+      },
+      "policy": "reject",
       "syntaxPolicy": "reject"
     },
     {
@@ -20136,6 +20283,23 @@
         "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
       },
       "schemaSymbol": "namecardExchangeHandleParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardScanTokenParamsSchema",
       "schemaModule": "@imsweb/contracts/namecards",
       "schemaLocation": {
         "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
@@ -21694,7 +21858,7 @@
     {
       "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "kind": "param",
       "source": "validated",
       "location": {
@@ -21711,7 +21875,7 @@
     {
       "method": "PATCH",
       "path": "/api/admin/wiki/agencies/:agencyId",
-      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:f912848e5f2307e0:041a1a2d:0",
+      "handlerSymbol": "apps/api/src/domains/content/wiki/catalog/handlers/manage-catalog.ts#anonymous:9220d1e56efbc55d:041a1a2d:0",
       "kind": "json",
       "source": "validated",
       "location": {
@@ -26490,7 +26654,7 @@
     {
       "method": "GET",
       "path": "/api/admin/community/exchange/office-series",
-      "handlerSymbol": "handleListFudabaPublicSeries",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
       "kind": "json",
       "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
@@ -27273,6 +27437,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/me/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+      "kind": "json",
+      "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/me/offices",
       "handlerSymbol": "handleListFudabaOwnerOffices",
       "file": "apps/api/src/domains/community/fudaba/offices/handlers/list-owner-offices.ts",
@@ -27395,6 +27567,14 @@
       "method": "GET",
       "path": "/api/community/exchange/me/series",
       "handlerSymbol": "handleListFudabaOwnerSeries",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
+      "kind": "json",
+      "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/office-series",
+      "handlerSymbol": "handleListFudabaOfficeSeries",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/list-public-series.ts",
       "kind": "json",
       "expression": "{ items : await Promise . all ( rows . map ( async ( row ) => { let iconUrl : string | null = null ; if ( row . icon_object_key ) { if ( ! storage ) { throw Object . assign ( new Error ( \"\\u516C\\u5F00\\u5BF9\\u8C61\\u8BFB\\u53D6\\u5730\\u5740\\u672A\\u914D\\u7F6E\" ) , { status : 503 } ) ; } iconUrl = await resolvePublicObjectUrl ( storage , row . icon_object_key , iconPath ( `/agencies/${ row . id } . webp `));\n        }\n        return {\n            id: row.id,\n            code: row.code,\n            displayName: row.display_name,\n            displayOrder: row.display_order,\n            color: row.color,\n            iconUrl,\n            imageTransform: row.image_transform,\n            activeOfficeCount: row.active_office_count\n        };\n    }))\n}"
@@ -27582,6 +27762,30 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/get-quick-exchange.ts",
       "kind": "json",
       "expression": "result . model satisfies NamecardQuickExchangeResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ error : INVALID_LANDING_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/:token",
+      "handlerSymbol": "handleGetScanLandingStatus",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-landing.ts",
+      "kind": "json",
+      "expression": "{ state , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , owner : owner ? { accountId : session . account_id , uid : owner . uid , pageSlug : owner . page_slug , displayName : owner . display_name , } : null , cards , targetMissingCount , } satisfies NamecardScanLandingResponse"
     },
     {
       "method": "GET",

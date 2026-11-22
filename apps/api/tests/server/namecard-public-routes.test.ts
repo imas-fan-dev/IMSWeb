@@ -224,6 +224,31 @@ test('the wall normalizes the shared filter and sort query', async () => {
     });
 });
 
+test('the wall requires a valid seed for random order and passes it through', async () => {
+    const received: NamecardWallQueryRecord[] = [];
+    const app = fixture({
+        repository: {
+            async listApprovedCardsPage(input) {
+                received.push(input);
+                return { rows: [], total: 0 };
+            },
+        },
+    });
+
+    for (const seed of ['', '&seed=invalid%20seed', '&seed=' + 'a'.repeat(65)]) {
+        assert.equal((await app.request('/api/cards?sort=random' + seed)).status, 400);
+    }
+    await assertContractJson(
+        await app.request('/api/cards?sort=random&seed=wall-round_1&page=2&size=12'),
+        200,
+        namecardPageSchema,
+    );
+    assert.equal(received.length, 1);
+    assert.equal(received[0]?.sort, 'random');
+    assert.equal(received[0]?.seed, 'wall-round_1');
+    assert.equal(received[0]?.offset, 12);
+});
+
 test('one card by number keeps the list projection and 404s on unknown numbers', async () => {
     const app = fixture();
     const found = await assertContractJson(

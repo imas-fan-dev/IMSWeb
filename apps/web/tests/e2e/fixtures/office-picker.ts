@@ -44,7 +44,7 @@ export function officePickerScenario() {
             capabilities: { fudabaWrite: true },
           },
         ],
-        ...["series", "cards"].map((name) => [
+        ...["series", "office-series", "cards"].map((name) => [
           `/api/community/exchange/me/${name}`,
           { items: [] },
         ]),

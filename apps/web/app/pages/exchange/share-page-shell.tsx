@@ -53,8 +53,8 @@ export function SharePageShell({
 }: {
   /** 分享人（名片持有者）的名字 */
   displayName: string
-  /** 分享人的公开主页（`/user/<pageSlug||uid>`） */
-  profileHref: string
+  /** 分享人的公开主页（`/user/<pageSlug||uid>`）；终态页面不给链接。 */
+  profileHref?: string | undefined
   /** 一句话说明这份分享，如「向你分享了 1 张名片」 */
   description: string
   preview: ReactNode
@@ -75,9 +75,13 @@ export function SharePageShell({
         <aside className="w-full space-y-4">
           <div className="space-y-1 text-center">
             <h1 className="text-lg font-semibold">
-              <NavigationLink to={profileHref} className="hover:underline">
-                {displayName}
-              </NavigationLink>
+              {profileHref ? (
+                <NavigationLink to={profileHref} className="hover:underline">
+                  {displayName}
+                </NavigationLink>
+              ) : (
+                <span>{displayName}</span>
+              )}
             </h1>
             <p className="text-sm/5 text-muted-foreground">{description}</p>
           </div>

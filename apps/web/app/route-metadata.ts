@@ -241,6 +241,20 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "spa"
   ),
   route(
+    "exchange/scan/:token",
+    "pages/exchange/scan-share-page.tsx",
+    "standalone",
+    WEB_TARGET,
+    "spa"
+  ),
+  route(
+    "exchange/scan/:token",
+    "pages/exchange/scan-share-page.tsx",
+    "public",
+    APP_TARGET,
+    "spa"
+  ),
+  route(
     "exchange/:handle",
     "pages/exchange/quick-share-page.tsx",
     "standalone",

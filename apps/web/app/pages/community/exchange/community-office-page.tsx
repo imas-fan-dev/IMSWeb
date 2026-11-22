@@ -61,7 +61,7 @@ import {
   deleteFudabaCardPlacement,
   getFudabaWall,
   getFudabaOwnerCards,
-  getFudabaSeries,
+  getFudabaOfficeSeries,
   getPlatformProfile,
   isApiError,
   saveFudabaCardPlacement,
@@ -266,7 +266,7 @@ function CommunityOfficePageContent() {
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
         getFudabaWallScene(officeSlug, { bbox: [0, 0, 1600, 900] }).send(),
-        getFudabaSeries().send(),
+        getFudabaOfficeSeries().send(),
       ])
       if (requestGeneration.current !== generation) return
       if (officeResult.status === "rejected") throw officeResult.reason
@@ -1303,8 +1303,7 @@ function CommunityOfficePageContent() {
                   onClick={() => {
                     // Entering edit mode keeps the current camera and zoom;
                     // only switch to the wall tab if another tab is showing.
-                    if (!wallEditing && wallView !== "wall")
-                      setWallView("wall")
+                    if (!wallEditing && wallView !== "wall") setWallView("wall")
                     setWallEditing((current) => !current)
                   }}
                 >

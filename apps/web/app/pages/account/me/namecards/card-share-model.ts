@@ -1,7 +1,11 @@
 import qrcode from "qrcode-generator"
 
 import { resolveShareableOrigin, type PlatformProfile } from "~/lib/api"
-import { cardSharePath, quickSharePath } from "~/lib/namecards/share-links"
+import {
+  cardSharePath,
+  quickSharePath,
+  scanSharePath,
+} from "~/lib/namecards/share-links"
 
 /**
  * 分享名片的纯逻辑：链接、二维码矩阵、canvas 绘制、导出与剪贴板。组件只做接线，
@@ -41,6 +45,17 @@ export function shareLinkFor(
   origin = resolveShareableOrigin()
 ): string {
   return `${origin.replace(/\/+$/u, "")}${quickSharePath(handle)}`
+}
+
+/**
+ * 一次性交换码的站点链接：二维码里放这个，任何扫码器都能看出站点与用途。
+ * 落地页由 `/exchange/scan/:token` 承接。
+ */
+export function scanShareLinkFor(
+  token: string,
+  origin = resolveShareableOrigin()
+): string {
+  return `${origin.replace(/\/+$/u, "")}${scanSharePath(token)}`
 }
 
 /** 单张名片的分享链接；`slug` 是属主侧 `share-link` 接口回的 12 位短链。 */

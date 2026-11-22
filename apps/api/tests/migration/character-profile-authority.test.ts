@@ -86,6 +86,7 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261118150000_namecard_sort_metadata',
                 '20261119120000_namecard_exchange_gift',
                 '20261120120000_namecard_tags',
+                '20261121120000_namecard_project_visibility',
             ]);
             const current = (
                 await client.query(

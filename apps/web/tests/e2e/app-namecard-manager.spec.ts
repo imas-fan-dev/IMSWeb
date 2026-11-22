@@ -119,6 +119,7 @@ async function installManagerMocks(
   )
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/offices",
   ]) {
     await dispatcher.mock(

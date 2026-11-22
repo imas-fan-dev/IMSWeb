@@ -90,7 +90,7 @@ test.beforeEach(async ({ page, api }, testInfo) => {
   const discoveryRequests = isApp && !discoveryTest ? 0 : { min: 1, max: 8 }
   if (discoveryTest) installEmptyWikiCatalogMock(api)
   await api.mockRoute(
-    "**/api/community/exchange/series",
+    "**/api/community/exchange/office-series",
     async (route) => {
       await route.fulfill({ json: series })
     },

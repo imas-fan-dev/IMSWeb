@@ -58,6 +58,7 @@ export const AGENCIES: AgencyRecord[] = projectCanonicalFudabaAgencies()
         name_cn: agency.name,
         color: agency.color,
         wiki_enabled: true,
+        namecard_enabled: null,
         display_order: agency.order,
         banner_title: `${agency.name} Banner`,
     icon_object_key: null,
@@ -283,6 +284,7 @@ export class MemoryStoryRepository implements StoryRepository {
             name_cn: input.name,
             color: input.color,
             wiki_enabled: input.wikiEnabled,
+            namecard_enabled: input.namecardEnabled ?? null,
             display_order: this.agencies.length,
             banner_title: input.bannerTitle,
             icon_object_key: null,
@@ -323,6 +325,7 @@ export class MemoryStoryRepository implements StoryRepository {
             banner_title: input.bannerTitle,
             wiki_enabled: input.wikiEnabled
         });
+        if (input.namecardEnabled !== undefined) agency.namecard_enabled = input.namecardEnabled;
         return { ...agency };
     }
     async createWikiGroup(input: CreateWikiGroupInput) {

@@ -435,6 +435,18 @@ export function getFudabaOwnerSeries() {
   )
 }
 
+export function getFudabaOfficeSeries({ owner = false } = {}) {
+  return platformApiClient.Get(
+    exchangePath(owner ? "/me/office-series" : "/office-series"),
+    parsed(fudabaSeriesListSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      businessErrorSchema: fudabaErrorResponseSchema,
+      meta: withPlatformAuth(),
+      select: normalizeFudabaSeriesList,
+    })
+  )
+}
+
 export function getFudabaOfficePage(input: FudabaOfficePageRequest = {}) {
   return platformApiClient.Get(
     withQuery(exchangePath("/offices"), officePageParams(input)),

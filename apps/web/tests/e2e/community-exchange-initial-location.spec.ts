@@ -38,7 +38,7 @@ for (const outcome of [
       )
     }
     installSeededPublicApis(api, [
-      { path: "/api/community/exchange/series", times: 1 },
+      { path: "/api/community/exchange/office-series", times: 1 },
       { path: "/api/community/exchange/offices", times: 1 },
       { path: "/api/community/exchange/map/config", times: 1 },
     ])

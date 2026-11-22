@@ -1,5 +1,4 @@
 import { mockWallScene } from "./fixtures/wall-scene"
-import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { platformProfileWithHandle } from "./fixtures/platform-auth"
 import { expect, test } from "./fixtures/test"
@@ -70,12 +69,11 @@ test("撕边便签密集区域分页、全文与手机双指缩放 @mobile", asy
   isMobile,
 }) => {
   test.slow()
-  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET"
   )
@@ -190,7 +188,6 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
   isMobile,
 }, testInfo) => {
   test.slow()
-  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )
@@ -231,7 +228,7 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
     { min: 1, max: 5 }
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET",
     { min: testInfo.project.name.startsWith("app-") ? 1 : 2, max: 4 }
@@ -536,12 +533,11 @@ test("无名片作者发布重试、编辑、移动和永久销毁 @mobile", asy
 
 test("远处便签深链接会定位并选中 @mobile", async ({ page, api }) => {
   test.slow()
-  installEmptyWikiCatalogMock(api)
   await page.addInitScript(() =>
     localStorage.setItem("imsweb.language", "zh-CN")
   )
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET"
   )

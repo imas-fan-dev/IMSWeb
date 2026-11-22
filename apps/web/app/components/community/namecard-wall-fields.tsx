@@ -89,10 +89,6 @@ export function wallCardPayload(
   if (nextCharacters.join(",") !== liveCharacters.join(",")) {
     payload.favoriteCharacterIds = draft.favoriteCharacterIds
   }
-  // 标签是白名单里唯一「即时生效」的字段：服务端写完内容后整组替换，不进审核载荷。
-  if (draft.tags.join("\u0000") !== live.tags.join("\u0000")) {
-    payload.tags = draft.tags
-  }
   return payload
 }
 

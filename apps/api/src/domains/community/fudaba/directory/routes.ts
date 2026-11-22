@@ -27,7 +27,7 @@ import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleServeExchangeCardMedia } from '@/domains/community/fudaba/directory/handlers/serve-public-card-media';
 import { handleListFudabaPublicOffices } from '@/domains/community/fudaba/directory/handlers/list-public-offices';
-import { handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
+import { handleListFudabaOfficeSeries, handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
@@ -42,6 +42,13 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         optionalPlatformAuth,
         querySchemaValidator(fudabaEmptyQuerySchema),
         handleListFudabaPublicSeries
+    );
+    routes.get(
+        '/office-series',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        querySchemaValidator(fudabaEmptyQuerySchema),
+        handleListFudabaOfficeSeries
     );
     routes.get(
         '/offices',
@@ -126,6 +133,7 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaMapOffices
     );
     routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOwnerSeries);
+    routes.get('/me/office-series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOfficeSeries);
     return routes;
 }
 
@@ -134,6 +142,6 @@ export function fudabaAdminDirectoryRoutes(): ImsCapabilityRouter {
     routes.get('/map/config', backofficeAuth, currentBackofficeOp,
         querySchemaValidator(fudabaEmptyQuerySchema), handleGetFudabaMapConfig);
     routes.get('/office-series', backofficeAuth, currentBackofficeOp,
-        querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaPublicSeries);
+        querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOfficeSeries);
     return routes;
 }

@@ -9,7 +9,7 @@ const ts = createRequire(new URL("../../packages/contracts/package.json", import
 const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BASELINE = { mountedMethodPaths: 294, carriers: 373, reject: 86, acceptAndProject: 186, passthrough: 17, nonObjectApplicable: 84 };
+const BASELINE = { mountedMethodPaths: 296, carriers: 375, reject: 88, acceptAndProject: 186, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagSuggestQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardCollectionOwnersQuerySchema", carriers: 1, policy: "reject" },
@@ -48,6 +48,7 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project" },
 ];
 // Fudaba office message board and progressive wall routes. They are new public and admin
 // routes that were added after the frozen baseline; each carrier is listed explicitly.

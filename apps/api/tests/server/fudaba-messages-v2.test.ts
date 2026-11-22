@@ -1326,3 +1326,41 @@ test('late previews cannot restore stale media after a concurrent replacement', 
         .first<{ asset_sha256: string }>();
     assert.equal(current?.asset_sha256, 'new');
 });
+
+
+test('mixed wall cards honor explicit project visibility overrides and legacy fallback', async () => {
+    const { database, repo } = await fixture();
+    await database.prepare(
+        "INSERT INTO fudaba_cards(id,owner_account_id,producer_name,publication_status,created_at,updated_at) VALUES('visibility-card','owner','Producer','published',?,?)"
+    ).bind(now, now).run();
+    await database.prepare(
+        "INSERT INTO fudaba_card_series(card_id,series_code,display_order) VALUES('visibility-card','765',1)"
+    ).run();
+    await database.prepare(
+        "INSERT INTO fudaba_office_cards(office_id,card_id,pinned_at,world_x,world_y,z_index,updated_at) VALUES('office','visibility-card',?,800,450,1,?)"
+    ).bind(now, now).run();
+    await seedFrontPages(database, 'visibility-card');
+
+    for (const [wikiEnabled, namecardEnabled, visible] of [
+        [false, true, true],
+        [true, false, false],
+        [true, null, true],
+        [false, null, false],
+    ] as const) {
+        await database.prepare(
+            "UPDATE agencies SET wiki_enabled=?,namecard_enabled=? WHERE code='765'"
+        ).bind(wikiEnabled, namecardEnabled).run();
+        const wall = await repo.messages.readWall('office', null, {
+            limit: 1,
+            scope: 'project-visibility',
+        });
+        assert.ok(wall);
+        assert.deepEqual(
+            wall.items.map((item) => item.kind === 'card' ? item.card.id : item.message.id),
+            visible ? ['visibility-card'] : [],
+            `wiki=${wikiEnabled}, namecard=${namecardEnabled}`
+        );
+        assert.equal(wall.wall.total, visible ? 1 : 0);
+        assert.equal(wall.pageInfo.hasNextPage, false);
+    }
+});

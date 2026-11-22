@@ -1,3 +1,4 @@
+import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { expect, test } from "./fixtures/test"
 import "./wall-scene-loading.spec"
 
@@ -9,4 +10,8 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-app-target", "app")
+})
+
+test.beforeEach(async ({ api }) => {
+  installEmptyWikiCatalogMock(api)
 })
