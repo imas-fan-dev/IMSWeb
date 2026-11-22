@@ -464,9 +464,9 @@ test.describe("app navigation", () => {
   }
 
   test(
-    "keeps the app viewport free of pinch and double-tap zoom",
-    { tag: "@app-webkit" },
-    async ({ page, api }) => {
+    "allows app viewport pinch zoom without double-tap zoom",
+    { tag: ["@app-webkit", "@app-android"] },
+    async ({ page, api, browserName }) => {
       // The root favicon and App background share one catalog read on a cold load.
       installEmptyWikiCatalogMock(api)
       const catalogResponse = page.waitForResponse(
@@ -481,16 +481,46 @@ test.describe("app navigation", () => {
         page.locator('main[data-account-state="anonymous"]')
       ).toBeVisible()
       const viewport = page.locator('meta[name="viewport"]')
-      await expect(viewport).toHaveAttribute("content", /maximum-scale=1/)
-      await expect(viewport).toHaveAttribute("content", /user-scalable=no/)
+      await expect(viewport).not.toHaveAttribute(
+        "content",
+        /maximum-scale|user-scalable/
+      )
       await expect(viewport).toHaveAttribute("content", /viewport-fit=cover/)
-      await expect
-        .poll(() =>
-          page.evaluate(
-            () => getComputedStyle(document.documentElement).touchAction
-          )
-        )
-        .toBe("pan-x pan-y")
+      await expect(page.locator("html")).toHaveCSS(
+        "touch-action",
+        "manipulation"
+      )
+
+      // Playwright's multi-touch input uses Chromium's DevTools protocol.
+      if (browserName !== "chromium") return
+      const session = await page.context().newCDPSession(page)
+      const scale = () => page.evaluate(() => window.visualViewport?.scale ?? 1)
+      const pinch = async (start: number, end: number) => {
+        const touchPoints = (radius: number) => [
+          { id: 0, x: 160 - radius, y: 280 },
+          { id: 1, x: 160 + radius, y: 280 },
+        ]
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: touchPoints(start),
+        })
+        for (let step = 1; step <= 10; step++) {
+          await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: touchPoints(start + ((end - start) * step) / 10),
+          })
+        }
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        })
+      }
+
+      await expect.poll(scale).toBeCloseTo(1)
+      await pinch(24, 100)
+      await expect.poll(scale).toBeGreaterThan(1.5)
+      await pinch(100, 14)
+      await expect.poll(scale).toBeCloseTo(1)
     }
   )
 
