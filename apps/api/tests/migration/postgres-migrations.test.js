@@ -176,8 +176,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261118150000_namecard_sort_metadata', phase: 'post-data' },
                 { version: '20261119120000_namecard_exchange_gift', phase: 'pre-data' },
                 { version: '20261120120000_namecard_tags', phase: 'pre-data' },
-                { version: '20261121120000_wiki_entry_documents', phase: 'post-data' },
-                { version: '20261121140000_wiki_entry_document_media', phase: 'post-data' }
+                { version: '20261122120000_wiki_entry_documents', phase: 'post-data' },
+                { version: '20261122140000_wiki_entry_document_media', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -740,7 +740,7 @@ test.describe('PostgreSQL migration', () => {
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261121140000_wiki_entry_document_media'
+            '20261122140000_wiki_entry_document_media'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1129,8 +1129,8 @@ test.describe('PostgreSQL migration', () => {
         '20261118150000_namecard_sort_metadata',
         '20261119120000_namecard_exchange_gift',
         '20261120120000_namecard_tags',
-        '20261121120000_wiki_entry_documents',
-        '20261121140000_wiki_entry_document_media'
+        '20261122120000_wiki_entry_documents',
+        '20261122140000_wiki_entry_document_media'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

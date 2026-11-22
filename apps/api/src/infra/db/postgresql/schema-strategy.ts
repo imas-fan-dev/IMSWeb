@@ -12,14 +12,14 @@ import type {
 // uploads.
 // Fail at startup if deployment has not yet applied the additive migration.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20261121140000_wiki_entry_document_media';
+    '20261122140000_wiki_entry_document_media';
 // Parallel branches can introduce an earlier timestamp after the newest catalog
 // migration has already run. Checking only that newest row would miss this gap.
 const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     REQUIRED_POSTGRESQL_SCHEMA_VERSION,
     // Document mode read/write paths depend on both Wiki additive migrations:
     // media and cover references would silently break with only the newer one.
-    '20261121120000_wiki_entry_documents',
+    '20261122120000_wiki_entry_documents',
     '20261105120000_platform_profile_slug_not_numeric',
     // Tags write/read columns the wall and card editor rely on; a deployment
     // that skipped the additive migration would fail on first use.

@@ -10,7 +10,7 @@ interface ColumnRow {
     is_nullable: string;
 }
 
-const DOCUMENT_MIGRATION = '20261121120000_wiki_entry_documents';
+const DOCUMENT_MIGRATION = '20261122120000_wiki_entry_documents';
 
 async function seedEntry(
     database: Awaited<ReturnType<typeof createPostgresTestDatabase>>,
