@@ -164,8 +164,7 @@ export function MessageComposer({
       }}
     >
       <DialogContent
-        className={liftedDialogClass}
-        style={liftedDialogStyle}
+        className="top-1/2 left-1/2 flex max-h-(--overlay-safe-height) w-(--overlay-safe-width) max-w-md -translate-1/2 flex-col overflow-visible rounded-2xl border border-border text-foreground sm:p-5 dark:border-white/20"
         safeArea="custom"
         layout="pinned"
         overlayClassName="bg-black/25 backdrop-blur-sm"
