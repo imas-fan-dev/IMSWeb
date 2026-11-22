@@ -6,6 +6,8 @@ name: imsweb-preview
 # R2 test bucket (see deploy/.env.r2-test), not a local volume, so preview
 # never enables the local-storage profile and declares no RustFS volume here.
 volumes:
+  mail-queue-data:
+    name: imsweb-preview-mail-queue-data
   postgresql-data:
     name: imsweb-preview-postgresql-data
   api-data:

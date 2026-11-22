@@ -39,6 +39,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/api/src/main.ts": "export {};\n",
             "data/.gitignore": "*\n!.gitignore\n",
             "deploy/compose.yaml": "services: {}\n",
+            "deploy/compose.dev.yaml": "services: {}\n",
             "deploy/compose.preview.yaml": "name: imsweb-preview\nvolumes: {}\n",
         }
         for relative_path, content in files.items():
@@ -75,7 +76,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "expected only deploy/compose.preview.yaml and deploy/compose.yaml",
+            "expected only deploy/compose.dev.yaml and deploy/compose.preview.yaml and deploy/compose.yaml",
             result.stderr,
         )
 
