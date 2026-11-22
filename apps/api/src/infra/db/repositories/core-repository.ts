@@ -1242,8 +1242,8 @@ export class SqlCoreRepository implements NamecardRepository {
                               ON alias.preset_id = preset.id
                            WHERE tag.card_id = fudaba_cards.id
                              AND (tag.normalized LIKE '%' || ? || '%'
-                                  OR preset.normalized = ?
-                                  OR alias.normalized = ?)
+                                  OR preset.normalized LIKE '%' || ? || '%'
+                                  OR alias.normalized LIKE '%' || ? || '%')
                       )`
                   )
                   .join(" OR ")})`
