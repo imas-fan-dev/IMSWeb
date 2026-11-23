@@ -18,7 +18,16 @@ class ComposeDeploymentTests(unittest.TestCase):
 
         self.assertEqual(
             services,
-            ["postgres", "postgres-test", "valkey", "rustfs", "rustfs-init", "email-worker", "api"],
+            [
+                "postgres",
+                "postgres-test",
+                "valkey",
+                "rustfs",
+                "rustfs-init",
+                "mail-queue",
+                "email-worker",
+                "api",
+            ],
         )
         self.assertIn("image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}", compose)
         self.assertIn(
@@ -64,7 +73,12 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertIn("image: ${IMS_API_IMAGE:-imsweb-api:local}", worker)
         self.assertIn("condition: service_healthy", worker)
         self.assertNotIn("rustfs", worker)
-        self.assertNotIn("valkey", worker)
+        self.assertNotIn("valkey:", worker)
+        self.assertIn("IMS_MAIL_QUEUE_URL: redis://mail-queue:6379", worker)
+        queue = compose.split("\n  mail-queue:\n", 1)[1].split("\n  email-worker:\n", 1)[0]
+        for setting in ("everysec", "noeviction", "mail-queue-data:/data"):
+            self.assertIn(setting, queue)
+        self.assertNotIn("ports:", queue)
         self.assertIn("IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}", worker)
         self.assertIn("DATABASE_URL: ${IMS_API_DATABASE_URL:-", worker)
         self.assertIn("- start:email-worker", worker)
@@ -204,7 +218,9 @@ class ComposeDeploymentTests(unittest.TestCase):
             'NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"',
             'no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"',
         ):
-            self.assertEqual(compose.count(token), 3)
+            self.assertEqual(compose.count(token), 2)
+            self.assertIn(token.replace("postgres,", "postgres,mail-queue,"), compose)
+            self.assertIn(token.replace("rustfs,postgres,", "postgres,mail-queue,"), compose)
 
     def test_preview_compose_isolates_project_and_volume_names(self):
         preview = PREVIEW_COMPOSE_PATH.read_text(encoding="utf-8")
@@ -213,6 +229,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         for volume_name in (
             "imsweb-preview-postgresql-data",
             "imsweb-preview-api-data",
+            "imsweb-preview-mail-queue-data",
         ):
             self.assertIn(f"name: {volume_name}", preview)
         self.assertNotIn("name: imsweb-postgresql_postgresql-data", preview)
@@ -225,7 +242,7 @@ class ComposeDeploymentTests(unittest.TestCase):
         self.assertTrue(PREVIEW_COMPOSE_PATH.is_file())
         self.assertEqual(
             sorted(path.name for path in (PROJECT_ROOT / "deploy").glob("compose*.yaml")),
-            ["compose.preview.yaml", "compose.yaml"],
+            ["compose.dev.yaml", "compose.preview.yaml", "compose.yaml"],
         )
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/imsweb.conf.example").is_file())
         self.assertTrue((PROJECT_ROOT / "deploy/nginx/README.md").is_file())

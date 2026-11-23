@@ -701,6 +701,7 @@ const composeFiles = filesUnder(path.join(repositoryRoot, "deploy"))
   .map((file) => relative(file))
   .sort();
 const expectedComposeFiles = [
+  "deploy/compose.dev.yaml",
   "deploy/compose.preview.yaml",
   "deploy/compose.yaml",
 ];

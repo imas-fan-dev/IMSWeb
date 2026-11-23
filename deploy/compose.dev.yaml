@@ -1,0 +1,4 @@
+services:
+  mail-queue:
+    ports:
+      - "127.0.0.1:${IMS_MAIL_QUEUE_PORT:-6380}:6379"

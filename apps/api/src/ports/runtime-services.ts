@@ -74,6 +74,7 @@ export interface NodeRuntimeServices
     platformEmailJobPayloadCipher: PlatformEmailJobPayloadCipher;
     platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
     platformEmailResendPolicy: PlatformEmailResendPolicyReader;
+    closeMailQueue?: () => void;
     stationMessageRunner: StationMessageDispatchRunner;
     config: NodeRuntimeConfig;
 }

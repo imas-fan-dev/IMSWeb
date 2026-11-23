@@ -29,6 +29,11 @@ class NativeGlassPlugin(
 
     override fun load(webView: WebView) {
         webView.overScrollMode = View.OVER_SCROLL_NEVER
+        // Honor the app viewport and enable pinch without showing zoom buttons.
+        webView.settings.useWideViewPort = true
+        webView.settings.builtInZoomControls = true
+        webView.settings.displayZoomControls = false
+
         // Observe on a separate, zero-size view without consuming insets or
         // replacing WebView's listener. Some WebViews don't expose system bars
         // in CSS or resize their visualViewport when the IME appears.

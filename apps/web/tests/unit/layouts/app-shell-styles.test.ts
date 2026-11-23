@@ -25,6 +25,5 @@ describe("App shell stylesheet", () => {
     const body = blockBody(appStylesheet, `html[data-app-target="app"] {`)
 
     expect(body).toContain("background-color: var(--background)")
-    expect(body).toContain("touch-action: pan-x pan-y")
   })
 })

@@ -26,14 +26,9 @@
     --app-header-inset: var(--safe-area-top);
   }
 
-  /*
-   * The packaged App owns its viewport: pinch-zoom and double-tap zoom stay off
-   * so the shell reads as a native screen rather than a zoomable website.
-   * pan-x/pan-y keeps one- and two-finger scrolling and map panning working.
-   * The Web build never sets data-app-target, so website zoom is unchanged.
-   */
   html[data-app-target="app"] {
-    touch-action: pan-x pan-y;
+    /* Allow panning and pinch zoom without enabling double-tap zoom. */
+    touch-action: manipulation;
     /*
      * Android 15 gesture navigation is transparent under enforced edge-to-edge.
      * Paint the document canvas so the WebView's current theme reaches the

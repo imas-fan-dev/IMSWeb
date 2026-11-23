@@ -2953,6 +2953,29 @@ import { afterAll, describe, onTestFinished, test, test as nodeTest, vi } from '
     }
 
     describe('platform email delivery repository', () => {
+        postgresTest('external queue failure rolls back; success activates without a SQL job', async () => {
+            const { database } = await useDatabase('email-delivery-external-queue');
+            const initial = delivery('registration', 'valkey@example.test', 'valkey-initial', 10_000);
+            const unavailable = new SqlPlatformEmailDeliveryRepository(database, async () => {
+                throw new Error('queue unavailable');
+            });
+            await assert.rejects(unavailable.enqueueRegistration(initial.input), /queue unavailable/);
+            assert.equal(await unavailable.findVerificationCandidate('registration', initial.input.deliveryToken), null);
+
+            const publish = vi.fn(async () => undefined);
+            const repository = new SqlPlatformEmailDeliveryRepository(database, publish);
+            assert.equal((await repository.enqueueRegistration(initial.input)).status, 'queued');
+            assert.deepEqual(publish.mock.calls, [[initial.input, 70_000]]);
+            assert.equal(await repository.findVerificationCandidate('registration', initial.input.deliveryToken), initial.input.normalizedEmail);
+            assert.equal(await queryOne(database, 'SELECT id FROM platform_email_delivery_jobs WHERE id=?', [initial.input.jobId]), null);
+            await repository.settleVerificationCandidate({
+                purpose: 'registration', deliveryToken: initial.input.deliveryToken,
+                normalizedEmail: initial.input.normalizedEmail, outcome: { acceptedAt: 13_000 },
+            });
+            assert.equal(await repository.findVerificationCandidate('registration', initial.input.deliveryToken), null);
+            const state = await verificationState(database, 'registration', initial.input.normalizedEmail);
+            assert.equal(state?.expires_at, 613_000);
+        });
         postgresTest('registration enqueue is atomic, encrypted, and unusable until delivery completes', async () => {
             const { database, repository, accountRepository } = await useDatabase(
                 'email-delivery-registration',
