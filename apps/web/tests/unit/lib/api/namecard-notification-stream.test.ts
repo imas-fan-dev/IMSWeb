@@ -8,7 +8,6 @@ vi.mock("~/lib/api/endpoints/platform", () => ({
 }))
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   session.mockReset()
 })
 
