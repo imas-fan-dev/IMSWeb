@@ -1,4 +1,5 @@
 import { test as base } from "@playwright/test"
+import { failureMessageResponseSchema } from "@imsweb/contracts/common"
 import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
 import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import {
@@ -27,8 +28,19 @@ import { ApiDispatcher } from "./api-dispatcher"
  */
 function installInboxProbe(
   dispatcher: ApiDispatcher,
-  inbox: NamecardNotification[],
+  inbox: NamecardNotification[]
 ) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/me/notifications/stream"),
+    responses: { 503: failureMessageResponseSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 503,
+      json: { success: false, message: "消息实时连接暂不可用" },
+    }),
+  })
   dispatcher.expect({
     method: "GET",
     path: exchangePath("/me/notifications"),

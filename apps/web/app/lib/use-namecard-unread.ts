@@ -1,91 +1,115 @@
-import { useEffect, useState } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { useLocation } from "react-router"
 
 import { getNamecardNotifications, hasPlatformSessionHint } from "~/lib/api"
 
-let cachedUnread: number | null = null
-let inFlight: Promise<void> | null = null
-const listeners = new Set<(unread: number) => void>()
+type InboxSnapshot = Awaited<
+  ReturnType<ReturnType<typeof getNamecardNotifications>["send"]>
+>
 
-function publish(unread: number) {
-  cachedUnread = unread
-  for (const listener of listeners) listener(unread)
+let accountId: string | null = null
+let generation = 0
+let cachedUnread = 0
+let inFlight: Promise<InboxSnapshot> | null = null
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+const badgeListeners = new Set<() => void>()
+const inboxListeners = new Set<() => void>()
+
+function subscribeBadge(listener: () => void) {
+  badgeListeners.add(listener)
+  return () => {
+    badgeListeners.delete(listener)
+  }
 }
 
-function loadUnread(): Promise<void> {
+export function subscribeNamecardInbox(listener: () => void) {
+  inboxListeners.add(listener)
+  return () => {
+    inboxListeners.delete(listener)
+  }
+}
+
+export function setNamecardUnread(unread: number) {
+  cachedUnread = unread
+  for (const listener of badgeListeners) listener()
+}
+
+export function setNamecardInboxAccount(next: string | null) {
+  if (next === accountId) return
+  accountId = next
+  generation++
+  inFlight = null
+  clearTimeout(refreshTimer)
+  refreshTimer = undefined
+  setNamecardUnread(0)
+}
+
+export function captureNamecardInboxScope(): () => boolean {
+  const current = generation
+  return () => current === generation
+}
+
+export function loadNamecardInbox(): Promise<InboxSnapshot> {
   if (inFlight) return inFlight
-  inFlight = getNamecardNotifications()
+  const current = generation
+  const pending = getNamecardNotifications()
     .send()
     .then((result) => {
-      publish(result.unread)
-    })
-    .catch(() => {
-      // Signed out or offline: no badge rather than a broken header.
+      if (current !== generation) throw new Error("Inbox account changed")
+      setNamecardUnread(result.unread)
+      return result
     })
     .finally(() => {
-      inFlight = null
+      if (inFlight === pending) inFlight = null
     })
-  return inFlight
+  inFlight = pending
+  return pending
 }
 
-/**
- * Publishes a new count to every mounted badge.
- *
- * Call this after marking notifications read so the header avatar, the header
- * menu entry, the App tab bar and the message panel all agree immediately.
- */
-export function setNamecardUnread(unread: number) {
-  publish(unread)
+export async function refreshNamecardUnread(): Promise<void> {
+  try {
+    await loadNamecardInbox()
+  } catch {
+    // Offline or signed out: preserve the last known count for this account.
+  }
 }
 
-/**
- * Refetches the count and republishes it.
- *
- * The badges live in persistently mounted chrome (header, App tab bar), so they
- * never remount on navigation; whoever changes the recipient's inbox elsewhere
- * - another device, a reviewer, the scheduler - is only noticed when this runs.
- */
-export function refreshNamecardUnread(): Promise<void> {
-  return loadUnread()
-}
-
-/**
- * Unread in-app notification count.
- *
- * Shared by the header account menu (avatar badge), the App tab bar and the
- * message panel so they agree without each triggering its own request for the
- * same payload. Refreshes on every navigation and when the window regains
- * focus, because a badge that only loads once lies after the first message.
- */
-export function useNamecardUnread(): number {
-  // `key` changes on every navigation, including a repeat visit or a query
-  // edit that leaves the pathname alone.
-  const { key } = useLocation()
-  const [unread, setUnread] = useState(cachedUnread ?? 0)
-
-  useEffect(() => {
-    listeners.add(setUnread)
-    return () => {
-      listeners.delete(setUnread)
+export function invalidateNamecardInbox() {
+  if (refreshTimer !== undefined) return
+  const current = generation
+  refreshTimer = setTimeout(() => {
+    // An invalidation during a GET must trigger one trailing snapshot, not
+    // reuse a request that may have started before the database commit.
+    const refresh = () => {
+      if (generation !== current) return
+      refreshTimer = undefined
+      for (const listener of inboxListeners) listener()
+      if (inboxListeners.size === 0) void refreshNamecardUnread()
     }
-  }, [])
+    if (inFlight) void inFlight.then(refresh, refresh)
+    else refresh()
+  }, 100)
+}
 
-  // Anonymous visitors have no inbox; asking would only produce a 401 on every
-  // page load, and the header renders without a badge either way. The hint is a
-  // cookie/storage read instead of the session context so the badge still works
-  // in chrome rendered outside the session provider.
+export function useNamecardUnread(): number {
+  const { key } = useLocation()
+  const unread = useSyncExternalStore(
+    subscribeBadge,
+    () => cachedUnread,
+    () => 0
+  )
+
   useEffect(() => {
     if (!hasPlatformSessionHint()) {
-      publish(0)
+      setNamecardUnread(0)
       return
     }
-    void loadUnread()
+    void refreshNamecardUnread()
   }, [key])
 
   useEffect(() => {
     const refresh = () => {
-      if (!hasPlatformSessionHint()) return
-      void loadUnread()
+      if (hasPlatformSessionHint()) void refreshNamecardUnread()
     }
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh()

@@ -18,6 +18,8 @@ import {
   type PlatformSession,
 } from "~/lib/api"
 
+import { startInboxLive } from "~/lib/namecards/inbox-live"
+
 export type PlatformSessionStatus =
   | "anonymous"
   | "loading"
@@ -164,6 +166,11 @@ export function PlatformSessionProvider({ children }: { children: ReactNode }) {
       requestGeneration.current += 1
     }
   }, [reload])
+
+  const inboxAccountId = state.session?.account.id
+  useEffect(() => {
+    if (inboxAccountId) return startInboxLive(inboxAccountId)
+  }, [inboxAccountId])
 
   const value = useMemo<PlatformSessionContextValue>(
     () => ({ ...state, acceptSession, acceptProfile, reload, logout }),

@@ -176,7 +176,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261118150000_namecard_sort_metadata', phase: 'post-data' },
                 { version: '20261119120000_namecard_exchange_gift', phase: 'pre-data' },
                 { version: '20261120120000_namecard_tags', phase: 'pre-data' },
-                { version: '20261121120000_namecard_project_visibility', phase: 'post-data' }
+                { version: '20261121120000_namecard_project_visibility', phase: 'post-data' },
+                { version: '20261123120000_namecard_notification_events', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -735,11 +736,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 109);
+        assert.equal(catalog.count, 110);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261121120000_namecard_project_visibility'
+            '20261123120000_namecard_notification_events'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1128,7 +1129,8 @@ test.describe('PostgreSQL migration', () => {
         '20261118150000_namecard_sort_metadata',
         '20261119120000_namecard_exchange_gift',
             '20261120120000_namecard_tags',
-            '20261121120000_namecard_project_visibility'
+            '20261121120000_namecard_project_visibility',
+            '20261123120000_namecard_notification_events'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

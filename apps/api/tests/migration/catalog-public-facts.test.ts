@@ -116,6 +116,7 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261119120000_namecard_exchange_gift',
                 '20261120120000_namecard_tags',
                 '20261121120000_namecard_project_visibility',
+                '20261123120000_namecard_notification_events',
             ]);
             const seeded = (
                 await client.query(

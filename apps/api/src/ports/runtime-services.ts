@@ -10,6 +10,7 @@ import type { EmailServices } from "@/ports/email";
 import type { HttpServices } from "@/ports/http";
 import type { MediaServices } from "@/ports/media";
 import type { ObjectStorageServices } from "@/ports/object-storage";
+import type { NamecardNotificationEvents } from "@/ports/namecard-notification-events";
 import type { OAuthServices } from "@/ports/oauth";
 import type { RepositoryServices } from "@/ports/repositories";
 import type { StationMessageDispatchRunner } from "@/ports/station-message-dispatch";
@@ -54,6 +55,7 @@ export interface RuntimeServices
     platformEmailJobPayloadCipher?: PlatformEmailJobPayloadCipher;
     platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
     platformEmailResendPolicy?: PlatformEmailResendPolicyReader;
+    namecardNotificationEvents?: NamecardNotificationEvents;
     stationMessageRunner?: StationMessageDispatchRunner;
     config?: Partial<NodeRuntimeConfig>;
 }
@@ -74,6 +76,7 @@ export interface NodeRuntimeServices
     platformEmailResendPolicyCache?: PlatformEmailResendPolicyCache;
     platformEmailResendPolicy: PlatformEmailResendPolicyReader;
     closeMailQueue?: () => void;
+    namecardNotificationEvents: NamecardNotificationEvents & { drain(): void; close(): Promise<void> };
     stationMessageRunner: StationMessageDispatchRunner;
     config: NodeRuntimeConfig;
 }

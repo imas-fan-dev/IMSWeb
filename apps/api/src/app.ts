@@ -68,6 +68,7 @@ export interface AppEnvironment {
         backofficeUser?: BackofficeJwtClaims;
         backofficeAuthSource?: "authorization" | "cookie" | "legacy-cookie";
         platformUser?: PlatformJwtClaims;
+        platformSessionExpiresAt?: number;
         platformAccount?: PlatformAccountWithProfile;
         platformAuthSource?: "authorization" | "cookie";
     };

@@ -26,11 +26,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { markNamecardNotificationsRead } from "~/lib/api"
 import {
-  getNamecardNotifications,
-  markNamecardNotificationsRead,
-} from "~/lib/api"
-import { setNamecardUnread } from "~/lib/use-namecard-unread"
+  captureNamecardInboxScope,
+  invalidateNamecardInbox,
+  loadNamecardInbox,
+  setNamecardUnread,
+  subscribeNamecardInbox,
+} from "~/lib/use-namecard-unread"
 import type { NamecardNotification } from "@imsweb/contracts/fudaba/card-claims"
 
 interface InboxDetail {
@@ -38,6 +41,27 @@ interface InboxDetail {
   at: string
   body: string
   cardNumber: number | null
+}
+
+function InboxTimestamp({
+  value,
+  className,
+}: {
+  value: string
+  className?: string
+}) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+
+  const pad = (part: number) => String(part).padStart(2, "0")
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const minute = `${pad(date.getHours())}:${pad(date.getMinutes())}`
+
+  return (
+    <time dateTime={value} className={className}>
+      {`${day} ${minute}`}
+    </time>
+  )
 }
 
 export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
@@ -55,15 +79,21 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
   const shownDetail = useRetainedValue(detail)
   const shownExchangeId = useRetainedValue(exchangeId)
 
+  useEffect(
+    () =>
+      subscribeNamecardInbox(() => {
+        setReloadToken((current) => current + 1)
+      }),
+    []
+  )
+
   useEffect(() => {
     let active = true
-    getNamecardNotifications()
-      .send()
+    loadNamecardInbox()
       .then((result) => {
         if (!active) return
         setNotifications(result.items)
         setUnreadNotifications(result.unread)
-        setNamecardUnread(result.unread)
         setLoadFailed(false)
       })
       .catch(() => {
@@ -80,7 +110,7 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
     }
   }, [reloadToken])
 
-  /** 站内信不会主动推过来，这里给用户一个手动取数的入口。 */
+  /** 即使实时连接不可用，也可以手动刷新。 */
   function refreshInbox() {
     if (refreshing) return
     setRefreshing(true)
@@ -89,8 +119,10 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
 
   const markAllRead = useCallback(async () => {
     setMarkingRead(true)
+    const sameAccount = captureNamecardInboxScope()
     try {
       await markNamecardNotificationsRead().send()
+      if (!sameAccount()) return
       setNotifications((current) =>
         current.map((item) =>
           item.readAt ? item : { ...item, readAt: new Date().toISOString() }
@@ -98,8 +130,9 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
       )
       setUnreadNotifications(0)
       setNamecardUnread(0)
+      invalidateNamecardInbox()
     } catch {
-      toast.error("标记已读失败，请刷新后重试")
+      if (sameAccount()) toast.error("标记已读失败，请刷新后重试")
     } finally {
       setMarkingRead(false)
     }
@@ -110,10 +143,12 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
     const target = notifications.find((item) => item.id === notificationId)
     if (!target || target.readAt !== null || readingId !== null) return
     setReadingId(notificationId)
+    const sameAccount = captureNamecardInboxScope()
     try {
       const result = await markNamecardNotificationsRead([
         notificationId,
       ]).send()
+      if (!sameAccount()) return
       setNotifications((current) =>
         current.map((item) =>
           item.id === notificationId && item.readAt === null
@@ -124,8 +159,9 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
       const next = Math.max(0, unreadNotifications - result.updated)
       setUnreadNotifications(next)
       setNamecardUnread(next)
+      invalidateNamecardInbox()
     } catch {
-      toast.error("标记已读失败，请刷新后重试")
+      if (sameAccount()) toast.error("标记已读失败，请刷新后重试")
     } finally {
       setReadingId(null)
     }
@@ -260,9 +296,10 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-medium">{entry.title}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {entry.createdAt.slice(0, 16).replace("T", " ")}
-                    </span>
+                    <InboxTimestamp
+                      value={entry.createdAt}
+                      className="text-xs text-muted-foreground"
+                    />
                     {entry.readAt ? null : (
                       <Badge variant="secondary">未读</Badge>
                     )}
@@ -291,7 +328,10 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
                           className: "h-7 px-2.5 text-[0.8rem]",
                         })}
                       >
-                        <SquarePenIcon className="size-3.5" aria-hidden="true" />
+                        <SquarePenIcon
+                          className="size-3.5"
+                          aria-hidden="true"
+                        />
                         去修改
                       </NavigationLink>
                     ) : null}
@@ -357,9 +397,7 @@ export function NamecardInboxPanel({ readOnly }: { readOnly: boolean }) {
               {shownDetail?.title ?? ""}
             </DialogTitle>
             <DialogDescription>
-              {shownDetail
-                ? shownDetail.at.slice(0, 16).replace("T", " ")
-                : ""}
+              {shownDetail ? <InboxTimestamp value={shownDetail.at} /> : null}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

@@ -1,10 +1,14 @@
-import { screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { renderPage } from "@/tests/unit/support/harness"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NamecardNotification } from "@imsweb/contracts/fudaba/card-claims"
 import type { NamecardExchangeDetail } from "@imsweb/contracts/namecards"
 
+import {
+  invalidateNamecardInbox,
+  useNamecardUnread,
+} from "~/lib/use-namecard-unread"
 import { NamecardInboxPanel } from "~/pages/account/me/claims/namecard-inbox-panel"
 import { makeNamecard } from "@/mocks/data/namecards"
 
@@ -108,6 +112,35 @@ beforeEach(() => {
   apiMocks.declineExchange.mockReturnValue({ send: apiMocks.sendDecline })
 })
 
+it("refreshes the open inbox and unread badge from one snapshot after an invalidation", async () => {
+  function Badge() {
+    return <output aria-label="未读角标">{useNamecardUnread()}</output>
+  }
+  apiMocks.sendNotifications.mockResolvedValue({ items: [], unread: 0 })
+  renderPage(
+    <>
+      <Badge />
+      <NamecardInboxPanel readOnly={false} />
+    </>
+  )
+  await screen.findByText("当前没有消息。")
+  expect(screen.getByLabelText("未读角标")).toHaveTextContent("0")
+
+  apiMocks.sendNotifications.mockClear()
+  apiMocks.sendNotifications.mockResolvedValue({
+    items: [stationNotification],
+    unread: 1,
+  })
+  invalidateNamecardInbox()
+  invalidateNamecardInbox()
+
+  expect(
+    await screen.findByRole("heading", { name: stationNotification.title })
+  ).toBeInTheDocument()
+  expect(screen.getByLabelText("未读角标")).toHaveTextContent("1")
+  expect(apiMocks.sendNotifications).toHaveBeenCalledTimes(1)
+})
+
 describe("NamecardInboxPanel exchange entries", () => {
   it("opens the exchange window and marks the request notification read", async () => {
     const user = userEvent.setup()
@@ -139,9 +172,35 @@ describe("NamecardInboxPanel exchange entries", () => {
     await user.click(within(dialog).getByRole("button", { name: "同意" }))
 
     expect(apiMocks.acceptExchange).toHaveBeenCalledWith("ex-1")
-    await vi.waitFor(() =>
-      expect(apiMocks.sendNotifications).toHaveBeenCalledTimes(2)
+    await waitFor(() =>
+      expect(
+        apiMocks.sendNotifications.mock.calls.length
+      ).toBeGreaterThanOrEqual(2)
     )
+  })
+
+  it("shows device-local time in both the list and the detail dialog", async () => {
+    const user = userEvent.setup()
+    const { createdAt, title } = stationNotification
+    // An independent formatter supplies the expected device-local time, including
+    // the previous calendar day when run with TZ=America/Los_Angeles.
+    const expected = new Intl.DateTimeFormat("sv-SE", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(createdAt))
+    renderPanel([stationNotification])
+
+    expect(await screen.findByText(expected)).toHaveAttribute(
+      "datetime",
+      createdAt
+    )
+    await user.click(screen.getByRole("button", { name: /查看详情/ }))
+    const dialog = await screen.findByRole("dialog", { name: title })
+    expect(within(dialog).getByText(expected)).toHaveAttribute(
+      "datetime",
+      createdAt
+    )
+    expect(dialog).toHaveAccessibleDescription(expected)
   })
 
   it("keeps the body dialog for other notification kinds", async () => {

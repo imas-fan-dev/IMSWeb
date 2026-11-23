@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "91edaaa22765cb552f8cb40a48adb805ac643ea9f1f984472bc5fe2f5c87638d",
+    "semanticDigest": "ae7f9d487d40fc39e93ebf7a13af6e0ce5463e6d43cc905c0233520ee7327cf1",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,9 +16,9 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 428,
+    "mountedRegistrations": 429,
     "mountedMethodPaths": 328,
-    "noInputRoutes": 100,
+    "noInputRoutes": 101,
     "requestCarriers": 430,
     "policies": {
       "reject": 109,
@@ -27,9 +27,9 @@
       "non-object-applicable": 84
     },
     "responses": {
-      "total": 874,
-      "json": 808,
-      "nonJson": 66
+      "total": 877,
+      "json": 809,
+      "nonJson": 68
     },
     "unresolved": 0
   },
@@ -416,7 +416,7 @@
       "/api/cards": 8,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 70,
+      "/api/community": 71,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -5367,6 +5367,44 @@
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
           "kind": "json",
           "expression": "{ items : items . map ( ( row ) => ( { id : row . id , kind : row . kind as NamecardNotification [ \"kind\" ] , cardNumber : row . card_number === null ? null : Number ( row . card_number ) , exchangeId : row . exchange_id , title : row . title , body : row . body , readAt : row . read_at === null ? null : new Date ( row . read_at ) . toISOString ( ) , createdAt : new Date ( row . created_at ) . toISOString ( ) } ) ) , unread } satisfies NamecardNotificationListResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications/stream",
+      "registration": {
+        "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+      },
+      "handlerSymbol": "handleNamecardNotificationStream",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/community/fudaba/claims/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+          "kind": "non-json",
+          "expression": "null"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+          "kind": "non-json",
+          "expression": "stream"
         }
       ]
     },
@@ -26181,6 +26219,30 @@
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notifications.ts",
       "kind": "json",
       "expression": "{ items : items . map ( ( row ) => ( { id : row . id , kind : row . kind as NamecardNotification [ \"kind\" ] , cardNumber : row . card_number === null ? null : Number ( row . card_number ) , exchangeId : row . exchange_id , title : row . title , body : row . body , readAt : row . read_at === null ? null : new Date ( row . read_at ) . toISOString ( ) , createdAt : new Date ( row . created_at ) . toISOString ( ) } ) ) , unread } satisfies NamecardNotificationListResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications/stream",
+      "handlerSymbol": "handleNamecardNotificationStream",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+      "kind": "non-json",
+      "expression": "null"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications/stream",
+      "handlerSymbol": "handleNamecardNotificationStream",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/me/notifications/stream",
+      "handlerSymbol": "handleNamecardNotificationStream",
+      "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+      "kind": "non-json",
+      "expression": "stream"
     },
     {
       "method": "GET",

@@ -14,6 +14,7 @@ export interface StartServerOptions {
 
 export interface ShutdownServerOptions {
     closeServices?: () => Promise<void>;
+    drainStreams?: () => void;
     timeoutMs?: number;
 }
 
@@ -50,9 +51,9 @@ export function startServer(options: StartServerOptions = {}): Server {
 export async function startNodeServer(
     options: StartServerOptions = {},
 ): Promise<Server> {
-    await resolveNodeServices();
+    const services = await resolveNodeServices();
     const server = startServer(options);
-    installGracefulShutdown(server);
+    installGracefulShutdown(server, () => services.namecardNotificationEvents.drain());
     return server;
 }
 
@@ -70,21 +71,23 @@ export async function shutdownServer(
     const timeout = setTimeout(() => server.closeAllConnections(), timeoutMs);
     timeout.unref();
     try {
-        await closeHttpServer(server);
+        const closing = closeHttpServer(server);
+        options.drainStreams?.();
+        await closing;
         await (options.closeServices ?? closeNodeServices)();
     } finally {
         clearTimeout(timeout);
     }
 }
 
-export function installGracefulShutdown(server: Server): void {
+export function installGracefulShutdown(server: Server, drainStreams?: () => void): void {
     let shuttingDown: Promise<void> | undefined;
     const handleSignal = (signal: NodeJS.Signals) => {
         if (shuttingDown) return;
         process.stdout.write(
             `${JSON.stringify({ event: "server_shutdown_started", signal })}\n`,
         );
-        shuttingDown = shutdownServer(server)
+        shuttingDown = shutdownServer(server, { drainStreams })
             .then(() => {
                 process.stdout.write(
                     `${JSON.stringify({
