@@ -1,5 +1,4 @@
-import { test as base } from "@playwright/test"
-import { failureMessageResponseSchema } from "@imsweb/contracts/common"
+import { test as base, type BrowserContext } from "@playwright/test"
 import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
 import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import {
@@ -21,6 +20,49 @@ import {
 
 import { ApiDispatcher } from "./api-dispatcher"
 
+async function installInboxStreamProbe(
+  context: BrowserContext,
+  baseURL: string,
+  apiOrigins: string[]
+) {
+  const pageOrigin = new URL(baseURL).origin
+  const origins = new Set([pageOrigin, ...apiOrigins])
+  // SSE is not JSON. Keep unrelated specs quiet without invalidating their
+  // REST mocks: a heartbeat comment is not an inbox change.
+  await context.route(
+    (url) =>
+      origins.has(url.origin) &&
+      url.pathname === exchangePath("/me/notifications/stream"),
+    async (route) => {
+      const request = route.request()
+      const origin = await request.headerValue("origin")
+      if (origin && origin !== pageOrigin) return route.fallback()
+      const headers = { "Access-Control-Allow-Origin": pageOrigin }
+      if (
+        request.method() === "OPTIONS" &&
+        origin === pageOrigin &&
+        (await request.headerValue("access-control-request-method")) === "GET"
+      ) {
+        return route.fulfill({
+          status: 204,
+          headers: {
+            ...headers,
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Authorization, X-IMS-Auth-Mode",
+          },
+        })
+      }
+      if (request.method() !== "GET") return route.fallback()
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { ...headers, "Cache-Control": "no-store" },
+        body: ": heartbeat\n\n",
+      })
+    }
+  )
+}
+
 /**
  * The shell asks for the recipient's unread count on every navigation, so any
  * spec that signs in would otherwise fail on an unregistered request it never
@@ -30,17 +72,6 @@ function installInboxProbe(
   dispatcher: ApiDispatcher,
   inbox: NamecardNotification[]
 ) {
-  dispatcher.expect({
-    method: "GET",
-    path: exchangePath("/me/notifications/stream"),
-    responses: { 503: failureMessageResponseSchema },
-    times: { min: 0, max: 1_000 },
-    fallback: true,
-    handle: () => ({
-      status: 503,
-      json: { success: false, message: "消息实时连接暂不可用" },
-    }),
-  })
   dispatcher.expect({
     method: "GET",
     path: exchangePath("/me/notifications"),
@@ -193,6 +224,7 @@ export const test = base.extend<
         throw new Error("Playwright API dispatcher requires baseURL")
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
+      await installInboxStreamProbe(context, baseURL, apiOrigins)
       installInboxProbe(dispatcher, inboxNotifications)
       installSeriesProbe(dispatcher)
       installCharactersProbe(dispatcher)

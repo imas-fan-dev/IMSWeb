@@ -44,6 +44,16 @@ it("reads split frames without treating heartbeat comments as inbox changes", as
   )
 })
 
+it("leaves the REST fallback in charge when the stream returns 503", async () => {
+  const fetchMock = vi.fn(async () => new Response(null, { status: 503 }))
+  vi.stubGlobal("fetch", fetchMock)
+  const changed = vi.fn()
+  await receiveInboxChanges("alice", new AbortController().signal, changed)
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(changed).not.toHaveBeenCalled()
+  expect(session).not.toHaveBeenCalled()
+})
+
 it("probes the existing platform session once on 401 and does not endlessly replay", async () => {
   const fetchMock = vi.fn(async () => new Response(null, { status: 401 }))
   vi.stubGlobal("fetch", fetchMock)
