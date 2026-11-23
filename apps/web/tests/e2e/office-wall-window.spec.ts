@@ -198,7 +198,8 @@ test("loads the complete wall observation area and replaces distant content with
     3
   )
   expect(requests.every((request) => request.size <= 50)).toBe(true)
-  await page.clock.install()
+  const clockStart = Date.parse("2026-11-10T00:00:00.000Z")
+  await page.clock.install({ time: clockStart })
   const beforePan = requests.length
   await viewport.scrollIntoViewIfNeeded()
   const panBox = (await viewport.boundingBox())!
@@ -216,9 +217,7 @@ test("loads the complete wall observation area and replaces distant content with
   expect(requests).toHaveLength(beforePan)
   await viewport.focus()
   // Keep the key burst inside one debounce interval on slow test hosts.
-  await page.clock.pauseAt(
-    new Date(await page.evaluate(() => Date.now() + 1000))
-  )
+  await page.clock.pauseAt(clockStart + 60_000)
   for (let index = 0; index < 25; index++)
     await page.keyboard.press("ArrowRight")
   await page.clock.runFor(250)

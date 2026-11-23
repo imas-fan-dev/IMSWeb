@@ -482,16 +482,14 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
         })
     )
   }
-  await api.mock(
-    {
-      method: "GET",
-      path: `/api/community/exchange/cards/${ownedCard.id}/reactions`,
-      times: 1,
-    },
+  await api.mockRoute(
+    `/api/community/exchange/cards/${ownedCard.id}/reactions`,
     (route) =>
       route.fulfill({
         json: { success: true, cardId: ownedCard.id, reactions: [] },
-      })
+      }),
+    "GET",
+    { min: 1, max: 2 }
   )
   let mapBoundsReads = 0
   page.on("request", (request) => {
