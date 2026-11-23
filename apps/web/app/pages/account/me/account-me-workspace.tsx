@@ -1,3 +1,4 @@
+import { MessagesPanel } from "~/pages/community/exchange/messages-panel"
 import {
   ArrowLeftIcon,
   CircleAlertIcon,
@@ -792,6 +793,14 @@ function ProfileWorkspace({
             <NamecardCollection active={activeSection === "collection"} />
           </section>
 
+          <section
+            id="profile-workspace-section-messages"
+            hidden={activeSection !== "messages"}
+          >
+            {activeSection === "messages" ? (
+              <MessagesPanel mode="mine" />
+            ) : null}
+          </section>
           <div
             id="profile-workspace-section-offices"
             className={sectionReadOnlyReason ? "mt-6" : undefined}

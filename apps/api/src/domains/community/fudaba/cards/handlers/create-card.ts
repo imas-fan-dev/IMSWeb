@@ -1,3 +1,4 @@
+import { saveFudabaTinyPreview } from '@/domains/community/fudaba/card-preview';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { fudabaOwnerCardView } from '@/domains/community/fudaba/contracts/card';
@@ -181,6 +182,32 @@ export async function handleCreateFudabaCard(
         }
         const now = new Date().toISOString();
         const repository = fudabaRepository(c);
+        const storePreviews = async (revision: number) => {
+            try {
+                await Promise.all([
+                    saveFudabaTinyPreview(
+                        repository.messages,
+                        runtime.images!,
+                        createdKeys[0]!,
+                        rotatedFront,
+                        { cardId, revision, side: 'front' }
+                    ),
+                    ...(backImage
+                        ? [saveFudabaTinyPreview(
+                            repository.messages,
+                            runtime.images!,
+                            createdKeys.at(-1)!,
+                            backImage.body,
+                            { cardId, revision, side: 'back' }
+                        )]
+                        : []),
+                ]);
+            } catch {
+                console.warn(
+                    '[fudaba] low-resolution preview storage failed; using the skeleton fallback'
+                );
+            }
+        };
         cleanupCreatedObjects = false;
         let result: FudabaCardMutationResult;
         try {
@@ -224,6 +251,7 @@ export async function handleCreateFudabaCard(
                         names: tags,
                     });
                 }
+                await storePreviews(recovered.revision);
                 const recoveredArtwork = ownerCardArtwork(recovered, {
                     live: recovered.pages,
                     pending: recovered.pending_pages ?? []
@@ -254,6 +282,7 @@ export async function handleCreateFudabaCard(
                 names: tags,
             });
         }
+        await storePreviews(result.card.revision);
         const savedArtwork = ownerCardArtwork(result.card, {
             live: result.card.pages,
             pending: result.card.pending_pages ?? []

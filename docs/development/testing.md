@@ -270,6 +270,32 @@ Playwright E2E 不在 pre-commit hook 中；本地显式执行 `pnpm --filter @i
 Preview 复用这套 CI 证据，不重复执行 API 测试。若在 CI job 里
 意外跳过 PostgreSQL 测试时，测试必须失败而非显示为成功。
 
+### 本地 PostgreSQL 测试库
+
+需要真实 PostgreSQL 的 API 测试（`run-test-owner.mjs api`、`test:migration` 不设
+`IMS_TEST_POSTGRES_ENABLED=false` 时）使用 `deploy/compose.yaml` 中的 `postgres-test`
+服务，它与 CI 的 `services.postgres` 使用同一镜像、账号和数据库名。
+
+```bash
+docker compose -f deploy/compose.yaml --profile test up -d --wait postgres-test
+export IMS_TEST_POSTGRES_ENABLED=true
+export IMS_TEST_DATABASE_URL='postgresql://imsweb:imsweb-test-password@127.0.0.1:15434/postgres'
+node scripts/testing/run-test-owner.mjs api
+docker compose -f deploy/compose.yaml --profile test stop postgres-test
+```
+
+- 数据在 tmpfs 中，容器停止即丢失，只用于测试；不要把它当作开发库。
+- 端口默认 `15434`，可通过 `IMS_POSTGRES_TEST_PORT` 修改，修改后同步调整
+  `IMS_TEST_DATABASE_URL`。
+- 容器不设 `restart` 自动拉起；需要时手动启动。
+- 测试的临时文件（Vitest 夹具、迁移套件的 SQLite/JSON 快照）默认写到 `TMPDIR`。
+  `run-test-owner.mjs` 在 `TMPDIR` 未设置、`/dev/shm` 是可写 tmpfs、且剩余空间不小于
+  1 GiB 时，会自动把子进程的 `TMPDIR` 指过去；显式设置的 `TMPDIR` 永远优先。把 `/tmp`
+  放在机械盘或 USB 盘上会让单次 fsync 变成几十毫秒，测试随即以 30 秒超时失败。
+  直接运行 `pnpm --filter @imsweb/api run test:migration` 这类脚本不经过这层兜底，
+  需要时自行 `export TMPDIR=/dev/shm`。
+- 不要为启动测试库新增 `package.json` 别名或可独立调用的跳过参数（见上文规则）。
+
 ### pre-commit 覆盖边界
 
 `check:pre-commit` 在 `git diff --cached --check` 之后先运行三个仓库级期望值守护，再执行静态检查。API

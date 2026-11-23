@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -9,6 +10,54 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const repositoryRoot = path.resolve(scriptDirectory, "../..");
 const apiRoot = path.join(repositoryRoot, "apps/api");
+
+// Vitest fixtures and the legacy migration suites build temporary SQLite
+// databases and JSON snapshots. On a slow or network-backed filesystem - the
+// motivating case is `/tmp` inside a WSL VHDX that itself sits on an external
+// USB disk, where one fsync costs tens of milliseconds - those writes dominate
+// the run and surface as 30 s test and hook timeouts. A caller's explicit
+// TMPDIR always wins; otherwise reuse a shared-memory tmpfs that is large
+// enough for a full suite, so a container's 64 MiB `/dev/shm` never becomes
+// the new failure mode.
+const tmpfsCandidates = Object.freeze(["/dev/shm", "/run/shm"]);
+const tmpfsMagic = 0x01021994;
+const tmpfsMinimumBytes = 1024 * 1024 * 1024;
+
+function isUsableTmpfs(candidate) {
+  try {
+    const stats = fs.statfsSync(candidate);
+    if (stats.type !== tmpfsMagic) return false;
+    if (stats.bsize * stats.bavail < tmpfsMinimumBytes) return false;
+    fs.accessSync(candidate, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function selectTestTmpdir(
+  environment = process.env,
+  inspect = isUsableTmpfs,
+) {
+  if (environment.TMPDIR) return undefined;
+  for (const candidate of tmpfsCandidates) {
+    if (inspect(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+let announcedTmpdir;
+
+function testEnvironment() {
+  const tmpdir = selectTestTmpdir();
+  if (!tmpdir) return process.env;
+  if (announcedTmpdir !== tmpdir) {
+    process.stdout.write(`[test-owner] TMPDIR=${tmpdir} (tmpfs)
+`);
+    announcedTmpdir = tmpdir;
+  }
+  return { ...process.env, TMPDIR: tmpdir };
+}
 
 const command = (label, executable, args, cwd = repositoryRoot) =>
   Object.freeze({ label, executable, args: Object.freeze(args), cwd });
@@ -390,7 +439,7 @@ export async function runCommand(step) {
   await new Promise((resolve, reject) => {
     const child = spawn(step.executable, step.args, {
       cwd: step.cwd,
-      env: process.env,
+      env: testEnvironment(),
       stdio: "inherit",
     });
     let settled = false;

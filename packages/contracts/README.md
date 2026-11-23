@@ -33,6 +33,7 @@ src/
   fudaba/
     index.ts             # 交换站核心（原子 + 公开/业主线契约）
     runtime.ts           # 不依赖 zod 的地图样式 URL 断言
+    wall.ts              # 世界坐标墙面、区域/列表分页和布局写入契约
     map-delivery.ts      # 地图源读写与响应契约
     card-claims.ts       # 认领信封/认领/审核
     location-review.ts   # 位置审核
@@ -51,6 +52,8 @@ src/
   `exports` 中补充对应子路径。
 - 跨模块共享的原子 schema 只从其所属核心模块导出（如 `fudaba/index.ts`），
   兄弟模块内部原子不导出，避免 Web 端 barrel 星导出撞名。
+
+墙面布局契约从 `@imsweb/contracts/fudaba/wall` 导入。
 
 ## 验证
 
@@ -186,3 +189,5 @@ UI 语义别名（如 `HomeInformationCard = InformationCard`）、请求/输入
 CJS `require` / ESM `import` 两种 fresh-process loader probe。
 
 `@imsweb/contracts/community-content` exports community landing content, revisioned admin snapshots and updates, image upload responses, and HTTP errors. The root namespace is `communityContent`.
+
+- `@imsweb/contracts/fudaba/messages`: V2 mixed wall, torn-paper messages, author and moderation request/response contracts.

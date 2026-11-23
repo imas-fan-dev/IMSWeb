@@ -1,3 +1,4 @@
+import { fudabaMessageRoutes, fudabaAdminMessageRoutes } from '@/domains/community/fudaba/messages/routes';
 import { adminExchangePath, exchangePath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
 import { privateFudabaResponse } from '@/domains/community/fudaba/access-policy';
@@ -16,6 +17,8 @@ export function registerFudabaRoutes(app: ImsHonoApp): void {
     app.use(`${EXCHANGE_PREFIX}/*`, privateFudabaResponse);
     app.use(`${EXCHANGE_ADMIN_PREFIX}/*`, privateFudabaResponse);
     app.route(EXCHANGE_PREFIX, fudabaDirectoryRoutes());
+    app.route(EXCHANGE_PREFIX, fudabaMessageRoutes());
+    app.route(EXCHANGE_ADMIN_PREFIX, fudabaAdminMessageRoutes());
     app.route(EXCHANGE_PREFIX, fudabaCardRoutes());
     app.route(EXCHANGE_PREFIX, fudabaOfficeRoutes());
     app.route(EXCHANGE_PREFIX, fudabaLocationRoutes());

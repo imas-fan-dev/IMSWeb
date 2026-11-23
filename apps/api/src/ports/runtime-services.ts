@@ -29,6 +29,7 @@ export interface NodeRuntimeConfig {
     clientAddressSource: "direct" | "nginx";
     fudabaPublicReadEnabled: boolean;
     fudabaWriteEnabled: boolean;
+    fudabaMessageCreateEnabled: boolean;
     fudabaMapEnabled: boolean;
     /** Explicit provider configurations used to bootstrap the managed collection. */
     fudabaMapSources: FudabaMapProviderConfig[];

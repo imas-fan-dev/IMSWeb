@@ -32,10 +32,31 @@ describe("Vite file watching", () => {
 })
 
 describe("Vite dependency optimization", () => {
-  it("registers a serve-only optimizer that invalidates linked contracts", () => {
+  it("registers a serve-only optimizer that invalidates linked contracts", async () => {
     expect(localContractsOptimizer(process.cwd())).toMatchObject({
       name: "imsweb-local-contracts-optimizer",
       apply: "serve",
+    })
+    const optimizer = localContractsOptimizer(process.cwd())
+    if (typeof optimizer.config !== "function")
+      throw new Error("Expected an optimizer config hook")
+    expect(
+      await optimizer.config.call(
+        {} as never,
+        {},
+        { command: "serve", mode: "development" }
+      )
+    ).toMatchObject({
+      optimizeDeps: {
+        rolldownOptions: {
+          transform: {
+            define: {
+              __IMS_CONTRACTS_RUNTIME_DIGEST__:
+                expect.stringMatching(/^"[a-f0-9]{64}"$/),
+            },
+          },
+        },
+      },
     })
     expect(viteConfig.plugins).toEqual(
       expect.arrayContaining([

@@ -514,6 +514,22 @@ test.describe("account personal workspace", () => {
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
     })
+    await dispatcher.mockRoute(
+      `**/api/community/exchange/offices/${office.id}/messages?*`,
+      (route) => {
+        const query = new URL(route.request().url()).searchParams
+        expect(query.get("status")).toBe("all")
+        expect(query.get("limit")).toBe("50")
+        return route.fulfill({
+          json: {
+            messages: [],
+            pageInfo: { hasNextPage: false, nextCursor: null },
+          },
+        })
+      },
+      "GET",
+      { min: 1, max: 2 }
+    )
     await page.goto("/account/me/profile")
 
     await expect(

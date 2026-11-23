@@ -153,9 +153,7 @@ async function installAccountMocks(
     },
     (route) => route.fulfill({ json: makeCharacterCatalog() })
   )
-  for (const path of [
-    "/api/community/exchange/me/offices",
-  ]) {
+  for (const path of ["/api/community/exchange/me/offices"]) {
     await api.mock(
       { method: "GET", path, times: { min: 0, max: 12 } },
       (route) => fulfillJson(route, emptyItems, corsHeaders)
@@ -382,6 +380,21 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await backButton.click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+    }
+  )
+
+  test(
+    "dismisses the cold-start mask after reloading the profile",
+    {
+      tag: ["@app-iphone", "@app-android", "@app-webkit"],
+    },
+    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
+      await openAccountPage(
+        { page, api, apiOrigins, baseURL },
+        { pathname: "/account/me/profile" }
+      )
       await page.reload()
       await expect(
         page.getByRole("heading", { name: "个人资料", exact: true })
@@ -394,8 +407,6 @@ test.describe("app account", () => {
       await page.screenshot({
         path: testInfo.outputPath("app-personal-profile.png"),
       })
-      await backButton.click()
-      await expect(page).toHaveURL(/\/account\/me$/)
     }
   )
 
