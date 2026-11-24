@@ -166,9 +166,15 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261107120000_namecard_media_key_normalization', phase: 'post-data' },
                 { version: '20261107160000_namecard_group_card', phase: 'post-data' },
                 { version: '20261107180000_fudaba_card_pages', phase: 'post-data' },
+                { version: '20261108120000_fudaba_wall_world', phase: 'post-data' },
+                { version: '20261108120100_fudaba_message_wall_v2', phase: 'post-data' },
+                { version: '20261108120200_fudaba_wall_scene', phase: 'post-data' },
+                { version: '20261108120300_fudaba_preview_invalidation', phase: 'post-data' },
                 { version: '20261112120000_namecard_media_retire', phase: 'post-data' },
                 { version: '20261112130000_namecard_page_object_queue', phase: 'post-data' },
+                { version: '20261112135000_fudaba_retire_legacy_preview_triggers', phase: 'post-data' },
                 { version: '20261112140000_namecard_retire_card_key_columns', phase: 'post-data' },
+                { version: '20261113100000_fudaba_page_preview_invalidation', phase: 'post-data' },
                 { version: '20261116120000_namecard_profile_layouts', phase: 'post-data' },
                 { version: '20261118100000_namecard_notification_exchange', phase: 'pre-data' },
                 { version: '20261118120000_namecard_exchange_expired_notification', phase: 'pre-data' },
@@ -178,7 +184,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261120120000_namecard_tags', phase: 'pre-data' },
                 { version: '20261121120000_namecard_project_visibility', phase: 'post-data' },
                 { version: '20261122120000_wiki_entry_documents', phase: 'post-data' },
-                { version: '20261122140000_wiki_entry_document_media', phase: 'post-data' }
+                { version: '20261122140000_wiki_entry_document_media', phase: 'post-data' },
+                { version: '20261123120000_namecard_notification_events', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -737,11 +744,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 111);
+        assert.equal(catalog.count, 118);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261122140000_wiki_entry_document_media'
+            '20261123120000_namecard_notification_events'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1120,9 +1127,15 @@ test.describe('PostgreSQL migration', () => {
         '20261107120000_namecard_media_key_normalization',
         '20261107160000_namecard_group_card',
         '20261107180000_fudaba_card_pages',
+        '20261108120000_fudaba_wall_world',
+        '20261108120100_fudaba_message_wall_v2',
+        '20261108120200_fudaba_wall_scene',
+        '20261108120300_fudaba_preview_invalidation',
         '20261112120000_namecard_media_retire',
         '20261112130000_namecard_page_object_queue',
+        '20261112135000_fudaba_retire_legacy_preview_triggers',
         '20261112140000_namecard_retire_card_key_columns',
+        '20261113100000_fudaba_page_preview_invalidation',
         '20261116120000_namecard_profile_layouts',
         '20261118100000_namecard_notification_exchange',
         '20261118120000_namecard_exchange_expired_notification',
@@ -1132,7 +1145,8 @@ test.describe('PostgreSQL migration', () => {
             '20261120120000_namecard_tags',
             '20261121120000_namecard_project_visibility',
             '20261122120000_wiki_entry_documents',
-            '20261122140000_wiki_entry_document_media'
+            '20261122140000_wiki_entry_document_media',
+            '20261123120000_namecard_notification_events'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

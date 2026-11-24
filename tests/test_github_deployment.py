@@ -63,7 +63,9 @@ if [[ "$joined" == " info " && "${FAKE_FAIL_CONTAINER_INFO:-}" == "true" ]]; the
 elif [[ "$joined" == " info --format {{.DockerRootDir}} " ]]; then
     printf '%s\n' "$FAKE_CONTAINER_ROOT"
 elif [[ "$joined" == *" config --services "* ]]; then
-    printf '%s\n' postgres valkey email-worker api
+    printf '%s\n' postgres valkey mail-queue email-worker api
+elif [[ "$joined" == *" exec -T mail-queue valkey-cli ping "* ]]; then
+    printf '%s\n' PONG
 elif [[ "$joined" == *" ps --all --quiet email-worker "* ]]; then
     printf '%s\n' email-worker-1 email-worker-2
 elif [[ "$joined" == *" inspect --format "*" email-worker-"* ]]; then
@@ -396,7 +398,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         for job_name, job in jobs.items():
             if job_name == "api":
                 self.assertIn("IMS_TEST_DATABASE_URL:", job)
-                self.assertIn("services:\n      postgres:", job)
+                self.assertIn("\n      postgres:", job)
             else:
                 self.assertNotIn("IMS_TEST_DATABASE_URL:", job)
                 self.assertNotIn("services:\n      postgres:", job)

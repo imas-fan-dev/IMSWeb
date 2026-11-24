@@ -363,3 +363,10 @@ export const CSRF_COOKIE_OPTIONS: CookieOptions = {
     sameSite: "lax",
     path: "/",
 };
+
+export const FUDABA_MESSAGE_CREATE_ENABLED = (() => {
+    const value = process.env.IMS_FUDABA_MESSAGE_CREATE_ENABLED?.trim().toLowerCase() ?? '';
+    if (['', '0', 'false', 'no', 'off'].includes(value)) return false;
+    if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+    throw new Error('IMS_FUDABA_MESSAGE_CREATE_ENABLED must be true or false');
+})();

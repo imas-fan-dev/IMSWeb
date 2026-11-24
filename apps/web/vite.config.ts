@@ -106,6 +106,8 @@ export default defineConfig({
       "@imsweb/contracts/**",
       "@imsweb/contracts/community-content",
       "@imsweb/contracts/fudaba/runtime",
+      "@imsweb/contracts/fudaba/wall",
+      "@imsweb/contracts/fudaba/messages",
       "@base-ui/react > use-sync-external-store/shim",
       "@base-ui/react > use-sync-external-store/shim/with-selector",
       "@tanstack/react-virtual",

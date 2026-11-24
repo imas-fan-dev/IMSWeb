@@ -39,6 +39,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
             "apps/api/src/main.ts": "export {};\n",
             "data/.gitignore": "*\n!.gitignore\n",
             "deploy/compose.yaml": "services: {}\n",
+            "deploy/compose.dev.yaml": "services: {}\n",
             "deploy/compose.preview.yaml": "name: imsweb-preview\nvolumes: {}\n",
         }
         for relative_path, content in files.items():
@@ -75,7 +76,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "expected only deploy/compose.preview.yaml and deploy/compose.yaml",
+            "expected only deploy/compose.dev.yaml and deploy/compose.preview.yaml and deploy/compose.yaml",
             result.stderr,
         )
 
@@ -231,7 +232,8 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         # The bounded surface includes mock API dev commands, test UI tooling,
         # and the App E2E static preview pair (Web preview:app, API test:app-preview).
         self.assertEqual(len(root_scripts), 57)
-        self.assertEqual(len(api_scripts), 43)
+        self.assertEqual(len(api_scripts), 44)
+        self.assertIn("migration:fudaba-scene-backfill", api_scripts)
         self.assertEqual(len(web_scripts), 22)
         self.assertEqual(
             api_scripts["test:app-preview"],

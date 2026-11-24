@@ -105,9 +105,15 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261107120000_namecard_media_key_normalization',
                 '20261107160000_namecard_group_card',
                 '20261107180000_fudaba_card_pages',
+                '20261108120000_fudaba_wall_world',
+                '20261108120100_fudaba_message_wall_v2',
+                '20261108120200_fudaba_wall_scene',
+                '20261108120300_fudaba_preview_invalidation',
                 '20261112120000_namecard_media_retire',
                 '20261112130000_namecard_page_object_queue',
+                '20261112135000_fudaba_retire_legacy_preview_triggers',
                 '20261112140000_namecard_retire_card_key_columns',
+                '20261113100000_fudaba_page_preview_invalidation',
                 '20261116120000_namecard_profile_layouts',
                 '20261118100000_namecard_notification_exchange',
                 '20261118120000_namecard_exchange_expired_notification',
@@ -118,6 +124,7 @@ test.skipIf(!postgresIntegrationEnabled())(
                 '20261121120000_namecard_project_visibility',
                 '20261122120000_wiki_entry_documents',
                 '20261122140000_wiki_entry_document_media',
+                '20261123120000_namecard_notification_events',
             ]);
             const seeded = (
                 await client.query(

@@ -320,6 +320,7 @@ const portContracts = new Map([
     ],
     ["repositories/platform.ts", ["PlatformAccountRepository"]],
     ["repositories/fudaba.ts", ["FudabaRepository"]],
+    ["repositories/fudaba-messages.ts", ["FudabaMessagesRepository"]],
     ["repositories/namecards.ts", ["NamecardRepository", "ReactionRepository"]],
     [
         "repositories/namecard-characters.ts",
@@ -337,6 +338,7 @@ const portContracts = new Map([
     ["repositories/site-packages.ts", ["SitePackageRepository"]],
     ["repositories/wiki.ts", ["StoryRepository"]],
     ["repositories/index.ts", ["RepositoryServices"]],
+    ["namecard-notification-events.ts", ["NamecardNotificationEvents", "NamecardNotificationSubscriber"]],
     ["station-message-dispatch.ts", ["StationMessageDispatchRunner"]],
     ["runtime-services.ts", ["RuntimeServices", "NodeRuntimeServices"]],
     [

@@ -26,9 +26,7 @@ function reportError(error: Error): void {
 /**
  * 站内信派发器：跑在 API 进程内（和 `NodeObjectCleanupRunner` 同一套生命周期）。
  *
- * 每个 tick 做两件事：
- * 1. 把到期的定时批次派发成收件人的站内信（立即发送在请求内已派发完，这里只是兜底）；
- * 2. 推进「转发到绑定邮箱」的进度，每封一次结果都落库，进程重启后从中断处继续。
+ * 把到期的定时批次派发成站内通知。运行时不在 API 进程发送外部邮件。
  */
 export class NodeStationMessageRunner {
     private readonly intervalMs: number;
@@ -44,7 +42,7 @@ export class NodeStationMessageRunner {
 
     constructor(
         private readonly repository: StationMessageRepository,
-        private readonly sender: PlatformEmailMessageSender,
+        private readonly sender?: PlatformEmailMessageSender,
         options: NodeStationMessageRunnerOptions = {}
     ) {
         this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
@@ -115,6 +113,7 @@ export class NodeStationMessageRunner {
             const dispatched = await this.repository.dispatchDue();
             if (!dispatched) break;
         }
+        if (!this.sender) return;
         const messageIds = await this.repository.listPendingEmailMessages(this.emailMessages);
         for (const messageId of messageIds) {
             await this.forwardEmail(messageId);
@@ -124,7 +123,7 @@ export class NodeStationMessageRunner {
     /** 把一个批次的邮件转发推到「没有可领取的收件人」为止。 */
     private async forwardEmail(messageId: string): Promise<void> {
         const message = await this.repository.findById(messageId);
-        if (!message) return;
+        if (!message || !this.sender) return;
         for (;;) {
             const targets = await this.repository.claimEmailTargets(messageId, this.emailBatch);
             if (targets.length === 0) {

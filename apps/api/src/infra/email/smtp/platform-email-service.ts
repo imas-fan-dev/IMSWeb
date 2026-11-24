@@ -486,6 +486,23 @@ export class ConfiguredPlatformEmailService
         deadlineAt: number;
         signal: AbortSignal;
     }): Promise<PlatformEmailDeliveryAttemptResult> {
+        const registration = input.purpose === 'registration';
+        return this.deliverMessage({
+            deadlineAt: input.deadlineAt,
+            signal: input.signal,
+            message: {
+                recipient: input.message.email,
+                subject: registration ? 'IMSWeb registration verification code' : 'IMSWeb password reset verification code',
+                ...verificationContent(input.message, registration ? 'registration' : 'password reset'),
+            },
+        });
+    }
+
+    async deliverMessage(input: {
+        message: PlatformEmailMessage & { html?: string };
+        deadlineAt: number;
+        signal: AbortSignal;
+    }): Promise<PlatformEmailDeliveryAttemptResult> {
         if (input.signal.aborted) {
             return classifiedFailure(new PlatformEmailAttemptAbortedError());
         }
@@ -552,19 +569,14 @@ export class ConfiguredPlatformEmailService
             this.requireAttemptActive(input.deadlineAt, input.signal);
             transport = this.transportFactory({ ...config, resolvedAddress });
             this.requireAttemptActive(input.deadlineAt, input.signal);
-            const purpose = input.purpose === 'registration'
-                ? 'registration'
-                : 'password reset';
-            const subject = input.purpose === 'registration'
-                ? 'IMSWeb registration verification code'
-                : 'IMSWeb password reset verification code';
-            const content = verificationContent(input.message, purpose);
+
             const result = await this.beforeDeadline(
                 () => transport!.sendMail({
                     from: { address: config.fromAddress, name: config.fromName },
-                    to: input.message.email,
-                    subject,
-                    ...content,
+                    to: input.message.recipient,
+                    subject: input.message.subject,
+                    text: input.message.text,
+                    html: input.message.html ?? "",
                 }),
                 input.deadlineAt,
                 {
@@ -581,7 +593,7 @@ export class ConfiguredPlatformEmailService
             if (input.signal.aborted) {
                 return classifiedFailure(new PlatformEmailAttemptAbortedError());
             }
-            const intendedRecipient = input.message.email.trim().toLowerCase();
+            const intendedRecipient = input.message.recipient.trim().toLowerCase();
             const accepted = result.accepted?.some(
                 (recipient) => acceptedRecipient(recipient) === intendedRecipient,
             );

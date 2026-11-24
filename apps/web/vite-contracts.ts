@@ -1,28 +1,12 @@
-import { createHash } from "node:crypto"
-import { readdirSync, readFileSync, statSync } from "node:fs"
-import { isAbsolute, join, relative } from "node:path"
+import { statSync } from "node:fs"
+import { isAbsolute, join, relative, resolve, sep } from "node:path"
 import type { Plugin } from "vite"
 
-/** Vite's lockfile hash does not include our linked contracts runtime bytes. */
-export function contractsDigest(root: string): string {
-  const hash = createHash("sha256")
-  function visit(directory: string) {
-    for (const entry of readdirSync(directory, { withFileTypes: true }).sort(
-      (left, right) => left.name.localeCompare(right.name)
-    )) {
-      const file = join(directory, entry.name)
-      if (entry.isDirectory()) visit(file)
-      else if (entry.isFile() && entry.name.endsWith(".js")) {
-        hash.update(relative(root, file))
-        hash.update("\0")
-        hash.update(readFileSync(file))
-        hash.update("\0")
-      }
-    }
-  }
-  visit(root)
-  return hash.digest("hex")
-}
+import { contractsFingerprint as contractsDigest } from "./vite-contracts-cache"
+
+export { contractsDigest }
+
+const runtimeOutput = /\.[cm]?js$/
 
 /**
  * Vite's dependency scanner reads these entrypoints while re-optimizing. The
@@ -48,11 +32,12 @@ type ContractsWatcher = {
 }
 
 export function watchContracts(
-  root: string,
+  directory: string,
   watcher: ContractsWatcher,
   restart: (forceOptimize: boolean) => Promise<void>,
   onError: (error: unknown) => void
 ) {
+  const root = resolve(directory)
   let digest = contractsDigest(root)
   let closed = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -101,22 +86,32 @@ export function watchContracts(
   }
   const verify = () => {
     if (closed) return
+    if (!contractsDistReady(root)) {
+      timer = setTimeout(verify, 1000)
+      return
+    }
     try {
       const next = contractsDigest(root)
       if (next === digest) return
       digest = next
       void runRestart()
     } catch (error) {
-      onError(error)
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        timer = setTimeout(verify, 1000)
+      } else {
+        onError(error)
+      }
     }
   }
-  const changed = (_event: string, file: string) => {
-    const path = relative(root, file)
+  const changed = (event: string, file: string) => {
+    const path = relative(root, resolve(file))
     if (
       closed ||
+      !["add", "change", "unlink"].includes(event) ||
       isAbsolute(path) ||
-      path.startsWith("..") ||
-      !file.endsWith(".js")
+      path === ".." ||
+      path.startsWith(`..${sep}`) ||
+      !runtimeOutput.test(file)
     )
       return
     clearTimeout(timer)

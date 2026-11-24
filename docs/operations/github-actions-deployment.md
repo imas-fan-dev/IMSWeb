@@ -16,9 +16,16 @@ RustFS。PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。�
 Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最多 32 个。容器重建会产生短暂
 中断；本流程不宣称 blue/green 或零停机。
 
-验证码 HTTP 请求已经改为事务入队，不再同步等待 SMTP：注册与密码重置的 handler 在同一事务内
-写入投递任务，由邮件 Worker 异步发送。入队所需的队列、payload 加密和重发策略缺任何一项时端点
-返回 `503`，而不是退回同步发送。
+注册、邮箱绑定/换绑、密码重置的验证码与站内信邮件转发，统一由邮件 Worker 从专用 Valkey
+队列异步发送。两类任务分别限制并发，避免批量通知占满验证码发送槽位。后台 SMTP 配置测试仍直接发送。
+验证码任务加密入队，PostgreSQL 保留验证码状态、重发限制、SMTP 配置与站内信送达结果；新任务
+不写入 PostgreSQL 邮件队列表。Worker 在验证码记录提交后才尝试投递，在 SMTP 接受后才激活验证码。
+队列不可用时，验证码请求失败且不回退到同步发送；站内信转发在队列恢复后继续。
+
+API 与 Worker 使用同一 `IMS_MAIL_QUEUE_URL`（Compose 内部连接）。专用 `mail-queue` 不对外发布端口，
+使用独立数据卷、`noeviction` 和 AOF `everysec`，不和业务缓存共享实例。异常断电可能丢失最近
+约一秒的队列变更；该设置不保证 SMTP 恰好投递一次。首次切换先停止旧 API 的站内信发送器，旧
+PostgreSQL 验证码任务由兼容 Worker 继续消化。回滚到切换前版本不会消费 Valkey 中的验证码任务。
 
 ## 1. 工作流
 

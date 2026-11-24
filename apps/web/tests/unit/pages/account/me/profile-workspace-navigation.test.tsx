@@ -45,9 +45,13 @@ describe("ProfileWorkspaceNavigation", () => {
     renderNavigation()
 
     const menu = screen.getByRole("navigation", { name: "个人档案菜单" })
+    expect(screen.getByRole("link", { name: "我的留言" })).toHaveAttribute(
+      "href",
+      "/account/me/messages"
+    )
     expect(within(menu).getAllByRole("list")).toHaveLength(1)
-    expect(within(menu).getAllByRole("listitem")).toHaveLength(5)
-    expect(within(menu).getAllByRole("link")).toHaveLength(5)
+    expect(within(menu).getAllByRole("listitem")).toHaveLength(6)
+    expect(within(menu).getAllByRole("link")).toHaveLength(6)
     expect(
       within(menu).getByRole("link", { name: "个人资料" })
     ).toHaveAttribute("aria-current", "page")
@@ -61,9 +65,10 @@ describe("ProfileWorkspaceNavigation", () => {
       "/account/me/namecards"
     )
     // 侧栏的身份块本身就是个人主页入口，地址用公开 uid。
-    expect(
-      screen.getByRole("link", { name: /测试制作人/ })
-    ).toHaveAttribute("href", "/user/1")
+    expect(screen.getByRole("link", { name: /测试制作人/ })).toHaveAttribute(
+      "href",
+      "/user/1"
+    )
   })
 
   it("leaves App section navigation to the account root and back stack", () => {
@@ -74,11 +79,16 @@ describe("ProfileWorkspaceNavigation", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("accepts only the five supported section identifiers", () => {
+  it("accepts only the six supported section identifiers", () => {
     expect(
-      ["profile", "namecards", "collection", "offices", "claims"].every(
-        isProfileWorkspaceSection
-      )
+      [
+        "profile",
+        "namecards",
+        "collection",
+        "offices",
+        "claims",
+        "messages",
+      ].every(isProfileWorkspaceSection)
     ).toBe(true)
     expect(isProfileWorkspaceSection("security")).toBe(false)
     expect(isProfileWorkspaceSection("cards")).toBe(false)

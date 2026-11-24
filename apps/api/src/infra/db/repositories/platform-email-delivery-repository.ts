@@ -143,7 +143,37 @@ function requestCooldownResult(
 export class SqlPlatformEmailDeliveryRepository
     implements PlatformEmailDeliveryQueue, PlatformEmailDeliveryWorkerStore
 {
-    constructor(private readonly database: ManagedSqlDatabase) {}
+    constructor(
+        private readonly database: ManagedSqlDatabase,
+        private readonly publishVerification?: (
+            input: PlatformEmailDeliveryEnqueueInput,
+            deadlineAt: number,
+        ) => Promise<void>,
+    ) {}
+
+    async findVerificationCandidate(
+        purpose: PlatformEmailDeliveryPurpose,
+        deliveryToken: string,
+    ): Promise<string | null> {
+        return this.findCandidateEmail({ purpose, delivery_token: deliveryToken });
+    }
+
+    async settleVerificationCandidate(input: {
+        purpose: PlatformEmailDeliveryPurpose;
+        deliveryToken: string;
+        normalizedEmail: string;
+        outcome: { acceptedAt: number } | { failedAt: number };
+    }): Promise<void> {
+        const { purpose, deliveryToken, normalizedEmail, outcome } = input;
+        await this.database.transaction(async (transaction) => {
+            await this.lockAggregate(transaction, purpose, normalizedEmail);
+            if ('acceptedAt' in outcome) {
+                await this.activateCandidate(transaction, purpose, normalizedEmail, deliveryToken, outcome.acceptedAt);
+            } else {
+                await this.revokeCandidate(transaction, purpose, normalizedEmail, deliveryToken, outcome.failedAt);
+            }
+        });
+    }
 
     enqueueRegistration(
         input: PlatformEmailDeliveryEnqueueInput,
@@ -598,7 +628,7 @@ export class SqlPlatformEmailDeliveryRepository
         current: VerificationRow | null,
     ): Promise<Extract<PlatformEmailDeliveryEnqueueResult, { status: 'queued' }>> {
         const oldToken = current?.pending_token ?? current?.delivery_token;
-        if (oldToken) {
+        if (oldToken && !this.publishVerification) {
             await executeSql(
                 transaction,
                 `UPDATE platform_email_delivery_jobs
@@ -621,25 +651,31 @@ export class SqlPlatformEmailDeliveryRepository
             provisionalExpiresAt,
             resendAfter,
         );
-        await executeSql(
-            transaction,
-            `INSERT INTO platform_email_delivery_jobs
-                (id, purpose, delivery_token, payload_ciphertext,
-                 payload_version, state, attempts, next_attempt_at,
-                 deadline_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
-            [
-                input.jobId,
-                input.purpose,
-                input.deliveryToken,
-                input.payloadCiphertext,
-                input.payloadVersion,
-                input.createdAt,
-                input.createdAt + DELIVERY_DEADLINE_MS,
-                input.createdAt,
-                input.createdAt,
-            ],
-        );
+        if (this.publishVerification) {
+            // Write the encrypted job before committing the candidate. A job left
+            // by a rollback cannot send without a matching committed token.
+            await this.publishVerification(input, input.createdAt + DELIVERY_DEADLINE_MS);
+        } else {
+            await executeSql(
+                transaction,
+                `INSERT INTO platform_email_delivery_jobs
+                    (id, purpose, delivery_token, payload_ciphertext,
+                     payload_version, state, attempts, next_attempt_at,
+                     deadline_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`,
+                [
+                    input.jobId,
+                    input.purpose,
+                    input.deliveryToken,
+                    input.payloadCiphertext,
+                    input.payloadVersion,
+                    input.createdAt,
+                    input.createdAt + DELIVERY_DEADLINE_MS,
+                    input.createdAt,
+                    input.createdAt,
+                ],
+            );
+        }
         return {
             status: 'queued',
             resendAfter,

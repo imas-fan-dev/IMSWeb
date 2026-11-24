@@ -131,6 +131,7 @@ export async function authenticatePlatformRequest(
         return c.json({ success: false, code } satisfies FailureCodeResponse, 403);
     }
     c.set('platformUser', claims);
+    c.set('platformSessionExpiresAt', session.expires_at);
     c.set('platformAccount', identity);
     c.set('platformAuthSource', authorization ? 'authorization' : 'cookie');
     return null;

@@ -54,6 +54,7 @@ import {
     FUDABA_MAP_STYLE_URLS,
     FUDABA_PUBLIC_READ_ENABLED,
     FUDABA_WRITE_ENABLED,
+    FUDABA_MESSAGE_CREATE_ENABLED,
     IS_PRODUCTION,
     LEGACY_BACKOFFICE_JWT_SECRET,
     PLATFORM_JWT_SECRET,
@@ -120,6 +121,8 @@ import { PlatformOAuthSecretCipher } from "@/infra/oauth/platform-oauth-secrets"
 import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service";
 import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
 import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
+import { openValkeyMailQueue, requireMailQueueUrl, type ValkeyMailQueue } from '@/infra/cache/valkey/mail-queue';
+import { PostgresNamecardNotificationListener } from "@/infra/db/postgresql/namecard-notification-listener";
 import { NodeStationMessageRunner } from "@/runtime/node-station-message-runner";
 
 interface InitializableResource {
@@ -347,6 +350,7 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     const cleanupResults = await Promise.allSettled(
         [
             services.objectCleanup ? services.objectCleanup.close() : undefined,
+            services.namecardNotificationEvents?.close?.(),
             services.stationMessageRunner
                 ? services.stationMessageRunner.close()
                 : undefined,
@@ -356,6 +360,7 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     );
     const resourceResults = await Promise.allSettled(
         [
+            Promise.resolve().then(() => (services as Partial<NodeRuntimeServices>).closeMailQueue?.()),
             services.cache?.close
                 ? Promise.resolve().then(() => services.cache?.close?.())
                 : undefined,
@@ -442,6 +447,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         fudaba,
         story,
     } = createNodeRepositories(database);
+    const namecardNotificationEvents = new PostgresNamecardNotificationListener(database);
+    let mailQueue: ValkeyMailQueue | undefined;
     let cacheServices: NodeCacheServices | undefined;
     let objectStorageInfrastructure: ObjectStorageServices | undefined;
     try {
@@ -472,8 +479,12 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 platformEmailConfigurationStore,
                 cacheServices.platformEmailResendPolicyCache,
             );
+        const queue = mailQueue = await openValkeyMailQueue(requireMailQueueUrl(process.env));
         const platformEmailDeliveryQueue: PlatformEmailDeliveryQueue =
-            new SqlPlatformEmailDeliveryRepository(connection);
+            new SqlPlatformEmailDeliveryRepository(connection, async (input, deadlineAt) => {
+                const { jobId, purpose, deliveryToken, payloadVersion, payloadCiphertext } = input;
+                await queue.enqueue({ kind: 'verification', jobId, purpose, deliveryToken, payloadVersion, payloadCiphertext, deadlineAt });
+            });
         const platformEmailJobPayloadCipher: PlatformEmailJobPayloadCipher =
             new PlatformEmailJobPayloadCipherAdapter(PLATFORM_JWT_SECRET);
         const cache = cacheServices.cache;
@@ -490,12 +501,11 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             catalog,
         );
         const stationMessages = new SqlStationMessageRepository(connection);
-        const stationMessageRunner = new NodeStationMessageRunner(
-            stationMessages,
-            platformEmail,
-        );
+        const stationMessageRunner = new NodeStationMessageRunner(stationMessages);
         stationMessageRunner.start();
+        namecardNotificationEvents.start();
         return {
+            namecardNotificationEvents,
             backofficeAuth,
             adminAccounts,
             platformAccounts: platform,
@@ -529,13 +539,14 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                     await connection
                         .prepare("SELECT 1 AS ready")
                         .first("ready");
-                    await cache.ping();
+                    await Promise.all([cache.ping(), queue.ping()]);
                 },
             },
             passwords: new BcryptPasswordVerifier(),
             platformEmailConfiguration: platformEmail,
             platformEmailMessageSender: platformEmail,
             stationMessageRunner,
+            closeMailQueue: () => queue.close(),
             platformEmailDeliveryQueue,
             platformEmailJobPayloadCipher,
             platformEmailResendPolicyCache:
@@ -555,6 +566,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 clientAddressSource: CLIENT_ADDRESS_SOURCE,
                 fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED,
                 fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
+                fudabaMessageCreateEnabled: FUDABA_MESSAGE_CREATE_ENABLED,
                 fudabaMapEnabled: FUDABA_MAP_ENABLED,
                 fudabaMapSources: FUDABA_MAP_STYLE_URLS.map((styleUrl) => ({ provider: 'maplibre', styleUrl })),
                 fudabaGeocoding: FUDABA_GEOCODING_CONFIG,
@@ -567,8 +579,10 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 : [],
         );
         await Promise.allSettled([
+            namecardNotificationEvents.close(),
             objectStorageInfrastructure?.storage.close?.(),
             cacheServices?.cache.close(),
+            Promise.resolve().then(() => mailQueue?.close()),
             story.close(),
             fudaba.close(),
             platform.close(),

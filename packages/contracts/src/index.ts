@@ -18,6 +18,7 @@ export * as fudabaAdminCharacters from "./fudaba/admin-characters.js"
 export * as fudabaAdminUnits from "./fudaba/admin-units.js"
 export * as fudabaCharacters from "./fudaba/characters.js"
 export * as fudabaMapDelivery from "./fudaba/map-delivery.js"
+export * as fudabaWall from "./fudaba/wall.js"
 export * as namecardsRuntime from "./namecards-runtime.js"
 export * as fudabaRuntime from "./fudaba/runtime.js"
 export * as fudabaLocationReview from "./fudaba/location-review.js"
@@ -39,3 +40,5 @@ export * as common from "./common.js"
 export * as paths from "./paths.js"
 
 export * as communityContent from "./community-content.js"
+
+export * as fudabaMessages from "./fudaba/messages.js"

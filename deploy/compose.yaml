@@ -30,6 +30,34 @@ services:
         max-size: 10m
         max-file: "3"
 
+  # Disposable PostgreSQL for local API/PostgreSQL test runs. Mirrors the CI
+  # service in .github/workflows/ci.yml (same image, credentials and database)
+  # but keeps data in tmpfs and is started on demand, never by default.
+  postgres-test:
+    image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}
+    profiles:
+      - test
+    restart: "no"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: imsweb
+      POSTGRES_PASSWORD: imsweb-test-password
+    ports:
+      - "127.0.0.1:${IMS_POSTGRES_TEST_PORT:-15434}:5432"
+    tmpfs:
+      - /var/lib/postgresql:rw,size=2g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U imsweb -d postgres
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 2s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 5s
+
   valkey:
     image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}
     profiles:
@@ -145,17 +173,41 @@ services:
         mc anonymous set-json /tmp/policy.json "local/$${IMS_RUSTFS_BUCKET}"
         mc version enable "local/$${IMS_RUSTFS_BUCKET}"
 
+  mail-queue:
+    image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}
+    restart: unless-stopped
+    command: [valkey-server, --save, "", --appendonly, "yes", --appendfsync, everysec, --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    volumes:
+      - mail-queue-data:/data
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   email-worker:
     image: ${IMS_API_IMAGE:-imsweb-api:local}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      mail-queue:
+        condition: service_healthy
     environment:
-      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,postgres,host.containers.internal,host.docker.internal"
-      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,postgres,host.containers.internal,host.docker.internal"
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,postgres,mail-queue,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,postgres,mail-queue,host.containers.internal,host.docker.internal"
       NODE_ENV: ${IMS_API_NODE_ENV:-development}
       IMS_ENV_FILE: ""
+      IMS_MAIL_QUEUE_URL: redis://mail-queue:6379
       IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}
       DATABASE_URL: ${IMS_API_DATABASE_URL:-postgresql://imsweb:imsweb-local-password@postgres:5432/imsweb}
       IMS_PG_POOL_MAX: ${IMS_PG_POOL_MAX:-10}
@@ -214,13 +266,16 @@ services:
       valkey:
         condition: service_healthy
         required: false
+      mail-queue:
+        condition: service_healthy
     environment:
-      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
-      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,host.containers.internal,host.docker.internal"
+      NO_PROXY: "${NO_PROXY:-},localhost,127.0.0.1,::1,rustfs,postgres,mail-queue,host.containers.internal,host.docker.internal"
+      no_proxy: "${no_proxy:-},localhost,127.0.0.1,::1,rustfs,postgres,mail-queue,host.containers.internal,host.docker.internal"
       NODE_ENV: ${IMS_API_NODE_ENV:-development}
       HOST: 0.0.0.0
       PORT: 3000
       IMS_ENV_FILE: ""
+      IMS_MAIL_QUEUE_URL: redis://mail-queue:6379
       IMS_BACKOFFICE_JWT_SECRET: ${IMS_BACKOFFICE_JWT_SECRET-}
       IMS_JWT_SECRET: ${IMS_JWT_SECRET-}
       IMS_PLATFORM_JWT_SECRET: ${IMS_PLATFORM_JWT_SECRET-}
@@ -300,6 +355,8 @@ services:
         max-file: "3"
 
 volumes:
+  mail-queue-data:
+    name: imsweb-mail-queue-data
   postgresql-data:
     name: imsweb-postgresql_postgresql-data
   rustfs-data:

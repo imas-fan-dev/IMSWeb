@@ -41,6 +41,8 @@
     { "subpath": "./admin", "source": "src/admin.ts", "namespace": "admin", "runtime": "schema" },
     { "subpath": "./z", "source": "src/z.ts", "namespace": null, "runtime": "z-adapter" },
     { "subpath": "./common", "source": "src/common.ts", "namespace": "common", "runtime": "schema" },
-    { "subpath": "./paths", "source": "src/paths.ts", "namespace": "paths", "runtime": "zod-free" }
+    { "subpath": "./paths", "source": "src/paths.ts", "namespace": "paths", "runtime": "zod-free" },
+    { "subpath": "./fudaba/wall", "source": "src/fudaba/wall.ts", "namespace": "fudabaWall", "runtime": "schema" },
+    { "subpath": "./fudaba/messages", "source": "src/fudaba/messages.ts", "namespace": "fudabaMessages", "runtime": "schema" }
   ]
 }

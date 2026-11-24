@@ -334,6 +334,32 @@ describe('station message repository', () => {
         assert.deepEqual(await repository.listPendingEmailMessages(10), []);
     });
 
+    postgresTest('Valkey forwarding sees only dispatched recipients and settles idempotently', async () => {
+        const database = await createPostgresTestDatabase('station-messages-valkey');
+        const repository = new SqlStationMessageRepository(database);
+        await seedAccount(database, 'acct-a', '甲', 'a@example.com');
+        const scheduledAt = Date.now() + 60_000;
+        const message = await repository.create({
+            senderAdminId: '1', senderAdminName: '调试管理员', title: '邮件', body: '正文。',
+            audience: 'selected', accountIds: ['acct-a'], forwardEmail: true, scheduledAt,
+        });
+        assert.deepEqual(await repository.listPendingStationMail(10), []);
+        assert.equal(await repository.findPendingStationMail(message.id, 'acct-a'), null);
+        await executeSql(database,
+            'UPDATE station_messages SET scheduled_at = CURRENT_TIMESTAMP - INTERVAL \'1 minute\' WHERE id=?',
+            [message.id]);
+        assert.equal((await repository.dispatchDue())?.id, message.id);
+        assert.deepEqual(await repository.listPendingStationMail(10), [{ messageId: message.id, accountId: 'acct-a', maxAttempts: 3 }]);
+        assert.deepEqual(await repository.findPendingStationMail(message.id, 'acct-a'), {
+            recipient: 'a@example.com', subject: '邮件', text: '正文。',
+        });
+        await repository.settleStationMail(message.id, 'acct-a', { acceptedAt: Date.now() });
+        await repository.settleStationMail(message.id, 'acct-a', { failure: 'stale' });
+        assert.equal((await repository.findById(message.id))?.emailSentCount, 1);
+        assert.equal((await repository.findById(message.id))?.emailFailedCount, 0);
+        assert.deepEqual(await repository.listPendingStationMail(10), []);
+    });
+
     postgresTest('records a delivered email once', async () => {
         const database = await createPostgresTestDatabase('station-messages-email-sent');
         const repository = new SqlStationMessageRepository(database);

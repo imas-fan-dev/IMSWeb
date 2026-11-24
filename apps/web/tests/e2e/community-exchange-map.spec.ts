@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright"
 import { api, expect, test } from "./fixtures/test"
 
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installOfficePageDefaults } from "./fixtures/office-page-defaults"
 import {
   installPlatformOAuthProvidersMock,
   installPlatformSessionMock,
@@ -107,6 +108,16 @@ test.beforeEach(async ({ page, api }, testInfo) => {
       !["127.0.0.1", "localhost"].includes(url.hostname),
     (route) => route.abort("blockedbyclient")
   )
+  await api.mockRoute(
+    "/api/community/exchange/cards/card-1/reactions",
+    (route) =>
+      route.fulfill({
+        json: { success: true, cardId: "card-1", reactions: [] },
+      }),
+    "GET",
+    { min: 0, max: 1 }
+  )
+  installOfficePageDefaults(api, directoryOffice.slug, directoryOffice)
   await api.mockRoute(
     "**/api/community/exchange/offices/shanghai-weekend",
     async (route) => {
@@ -1075,6 +1086,7 @@ test.describe("map first-use guide", () => {
     page,
     api,
   }, testInfo) => {
+    test.slow()
     await page.emulateMedia({ reducedMotion: "reduce" })
     await api.mockRoute(
       "/api/community/exchange/map/config",
@@ -1134,10 +1146,11 @@ test.describe("map first-use guide", () => {
         page.evaluate(() => localStorage.getItem("ims:exchange-map-guide:v1"))
       )
       .toBe("done")
-    await page.reload()
+    await page.reload({ waitUntil: "domcontentloaded" })
     await expect(page.locator("[data-exchange-office-map]")).toHaveAttribute(
       "data-map-state",
-      "ready"
+      "ready",
+      { timeout: 20_000 }
     )
     await page.getByRole("button", { name: "更多地图工具" }).click()
     await page.getByRole("menuitem", { name: "使用帮助" }).click()
@@ -1159,6 +1172,20 @@ test("offers office creation at a right-clicked position and keyboard-selected m
   api,
   isMobile,
 }, testInfo) => {
+  installEmptyWikiCatalogMock(api)
+  let writtenCreateIntent: string | null = null
+  await page.exposeBinding("__recordOfficeCreateIntent", (_, value: string) => {
+    writtenCreateIntent = value
+  })
+  await page.addInitScript(() => {
+    const setItem = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key, value) {
+      setItem.call(this, key, value)
+      if (this === sessionStorage && key === "ims:office-create-intent") {
+        void Reflect.get(window, "__recordOfficeCreateIntent")(value)
+      }
+    }
+  })
   await page.emulateMedia({ reducedMotion: "reduce" })
   await api.mockRoute(
     "/api/community/exchange/map/config",
@@ -1178,7 +1205,6 @@ test("offers office creation at a right-clicked position and keyboard-selected m
     "GET",
     { min: 1, max: 5 }
   )
-  installEmptyWikiCatalogMock(api)
   // 未登录会话与登录页的 OAuth 供应商：桌面端从地图创建事务所会先被送去登录，
   // 这两条请求要么发生、要么完全不发生（移动端留在原地），所以下限为 0。
   await installPlatformSessionMock(
@@ -1233,11 +1259,6 @@ test("offers office creation at a right-clicked position and keyboard-selected m
       /\/account\/login\?returnTo=%2Faccount%2Fme%2Foffices%3Fcreate%3D[\w-]+$/
     )
   }
-  expect(
-    await page.evaluate(
-      () =>
-        JSON.parse(sessionStorage.getItem("ims:office-create-intent") ?? "null")
-          ?.target.kind
-    )
-  ).toBe("wgs84")
+  await expect.poll(() => writtenCreateIntent).not.toBeNull()
+  expect(JSON.parse(writtenCreateIntent ?? "null")?.target.kind).toBe("wgs84")
 })

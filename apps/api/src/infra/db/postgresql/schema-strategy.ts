@@ -5,21 +5,15 @@ import type {
 
 // Must name the newest migration whose columns production code already reads.
 // Catalog/profile maintenance requires the canonical catalog and Wiki bindings.
-// Wiki document mode writes/reads `content_mode`, `wiki_entry_documents`, and
-// `wiki_entry_document_revisions`, and document media/cover references need
-// `wiki_entry_document_media` / `wiki_entry_document_cover_refs`; skipping an
-// additive migration would break public story reads, document saves, or media
-// uploads.
-// Fail at startup if deployment has not yet applied the additive migration.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20261122140000_wiki_entry_document_media';
-// Parallel branches can introduce an earlier timestamp after the newest catalog
+    '20261123120000_namecard_notification_events';
+// Parallel branches can introduce an earlier timestamp after the newest
 // migration has already run. Checking only that newest row would miss this gap.
 const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     REQUIRED_POSTGRESQL_SCHEMA_VERSION,
-    // Document mode read/write paths depend on both Wiki additive migrations:
-    // media and cover references would silently break with only the newer one.
+    // Public story reads, document saves, and media uploads depend on both Wiki migrations.
     '20261122120000_wiki_entry_documents',
+    '20261122140000_wiki_entry_document_media',
     '20261121120000_namecard_project_visibility',
     '20261105190000_character_profile_authority',
     '20261105120000_platform_profile_slug_not_numeric',

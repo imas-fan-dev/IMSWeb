@@ -63,6 +63,37 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "GET", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project" },
   { module: "@imsweb/contracts/wiki", symbol: "wikiAssetParamsSchema", kind: "param", method: "HEAD", path: "/api/wiki/document-media/:asset", carriers: 1, policy: "accept-and-project" },
 ];
+// Fudaba office message board and progressive wall routes. They are new public and admin
+// routes that were added after the frozen baseline; each carrier is listed explicitly.
+const EXPLICIT_MESSAGE_WALL_ADDITIONS = [
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "DELETE", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/admin/community/exchange/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/me/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageOfficeParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaOfficeSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:officeSlug/wall", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:officeSlug/wall", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/mixed-wall", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/mixed-wall", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/wall-layout", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/wall-layout", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/wall-scene", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/wall-scene", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageOfficeParamsSchema", kind: "param", method: "POST", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageCreateRequestSchema", kind: "json", method: "POST", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/admin/community/exchange/messages/:messageId/moderation", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageModerationRequestSchema", kind: "json", method: "PUT", path: "/api/admin/community/exchange/messages/:messageId/moderation", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageEditRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId/office-moderation", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageModerationRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId/office-moderation", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId/placement", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessagePlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId/placement", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaCardOfficePlacementParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWorldPlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "reject" },
+];
+const EXPLICIT_ROUTE_ADDITIONS = [...EXPLICIT_ADMIN_ADDITIONS, ...EXPLICIT_MESSAGE_WALL_ADDITIONS];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
   platformAuthOAuthPath: "/api/platform/auth/oauth", adminPlatformAuthOAuthPath: "/api/admin/platform/auth/oauth",
@@ -678,7 +709,7 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
   const matchesAdminAddition = (carrier, addition) => carrier.schemaModule === addition.module &&
     carrier.schemaSymbol === addition.symbol && carrier.kind === addition.kind &&
     carrier.method === addition.method && carrier.path === addition.path;
-  const explicitAdminAdditions = (enforceBaseline ? EXPLICIT_ADMIN_ADDITIONS : []).map((addition) => {
+  const explicitAdminAdditions = (enforceBaseline ? EXPLICIT_ROUTE_ADDITIONS : []).map((addition) => {
     const matching = carriers.filter((carrier) => matchesAdminAddition(carrier, addition));
     if (matching.length !== addition.carriers || matching.some((carrier) => carrier.policy !== addition.policy)) {
       diagnostics.push(reconciliationIssue(
@@ -690,7 +721,7 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
   });
   const baselineCarriers = carriers.filter((carrier) =>
     !(carrier.kind === "query" && additionKeys.has(`${carrier.schemaModule}\0${carrier.schemaSymbol}`)) &&
-    !EXPLICIT_ADMIN_ADDITIONS.some((addition) => matchesAdminAddition(carrier, addition)));
+    !EXPLICIT_ROUTE_ADDITIONS.some((addition) => matchesAdminAddition(carrier, addition)));
   const baselineRouteCount = new Set(baselineCarriers.map((carrier) => `${carrier.method}\0${carrier.path}`)).size;
   const baselinePolicies = policyCounts(baselineCarriers);
   const baselineChecks = [

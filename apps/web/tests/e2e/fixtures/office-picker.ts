@@ -1,6 +1,8 @@
 import { test, expect } from "./test"
 import { installEmptyWikiCatalogMock } from "./homepage"
 import { settleToasts } from "./toast"
+import { platformProfileWithHandle } from "./platform-auth"
+import { installOfficePageDefaults } from "./office-page-defaults"
 
 export function officePickerScenario() {
   for (const editing of [false, true])
@@ -38,7 +40,7 @@ export function officePickerScenario() {
           "/api/platform/me",
           {
             ...session,
-            profile: { ...session.profile, updatedAt: 1, uid: 1, pageSlug: null },
+            profile: platformProfileWithHandle(session.profile),
             capabilities: { fudabaWrite: true },
           },
         ],
@@ -155,6 +157,7 @@ export function officePickerScenario() {
         archivedAt: null,
       }
       let currentOffice = officeBase
+      installOfficePageDefaults(api, officeBase.slug, officeBase)
       await api.mock(
         {
           method: "GET",
