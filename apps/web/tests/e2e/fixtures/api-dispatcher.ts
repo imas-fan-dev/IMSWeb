@@ -287,7 +287,10 @@ export class ApiDispatcher {
       (item) =>
         item.method === expectation.method && item.path === expectation.path
     )
-    if (existing && isFallback(existing) && !expectation.fallback) {
+    // A shared default never overrides or duplicates a spec's own expectation,
+    // whichever of the two was registered first.
+    if (existing && expectation.fallback) return
+    if (existing && isFallback(existing)) {
       this.#registrations = this.#registrations.filter(
         (item) => item !== existing
       )

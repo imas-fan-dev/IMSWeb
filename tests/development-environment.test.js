@@ -140,11 +140,14 @@ test.describe('development environment launcher', () => {
     assertIsolatedPlatformSecret(configuration);
     assert.equal(
       configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
-      "false",
+      "true",
     );
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "false");
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "false");
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL, "");
+    assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "true");
+    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "true");
+    assert.equal(
+      configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+      "https://tiles.openfreemap.org/styles/positron",
+    );
     assert.equal(configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT, "");
     assert.equal(
       configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
@@ -335,9 +338,11 @@ test.describe('development environment launcher', () => {
     ]) {
       assert.throws(() => resolve({ [name]: "yes" }), new RegExp(`${name} must`));
     }
-    assert.throws(
-      () => resolve({ IMS_DEV_FUDABA_MAP_ENABLED: "true" }),
-      /IMS_DEV_FUDABA_MAP_STYLE_URL is required/,
+    // The map gate opens by default, so an unnamed style URL falls back to the
+    // documented keyless OpenFreeMap style instead of failing startup.
+    assert.equal(
+      resolve({}).apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+      "https://tiles.openfreemap.org/styles/positron",
     );
     assert.throws(
       () =>

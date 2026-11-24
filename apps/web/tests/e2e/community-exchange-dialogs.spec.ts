@@ -8,6 +8,8 @@ import type {
 } from "@imsweb/contracts/fudaba"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
+import { installOfficePageDefaults } from "./fixtures/office-page-defaults"
+import { mockWallScene } from "./fixtures/wall-scene"
 import { settleToasts } from "./fixtures/toast"
 
 const office = {
@@ -34,6 +36,7 @@ async function installDialogApis(
   publicName = () => office.name
 ) {
   await installEmptyWikiCatalogMock(api, { min: 0, max: 8 })
+  installOfficePageDefaults(api, office.slug, office)
   await api.mockRoute(
     "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
@@ -101,14 +104,33 @@ async function installDialogApis(
     "GET",
     { min: 1, max: 6 }
   )
-  await api.mockRoute(
-    "/api/community/exchange/offices/dialog-office",
+  await mockWallScene(
+    api,
+    "/api/community/exchange/offices/dialog-office/mixed-wall",
     (route) =>
       route.fulfill({
-        json: { office: { ...office, name: publicName(), cards } },
+        json: {
+          office: { ...office, name: publicName() },
+          wall: {
+            layoutVersion: 1,
+            left: 0,
+            top: 0,
+            right: 1600,
+            bottom: 900,
+            total: cards.length,
+            maxZIndex: cards.length,
+          },
+          items: cards.map((card) => ({ kind: "card", card, canMove: false })),
+          pageInfo: emptyPage.pageInfo,
+          capabilities: {
+            canCreateMessage: false,
+            canArrangeWall: false,
+            canManageMessages: false,
+          },
+        },
       }),
     "GET",
-    { min: 1, max: 2 }
+    { min: 1, max: 12 }
   )
 }
 
@@ -351,8 +373,8 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     },
     placement: {
       pinnedAt: ownedCard.createdAt,
-      x: 50,
-      y: 50,
+      x: 800,
+      y: 450,
       rotation: 0,
       zIndex: 1,
       revision: 1,
@@ -460,16 +482,14 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
         })
     )
   }
-  await api.mock(
-    {
-      method: "GET",
-      path: `/api/community/exchange/cards/${ownedCard.id}/reactions`,
-      times: 1,
-    },
+  await api.mockRoute(
+    `/api/community/exchange/cards/${ownedCard.id}/reactions`,
     (route) =>
       route.fulfill({
         json: { success: true, cardId: ownedCard.id, reactions: [] },
-      })
+      }),
+    "GET",
+    { min: 1, max: 2 }
   )
   let mapBoundsReads = 0
   page.on("request", (request) => {
@@ -541,12 +561,13 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   await expect(
     detail.getByRole("heading", { name: "地图中更新的事务所", exact: true })
   ).toBeVisible()
-  await detail
-    .getByRole("button", {
-      name: `查看${cardLabel(ownedCard)}正面`,
-      exact: true,
-    })
-    .click()
+  const wallCard = detail.getByRole("button", {
+    name: `查看${cardLabel(ownedCard)}正面`,
+    exact: true,
+  })
+  await wallCard.click()
+  await expect(wallCard).toHaveAttribute("title", "查看大图")
+  await wallCard.click()
   const preview = page.getByRole("dialog", {
     name: `${cardLabel(ownedCard)}正面`,
     exact: true,

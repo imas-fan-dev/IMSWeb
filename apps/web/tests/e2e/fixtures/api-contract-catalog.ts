@@ -1,4 +1,27 @@
 import {
+  fudabaWallLayoutResponseSchema,
+  fudabaWallSceneResponseSchema,
+} from "@imsweb/contracts/fudaba/messages"
+import {
+  fudabaMixedWallQuerySchema,
+  fudabaMixedWallResponseSchema,
+  fudabaMessageCreateRequestSchema,
+  fudabaMessageEditRequestSchema,
+  fudabaMessagePlacementRequestSchema,
+  fudabaMessageModerationRequestSchema,
+  fudabaMessageListQuerySchema,
+  fudabaMessageResponseSchema,
+  fudabaMessageDestroyResponseSchema,
+  fudabaMessageListResponseSchema,
+  fudabaMessageErrorResponseSchema,
+} from "@imsweb/contracts/fudaba/messages"
+import {
+  fudabaWallQuerySchema,
+  fudabaWallResponseSchema,
+  fudabaWorldPlacementRequestSchema,
+  fudabaWorldPlacementResponseSchema,
+} from "@imsweb/contracts/fudaba/wall"
+import {
   communityContentSchema,
   communityContentErrorResponseSchema,
   adminCommunityContentSnapshotSchema,
@@ -440,6 +463,102 @@ export function resolveApiContract(
     }
 
   const exchange = "/api/community/exchange"
+  const messageErrors = {
+    400: fudabaMessageErrorResponseSchema,
+    401: fudabaMessageErrorResponseSchema,
+    403: fudabaMessageErrorResponseSchema,
+    404: fudabaMessageErrorResponseSchema,
+    409: fudabaMessageErrorResponseSchema,
+    410: fudabaMessageErrorResponseSchema,
+    429: fudabaMessageErrorResponseSchema,
+    500: fudabaMessageErrorResponseSchema,
+    503: fudabaMessageErrorResponseSchema,
+  }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-layout$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallLayoutResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-scene$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallSceneResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/mixed-wall$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaMixedWallResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    (/^\/api\/community\/exchange\/offices\/[^/]+\/messages$/.test(path) ||
+      path === exchange + "/me/messages" ||
+      path === exchange + "/messages")
+  )
+    return {
+      query: fudabaMessageListQuerySchema,
+      responses: { 200: fudabaMessageListResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/messages$/.test(path)
+  )
+    return {
+      body: fudabaMessageCreateRequestSchema,
+      responses: {
+        200: fudabaMessageResponseSchema,
+        201: fudabaMessageResponseSchema,
+        ...messageErrors,
+      },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return { responses: { 200: fudabaMessageResponseSchema, ...messageErrors } }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaMessageEditRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "DELETE" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return {
+      responses: { 200: fudabaMessageDestroyResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+\/placement$/.test(path)
+  )
+    return {
+      body: fudabaMessagePlacementRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+\/(office-moderation|moderation)$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaMessageModerationRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+
   if (
     method === "GET" &&
     (path === `${exchange}/series` || path === `${exchange}/office-series`)
@@ -476,6 +595,28 @@ export function resolveApiContract(
     }
   if (
     method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall$/.test(path)
+  )
+    return {
+      query: fudabaWallQuerySchema,
+      responses: { 200: fudabaWallResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/cards\/[^/]+\/world-placement$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaWorldPlacementRequestSchema,
+      responses: {
+        200: fudabaWorldPlacementResponseSchema,
+        201: fudabaWorldPlacementResponseSchema,
+        ...fudabaErrors,
+      },
+    }
+  if (
+    method === "GET" &&
     /^\/api\/community\/exchange\/offices\/[^/]+$/.test(path)
   )
     return { responses: { 200: fudabaOfficeDetailSchema, ...fudabaErrors } }
@@ -498,7 +639,8 @@ export function resolveApiContract(
     }
   if (
     method === "GET" &&
-    (path === `${exchange}/me/series` || path === `${exchange}/me/office-series`)
+    (path === `${exchange}/me/series` ||
+      path === `${exchange}/me/office-series`)
   )
     return {
       query: fudabaIgnoredQuerySchema,

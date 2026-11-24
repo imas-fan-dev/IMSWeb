@@ -386,6 +386,26 @@
         "types": "./dist/cjs/paths.d.ts",
         "default": "./dist/cjs/paths.js"
       }
+    },
+    "./fudaba/wall": {
+      "import": {
+        "types": "./dist/esm/fudaba/wall.d.ts",
+        "default": "./dist/esm/fudaba/wall.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/wall.d.ts",
+        "default": "./dist/cjs/fudaba/wall.js"
+      }
+    },
+    "./fudaba/messages": {
+      "import": {
+        "types": "./dist/esm/fudaba/messages.d.ts",
+        "default": "./dist/esm/fudaba/messages.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fudaba/messages.d.ts",
+        "default": "./dist/cjs/fudaba/messages.js"
+      }
     }
   },
   "scripts": {

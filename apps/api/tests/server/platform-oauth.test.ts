@@ -24,7 +24,9 @@ import { // pi-lens-ignore: ts:2305
     platformOAuthAdminHttpErrorSchema, platformOAuthAdminProviderDeleteSchema, platformOAuthAdminProviderListSchema, platformOAuthAdminProviderMutationSchema } from '@imsweb/contracts/platform/admin';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { afterAll, describe, onTestFinished, test } from 'vitest';
+import { lookup } from 'node:dns/promises';
+import type { LookupAddress, LookupAllOptions } from 'node:dns';
+import { afterAll, describe, onTestFinished, test, vi } from 'vitest';
 
 // platform-oauth-callback-branches.test.ts
 {
@@ -863,6 +865,12 @@ import { afterAll, describe, onTestFinished, test } from 'vitest';
         );
 
         test('generic OAuth exchange uses persisted protocol and nested profile paths', async () => {
+            // Its HTTP responses are fixtures; external DNS must be a fixture too.
+            const resolveAll: (hostname: string, options: LookupAllOptions) => Promise<LookupAddress[]> = lookup;
+            const resolver = vi.mocked(resolveAll);
+            resolver.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+            onTestFinished(() => { resolver.mockReset(); });
+
             const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
             const fetchImpl: typeof fetch = async (input, init) => {
                 const url = String(input);
@@ -1416,3 +1424,9 @@ import { afterAll, describe, onTestFinished, test } from 'vitest';
         });
     });
 }
+
+
+vi.mock('node:dns/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('node:dns/promises')>();
+    return { ...actual, lookup: vi.fn(actual.lookup) };
+});

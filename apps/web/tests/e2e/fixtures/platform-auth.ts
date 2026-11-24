@@ -86,6 +86,14 @@ export function installRecoveringPlatformOAuthProvidersMock(
   })
 }
 
+/**
+ * `/api/platform/me` carries the public handle fields that the session profile
+ * does not, and the strict profile contract rejects a response without them.
+ */
+export function platformProfileWithHandle<T extends object>(profile: T) {
+  return { ...profile, updatedAt: 1, uid: 1, pageSlug: null }
+}
+
 export function installPlatformSessionMock(
   api: ApiDispatcher,
   response: PlatformSession | { success: false; code: string },

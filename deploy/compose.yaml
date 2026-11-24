@@ -30,6 +30,34 @@ services:
         max-size: 10m
         max-file: "3"
 
+  # Disposable PostgreSQL for local API/PostgreSQL test runs. Mirrors the CI
+  # service in .github/workflows/ci.yml (same image, credentials and database)
+  # but keeps data in tmpfs and is started on demand, never by default.
+  postgres-test:
+    image: ${IMS_POSTGRES_IMAGE:-postgres:18.4-alpine}
+    profiles:
+      - test
+    restart: "no"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: imsweb
+      POSTGRES_PASSWORD: imsweb-test-password
+    ports:
+      - "127.0.0.1:${IMS_POSTGRES_TEST_PORT:-15434}:5432"
+    tmpfs:
+      - /var/lib/postgresql:rw,size=2g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U imsweb -d postgres
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 2s
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 5s
+
   valkey:
     image: ${IMS_VALKEY_IMAGE:-valkey/valkey:8.1.9-alpine}
     profiles:

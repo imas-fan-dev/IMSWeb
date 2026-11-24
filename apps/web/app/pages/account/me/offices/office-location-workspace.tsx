@@ -1,3 +1,4 @@
+import { MessagesPanel } from "~/pages/community/exchange/messages-panel"
 import {
   Building2Icon,
   CircleAlertIcon,
@@ -413,6 +414,9 @@ export function OfficeLocationWorkspace({
                 if (office) void loadSelection(office.id)
               }}
             />
+            {office && !creating ? (
+              <MessagesPanel mode="office" officeId={office.id} />
+            ) : null}
           </div>
         ) : (
           <Empty className="mt-8 min-h-72 border-y">

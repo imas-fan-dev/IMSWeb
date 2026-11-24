@@ -116,14 +116,15 @@ IMS_DEV_EMAIL_WORKER_HEALTH_PORT=3101 pnpm dev
 构建目标也不会污染普通 Web。细粒度 API 入口仍按原契约读取
 `apps/api/.env`。
 
-统一启动器默认把 Fudaba 公开读取、写入和区域地图三个开关保持为 `false`。需要本地验证只读
-区域地图时，使用专用开发变量显式启用，并指向官方在线 OpenFreeMap 样式：
+统一启动器默认打开 Fudaba 公开读取、写入、V2 留言发布和区域地图四个开关，本地无需额外配置
+即可访问交易所、名片墙和留言板。地图开关需要一个样式地址，未指定时启动器注入官方在线
+OpenFreeMap 样式；要关闭任意开关，显式设置对应 `IMS_DEV_*` 为 `false`：
 
 ```sh
-IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=true \
-IMS_DEV_FUDABA_MAP_ENABLED=true \
-IMS_DEV_FUDABA_MAP_STYLE_URL=https://tiles.openfreemap.org/styles/positron \
-IMS_DEV_FUDABA_MAP_STYLE_URLS=/maps/exchange-style.json \
+IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=false \
+IMS_DEV_FUDABA_WRITE_ENABLED=false \
+IMS_DEV_FUDABA_MESSAGE_CREATE_ENABLED=false \
+IMS_DEV_FUDABA_MAP_ENABLED=false \
 pnpm dev
 ```
 
@@ -140,12 +141,10 @@ Web 开发插件将构建后 JS 内容摘要纳入 Vite 依赖缓存标识，并
 CJS/ESM），仍须重启 Web 进程以清除 Node 模块缓存。通过 `pnpm dev` 启动时，其子进程退出会连带停止其他应用子进程，
 需要恢复完整开发入口；不要仅停止 Web 后误以为 API 和邮件 Worker 仍在运行。
 
-只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
-验证事务所地点选择时，配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
+已认证写操作随启动器默认打开，无需再单独设置。地点搜索默认关闭；需要验证事务所地点选择时，
+配置 Nominatim-compatible HTTPS 搜索端点和可识别的 User-Agent：
 
 ```sh
-IMS_DEV_FUDABA_PUBLIC_READ_ENABLED=true \
-IMS_DEV_FUDABA_WRITE_ENABLED=true \
 IMS_DEV_FUDABA_GEOCODING_ENDPOINT=https://nominatim.openstreetmap.org/search \
 IMS_DEV_FUDABA_GEOCODING_USER_AGENT='IMSWeb local development' \
 pnpm dev
