@@ -17,6 +17,7 @@ import {
     handleListNamecardNotifications,
     handleMarkNamecardNotificationsRead
 } from '@/domains/community/fudaba/claims/handlers/namecard-notifications';
+import { handleNamecardNotificationStream } from '@/domains/community/fudaba/claims/handlers/namecard-notification-stream';
 import { platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
 import {
     jsonSchemaValidator,
@@ -50,6 +51,7 @@ export function fudabaClaimRoutes(): ImsCapabilityRouter {
         querySchemaValidator(fudabaIgnoredQuerySchema),
         handleListNamecardNotifications
     );
+    routes.get('/me/notifications/stream', platformAuth, handleNamecardNotificationStream);
     routes.post(
         '/me/notifications/read',
         ...write,

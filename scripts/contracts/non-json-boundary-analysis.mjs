@@ -147,7 +147,14 @@ function responseKinds(checker, functionLike, visited = new Set()) {
         if (ts.isIdentifier(receiver) && ["c", "context"].includes(receiver.text)) {
           if (expression.name.text === "body") {
             const first = unparenthesize(node.arguments[0] ?? node);
-            kinds.add(first.kind === ts.SyntaxKind.NullKeyword ? "no-content" : "binary");
+            const headers = node.arguments[2] && unparenthesize(node.arguments[2]);
+            const isEventStream = headers && ts.isObjectLiteralExpression(headers)
+              && headers.properties.some((property) => ts.isPropertyAssignment(property)
+                && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+                && property.name.text.toLowerCase() === "content-type"
+                && ts.isStringLiteral(property.initializer)
+                && /^text\/event-stream(?:;|$)/i.test(property.initializer.text));
+            kinds.add(first.kind === ts.SyntaxKind.NullKeyword ? "no-content" : isEventStream ? "event-stream" : "binary");
           }
           if (expression.name.text === "html") kinds.add("html");
           if (expression.name.text === "redirect") kinds.add("redirect");

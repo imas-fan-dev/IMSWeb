@@ -337,6 +337,7 @@ const portContracts = new Map([
     ["repositories/site-packages.ts", ["SitePackageRepository"]],
     ["repositories/wiki.ts", ["StoryRepository"]],
     ["repositories/index.ts", ["RepositoryServices"]],
+    ["namecard-notification-events.ts", ["NamecardNotificationEvents", "NamecardNotificationSubscriber"]],
     ["station-message-dispatch.ts", ["StationMessageDispatchRunner"]],
     ["runtime-services.ts", ["RuntimeServices", "NodeRuntimeServices"]],
     [

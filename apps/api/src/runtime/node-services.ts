@@ -122,6 +122,7 @@ import { HmacBackofficeTokenService } from "@/infra/security/hmac/token-service"
 import { HmacPlatformTokenService } from "@/infra/security/hmac/platform-token-service";
 import { NodeObjectCleanupRunner } from "@/runtime/node-object-cleanup-runner";
 import { openValkeyMailQueue, requireMailQueueUrl, type ValkeyMailQueue } from '@/infra/cache/valkey/mail-queue';
+import { PostgresNamecardNotificationListener } from "@/infra/db/postgresql/namecard-notification-listener";
 import { NodeStationMessageRunner } from "@/runtime/node-station-message-runner";
 
 interface InitializableResource {
@@ -349,6 +350,7 @@ async function closeRuntimeServices(services: RuntimeServices): Promise<void> {
     const cleanupResults = await Promise.allSettled(
         [
             services.objectCleanup ? services.objectCleanup.close() : undefined,
+            services.namecardNotificationEvents?.close?.(),
             services.stationMessageRunner
                 ? services.stationMessageRunner.close()
                 : undefined,
@@ -445,6 +447,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         fudaba,
         story,
     } = createNodeRepositories(database);
+    const namecardNotificationEvents = new PostgresNamecardNotificationListener(database);
     let mailQueue: ValkeyMailQueue | undefined;
     let cacheServices: NodeCacheServices | undefined;
     let objectStorageInfrastructure: ObjectStorageServices | undefined;
@@ -500,7 +503,9 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         const stationMessages = new SqlStationMessageRepository(connection);
         const stationMessageRunner = new NodeStationMessageRunner(stationMessages);
         stationMessageRunner.start();
+        namecardNotificationEvents.start();
         return {
+            namecardNotificationEvents,
             backofficeAuth,
             adminAccounts,
             platformAccounts: platform,
@@ -574,6 +579,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 : [],
         );
         await Promise.allSettled([
+            namecardNotificationEvents.close(),
             objectStorageInfrastructure?.storage.close?.(),
             cacheServices?.cache.close(),
             Promise.resolve().then(() => mailQueue?.close()),

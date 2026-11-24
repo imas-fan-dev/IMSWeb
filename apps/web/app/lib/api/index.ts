@@ -1,5 +1,6 @@
 export { ApiError, isApiError } from "./api-error"
 export { sendWithAbort } from "./abort"
+export { receiveInboxChanges } from "./namecard-notification-stream"
 export { createMapboxRasterSource } from "./endpoints/fudaba/mapbox-raster"
 export * from "./endpoints"
 export {

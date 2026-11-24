@@ -2,6 +2,15 @@
   "format": "imsweb-non-json-boundaries/v1",
   "boundaries": [
     {
+      "id": "FUDABA-INBOX-EVENT-STREAM-01",
+      "sourceFile": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
+      "symbol": "handleNamecardNotificationStream",
+      "responseKind": "event-stream",
+      "reason": "Private, authenticated inbox invalidations use an SSE body without message content.",
+      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/common.ts", "symbol": "failureMessageResponseSchema" },
+      "test": { "file": "apps/api/tests/server/platform-session-security.contract.test.ts", "symbol": "inbox SSE authenticates and emits only committed account-scoped changes" }
+    },
+    {
       "id": "ADMIN-CATALOG-PROFILE-IMAGE-01",
       "sourceFile": "apps/api/src/domains/admin/catalog/handlers/serve-profile-image.ts",
       "symbol": "handleServeAdminCatalogProfileImage",

@@ -5,8 +5,15 @@ import {
     setCookieHeaders as setCookies,
 } from "../fixtures/auth-request";
 import path from "node:path";
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { getRequestListener } from '@hono/node-server';
+import { shutdownServer } from '@/main';
 import { randomUUID } from "node:crypto";
-import { describe, onTestFinished, test as nodeTest } from "vitest";
+import { describe, expect, onTestFinished, test as nodeTest } from "vitest";
+import { PostgresNamecardNotificationListener } from "@/infra/db/postgresql/namecard-notification-listener";
+import type { NamecardNotificationEvents } from "@/ports/namecard-notification-events";
+import { connectionOptions } from "../postgres-test-lifecycle.js";
 import { postgresTest as test } from '../postgres-test-database';
 import { pathToFileURL } from "node:url";
 import { sign, verify } from "hono/utils/jwt/jwt";
@@ -176,7 +183,7 @@ function expectedSessionPayload(
     };
 }
 
-async function createFixture(): Promise<Fixture> {
+async function createFixture(namecardNotificationEvents?: NamecardNotificationEvents): Promise<Fixture> {
     const harness = await createPostgresTestHarness();
     const database = harness.connection;
     const repository = new SqlPlatformAccountRepository(
@@ -187,6 +194,7 @@ async function createFixture(): Promise<Fixture> {
     const platformTokens = new TestPlatformTokenService(PLATFORM_SECRET);
     const runtime = {
         platformAccounts: repository,
+        namecardNotificationEvents,
         platformTokens,
         backofficeTokens: new HmacBackofficeTokenService(PLATFORM_SECRET),
         config: {
@@ -361,6 +369,131 @@ async function eventRows(fixture: Fixture, accountId: string) {
 }
 
 describe('platform session security contract', () => {
+    test("inbox SSE authenticates and emits only committed account-scoped changes", async () => {
+        let listener: PostgresNamecardNotificationListener | undefined;
+        const fixture = await createFixture({
+            subscribe: (account, subscriber) => listener?.subscribe(account, subscriber) ?? null,
+        });
+        assert.ok(fixture.databaseUrl);
+        listener = new PostgresNamecardNotificationListener(connectionOptions(fixture.databaseUrl));
+        const activeListener = listener;
+        try {
+            const alice = await fixture.seedSession();
+            const bob = await fixture.seedSession();
+            const url = '/api/community/exchange/me/notifications/stream';
+            assert.equal((await testRequest(fixture.app, url)).status, 401);
+            const aliceHeaders = { Cookie: cookieHeader(alice.cookies) };
+            const bobHeaders = { Authorization: `Bearer ${bob.accessToken}` };
+            assert.equal((await testRequest(fixture.app, url, { headers: aliceHeaders })).status, 503);
+            activeListener.start();
+
+            // These counters also detect extra frames that would otherwise be coalesced by the SSE handler.
+            let aliceChanges = 0;
+            let bobChanges = 0;
+            const aliceObserver = { changed: () => aliceChanges++, close() {} };
+            await expect.poll(() => Boolean(activeListener.subscribe(alice.accountId, aliceObserver))).toBe(true);
+            assert.ok(activeListener.subscribe(bob.accountId, { changed: () => bobChanges++, close() {} }));
+
+            const first = await testRequest(fixture.app, url, { headers: aliceHeaders });
+            const bobAbort = new AbortController();
+            const second = await testRequest(fixture.app, url, { headers: bobHeaders, signal: bobAbort.signal });
+            assert.equal(first.status, 200);
+            assert.equal(second.status, 200);
+            assert.ok(first.headers.get('Content-Type')?.startsWith('text/event-stream'));
+            assert.match(first.headers.get('Cache-Control') ?? '', /no-store/);
+            assert.equal(first.headers.get('X-Accel-Buffering'), 'no');
+            const aliceReader = first.body!.getReader();
+            const bobReader = second.body!.getReader();
+            const frame = 'event: inbox.changed\ndata: {}\n\n';
+            const read = async (reader: typeof aliceReader) => {
+                const result = await reader.read();
+                return result.done ? null : new TextDecoder().decode(result.value);
+            };
+            assert.equal(await read(aliceReader), frame);
+            assert.equal(await read(bobReader), frame);
+
+            await fixture.database.transaction(async (tx) => {
+                await tx.prepare(`INSERT INTO namecard_notifications
+                    (id, recipient_account_id, kind, title, body)
+                    VALUES ('rollback', ?, 'station-message', 'deliberately rolled back', '')`)
+                    .bind(alice.accountId).run();
+                throw new Error('rollback test');
+            }).then(() => assert.fail('expected transaction rollback'), (error: Error) => {
+                assert.equal(error.message, 'rollback test');
+            });
+            await fixture.database.prepare(`INSERT INTO namecard_notifications
+                (id, recipient_account_id, kind, title, body)
+                VALUES ('bob-only', ?, 'station-message', 'private', '')`).bind(bob.accountId).run();
+            assert.equal(await read(bobReader), frame);
+            assert.equal(aliceChanges, 0);
+            assert.equal(bobChanges, 1);
+
+            await fixture.database.prepare(`INSERT INTO namecard_notifications
+                (id, recipient_account_id, kind, title, body)
+                VALUES ('alice-1', ?, 'station-message', 'broadcast', ''),
+                       ('alice-2', ?, 'station-message', 'broadcast', ''),
+                       ('bob-1', ?, 'station-message', 'broadcast', '')`)
+                .bind(alice.accountId, alice.accountId, bob.accountId).run();
+            assert.deepEqual(await Promise.all([read(aliceReader), read(bobReader)]), [frame, frame]);
+            assert.equal(aliceChanges, 1);
+            assert.equal(bobChanges, 2);
+
+            await fixture.database.prepare(`UPDATE namecard_notifications SET read_at = NOW()
+                WHERE id = 'alice-1'`).run();
+            assert.equal(await read(aliceReader), frame);
+            await fixture.database.prepare("DELETE FROM namecard_notifications WHERE id = 'alice-2'").run();
+            assert.equal(await read(aliceReader), frame);
+            assert.equal(aliceChanges, 3);
+            assert.equal(bobChanges, 2);
+
+            bobAbort.abort();
+            assert.equal(await read(bobReader), null);
+            activeListener.drain();
+            assert.equal(await read(aliceReader), null);
+            assert.equal((await testRequest(fixture.app, url, { headers: aliceHeaders })).status, 503);
+        } finally {
+            await activeListener.close();
+        }
+    });
+    test('shutdown drains a live inbox stream over HTTP', async () => {
+        let closeStream: (() => void) | undefined;
+        const fixture = await createFixture({
+            subscribe(_accountId, subscriber) {
+                closeStream = subscriber.close;
+                return () => { closeStream = undefined; };
+            },
+        });
+        const session = await fixture.seedSession();
+        const server = createServer(getRequestListener(fixture.app.fetch));
+        server.listen(0, '127.0.0.1');
+        await once(server, 'listening');
+        const address = server.address();
+        assert.ok(address && typeof address !== 'string');
+        try {
+            const response = await fetch(`http://127.0.0.1:${address.port}/api/community/exchange/me/notifications/stream`, {
+                headers: { Authorization: `Bearer ${session.accessToken}` },
+                signal: AbortSignal.timeout(4_000),
+            });
+            assert.equal(response.status, 200);
+            const reader = response.body!.getReader();
+            const first = await reader.read();
+            assert.ok(!first.done);
+            assert.equal(new TextDecoder().decode(first.value), 'event: inbox.changed\ndata: {}\n\n');
+            await Promise.all([
+                shutdownServer(server, {
+                    drainStreams: () => closeStream?.(),
+                    closeServices: async () => {},
+                    timeoutMs: 1_000,
+                }),
+                reader.read().then((result) => assert.equal(result.done, true)),
+            ]);
+            assert.equal(closeStream, undefined);
+        } finally {
+            server.closeAllConnections();
+            if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
     test("Platform session authenticates active and restricted accounts through a live family", async () => {
         const fixture = await createFixture();
         const active = await fixture.seedSession({ accountId: "platform-active" });
