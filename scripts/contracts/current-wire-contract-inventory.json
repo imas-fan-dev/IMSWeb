@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "5cc1809934faf08dbf193a9c2c75157cedd58e6bc9b970d1b5ff7a6be89e77f6",
+    "semanticDigest": "b4291a6539c058386ea0d3c278b83faf1a316c12b1251e9ad734dadc50b59915",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,20 +16,20 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 444,
-    "mountedMethodPaths": 343,
+    "mountedRegistrations": 445,
+    "mountedMethodPaths": 344,
     "noInputRoutes": 101,
-    "requestCarriers": 456,
+    "requestCarriers": 457,
     "policies": {
       "reject": 122,
-      "accept-and-project": 220,
+      "accept-and-project": 221,
       "passthrough": 17,
       "non-object-applicable": 97
     },
     "responses": {
-      "total": 881,
-      "json": 813,
-      "nonJson": 68
+      "total": 885,
+      "json": 815,
+      "nonJson": 70
     },
     "unresolved": 0
   },
@@ -667,6 +667,16 @@
         "carriers": 1,
         "policy": "reject",
         "actualCarriers": 1
+      },
+      {
+        "module": "@imsweb/contracts/namecards",
+        "symbol": "namecardScanTokenParamsSchema",
+        "kind": "param",
+        "method": "GET",
+        "path": "/api/community/exchange/scan/sessions/:token/stream",
+        "carriers": 1,
+        "policy": "accept-and-project",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
@@ -676,7 +686,7 @@
       "/api/cards": 8,
       "/api/check": 1,
       "/api/chronicle": 2,
-      "/api/community": 84,
+      "/api/community": 85,
       "/api/community-posts": 2,
       "/api/emojis": 3,
       "/api/events": 5,
@@ -5733,13 +5743,13 @@
         },
         {
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
-          "kind": "json",
-          "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
+          "kind": "non-json",
+          "expression": "stream"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
-          "kind": "non-json",
-          "expression": "stream"
+          "kind": "json",
+          "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
         }
       ]
     },
@@ -6637,6 +6647,52 @@
           "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
           "kind": "json",
           "expression": "{ status , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , exchangeId : status === \"committed\" ? session . consumed_by_exchange_id : null , } satisfies NamecardScanSessionStatusResponse"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "registration": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "handlerSymbol": "handleScanSessionStream",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "schemaSymbol": "namecardScanTokenParamsSchema",
+          "schemaModule": "@imsweb/contracts/namecards",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+          },
+          "policy": "accept-and-project",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "json",
+          "expression": "{ error : MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "non-json",
+          "expression": "null"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "non-json",
+          "expression": "stream"
+        },
+        {
+          "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+          "kind": "json",
+          "expression": "{ error : \"\\u626B\\u7801\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies NamecardErrorResponse"
         }
       ]
     },
@@ -20364,6 +20420,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "handlerSymbol": "handleScanSessionStream",
+      "kind": "param",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "schemaSymbol": "namecardScanTokenParamsSchema",
+      "schemaModule": "@imsweb/contracts/namecards",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/community/namecards/exchange/routes.ts"
+      },
+      "policy": "accept-and-project",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "GET",
       "path": "/api/community/exchange/series",
       "handlerSymbol": "handleListFudabaPublicSeries",
       "kind": "query",
@@ -27486,16 +27559,16 @@
       "path": "/api/community/exchange/me/notifications/stream",
       "handlerSymbol": "handleNamecardNotificationStream",
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
-      "kind": "json",
-      "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
+      "kind": "non-json",
+      "expression": "stream"
     },
     {
       "method": "GET",
       "path": "/api/community/exchange/me/notifications/stream",
       "handlerSymbol": "handleNamecardNotificationStream",
       "file": "apps/api/src/domains/community/fudaba/claims/handlers/namecard-notification-stream.ts",
-      "kind": "non-json",
-      "expression": "stream"
+      "kind": "json",
+      "expression": "{ success : false , message : \"\\u6D88\\u606F\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies FailureMessageResponse"
     },
     {
       "method": "GET",
@@ -27864,6 +27937,38 @@
       "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
       "kind": "json",
       "expression": "{ status , expiresAt : new Date ( session . expires_at ) . toISOString ( ) , exchangeId : status === \"committed\" ? session . consumed_by_exchange_id : null , } satisfies NamecardScanSessionStatusResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "handlerSymbol": "handleScanSessionStream",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "json",
+      "expression": "{ error : MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "handlerSymbol": "handleScanSessionStream",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "non-json",
+      "expression": "null"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "handlerSymbol": "handleScanSessionStream",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "non-json",
+      "expression": "stream"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/scan/sessions/:token/stream",
+      "handlerSymbol": "handleScanSessionStream",
+      "file": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "kind": "json",
+      "expression": "{ error : \"\\u626B\\u7801\\u5B9E\\u65F6\\u8FDE\\u63A5\\u6682\\u4E0D\\u53EF\\u7528\" } satisfies NamecardErrorResponse"
     },
     {
       "method": "GET",

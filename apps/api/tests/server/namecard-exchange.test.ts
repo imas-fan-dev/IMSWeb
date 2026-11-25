@@ -10,7 +10,9 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { describe } from 'vitest';
+import { describe, expect, onTestFinished } from 'vitest';
+import { PostgresNamecardNotificationListener } from '@/infra/db/postgresql/namecard-notification-listener';
+import type { NamecardNotificationEvents } from '@/ports/namecard-notification-events';
 import type { ObjectStorage } from '@/ports/object-storage';
 import type { PlatformAccessTokenInput, PlatformTokenService } from '@/ports/security';
 import type { RuntimeServices } from '@/ports/runtime-services';
@@ -28,6 +30,7 @@ import {
     namecardCardShareSchema,
     namecardCollectionOwnersSchema,
     namecardCollectionPageSchema,
+    namecardErrorResponseSchema,
     namecardExchangeDetailSchema,
     namecardExchangeHistoryPageSchema,
     namecardExchangeResultSchema,
@@ -40,7 +43,7 @@ import { NAMECARD_EXCHANGE_PENDING_TTL_MS } from '@/domains/community/namecards/
 import { seedCanonicalFudabaAgencies } from '../integration/fudaba-agency-fixture';
 import { cardPageWrite } from '../fixtures/owner-route-fixture';
 import { assertContractJson } from '../contracts/contract-json';
-import { createPostgresTestDatabase, postgresTest } from '../postgres-test-database';
+import { createPostgresTestDatabase, postgresTest, postgresTestConnectionOptions } from '../postgres-test-database';
 import { createTestApp, testRequest } from './test-app';
 
 /**
@@ -152,7 +155,7 @@ function card(
     };
 }
 
-async function fixture() {
+async function fixture(namecardNotificationEvents?: NamecardNotificationEvents) {
     const database = await createPostgresTestDatabase('namecard-exchange');
     await seedCanonicalFudabaAgencies(database);
     const schema = new PostgresqlSchemaStrategy();
@@ -257,6 +260,7 @@ async function fixture() {
             ({
                 platformAccounts: platform,
                 platformTokens,
+                namecardNotificationEvents,
                 namecards,
                 fudaba,
                 // 分享页的 OGP 注入要读站点空壳；这里给一份最小可注入的 HTML。
@@ -749,6 +753,80 @@ describe('namecard exchange repository', () => {
             { headers: authHeaders('owner') },
         );
         assert.equal(malformed.status, 400);
+    });
+
+    postgresTest('scan SSE is owner-only and invalidates only after the session is consumed', async () => {
+        let listener: PostgresNamecardNotificationListener | undefined;
+        let scanChanges = 0;
+        const { app, database, authHeaders, openScanSession, publish, scanCommit, scanStatus } = await fixture({
+            subscribe: () => null,
+            subscribeScan: (account, id, subscriber) => listener?.subscribeScan(account, id, {
+                close: subscriber.close,
+                changed: () => { scanChanges++; subscriber.changed(); },
+            }) ?? null,
+        });
+        const card = await publish('owner-scan-stream', 'owner', 'auto');
+        const otherCard = await publish('owner-scan-stream-other', 'owner', 'auto');
+        const { token } = await openScanSession('owner', [card]);
+        const url = (value: string) => `/api/community/exchange/scan/sessions/${value}/stream`;
+        const stream = (value: string, account: 'owner' | 'collector', signal?: AbortSignal) =>
+            testRequest(app, url(value), { headers: authHeaders(account), signal });
+        assert.equal((await testRequest(app, url(token))).status, 401);
+        assert.equal((await stream('invalid', 'owner')).status, 400);
+        const foreign = await stream(token, 'collector');
+        const missing = await stream('0'.repeat(64), 'collector');
+        assert.deepEqual(
+            await assertContractJson(foreign, 404, namecardErrorResponseSchema),
+            await assertContractJson(missing, 404, namecardErrorResponseSchema),
+        );
+        const unavailable = await stream(token, 'owner');
+        assert.equal(unavailable.headers.get('Retry-After'), '5');
+        await assertContractJson(unavailable, 503, namecardErrorResponseSchema);
+
+        const live = new PostgresNamecardNotificationListener(postgresTestConnectionOptions(database));
+        listener = live;
+        onTestFinished(() => live.close());
+        live.start();
+        await expect.poll(() => {
+            const unsubscribe = live.subscribe('probe', { changed() {}, close() {} });
+            unsubscribe?.();
+            return Boolean(unsubscribe);
+        }).toBe(true);
+
+        const signal = AbortSignal.timeout(5_000);
+        const first = await stream(token, 'owner', signal);
+        assert.equal(first.status, 200);
+        assert.match(first.headers.get('Content-Type') ?? '', /^text\/event-stream/);
+        assert.match(first.headers.get('Cache-Control') ?? '', /no-store/);
+        assert.equal(first.headers.get('X-Accel-Buffering'), 'no');
+        const reader = first.body!.getReader();
+        const frame = 'event: scan.changed\ndata: {}\n\n';
+        const read = async () => {
+            const chunk = await reader.read();
+            return chunk.done ? null : new TextDecoder().decode(chunk.value);
+        };
+        assert.equal(await read(), frame);
+        assert.equal((await (await scanStatus('owner', token)).json()).status, 'active');
+
+        // Separate sessions for the same account do not wake one another.
+        const other = await openScanSession('owner', [otherCard]);
+        const otherResponse = await scanCommit('collector', other.token, { clientExchangeId: 'stream-other' });
+        assert.equal(otherResponse.status, 200);
+        const committed = await scanCommit('collector', token, { clientExchangeId: 'stream-mine' });
+        assert.equal(committed.status, 200);
+        assert.equal(await read(), frame);
+        assert.equal(scanChanges, 1);
+        const snapshot = await (await scanStatus('owner', token)).json();
+        assert.equal(snapshot.status, 'committed');
+        assert.equal(snapshot.exchangeId, (await committed.json()).exchangeId);
+
+        // A reconnect still gets a snapshot hint even if it missed the commit.
+        await reader.cancel();
+        const reconnected = await stream(token, 'owner', signal);
+        const next = reconnected.body!.getReader();
+        assert.equal(new TextDecoder().decode((await next.read()).value), frame);
+        live.drain();
+        assert.equal((await next.read()).done, true);
     });
 
     postgresTest('the scan landing page shows the owner and the offered cards', async () => {

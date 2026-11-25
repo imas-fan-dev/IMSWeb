@@ -40,6 +40,7 @@ import {
     handleCommitScanSession,
     handleCreateScanSession,
     handleGetScanSessionStatus,
+    handleScanSessionStream,
 } from '@/domains/community/namecards/exchange/handlers/scan-sessions';
 import { handleGetScanLandingStatus } from '@/domains/community/namecards/exchange/handlers/scan-landing';
 import {
@@ -198,7 +199,7 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
     routes.get('/exchange/me/exchanges', platformAuth, exchangeHistoryQuery, handleListExchanges);
 
     // 扫码：出示方生成一次性二维码，扫码方在有效期内提交；
-    // 出示方轮询 `/sessions/:token` 才知道对方到底交了没有。
+    // 出示方通过 SSE 得知状态变更，再读状态快照；旧客户端仍可轮询。
     routes.post(
         '/exchange/scan/sessions',
         ...write,
@@ -212,6 +213,12 @@ export function namecardExchangeRoutes(): ImsCapabilityRouter {
         platformAuth,
         scanTokenParam,
         handleGetScanSessionStatus,
+    );
+    routes.get(
+        '/exchange/scan/sessions/:token/stream',
+        platformAuth,
+        scanTokenParam,
+        handleScanSessionStream,
     );
     routes.post(
         '/exchange/scan/sessions/:token/commit',

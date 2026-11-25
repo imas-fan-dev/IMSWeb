@@ -80,7 +80,11 @@ const EXPLICIT_MESSAGE_WALL_ADDITIONS = [
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaCardOfficePlacementParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "non-object-applicable" },
   { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWorldPlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "reject" },
 ];
-const EXPLICIT_ROUTE_ADDITIONS = [...EXPLICIT_ADMIN_ADDITIONS, ...EXPLICIT_MESSAGE_WALL_ADDITIONS];
+const EXPLICIT_ROUTE_ADDITIONS = [
+  ...EXPLICIT_ADMIN_ADDITIONS,
+  ...EXPLICIT_MESSAGE_WALL_ADDITIONS,
+  { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/sessions/:token/stream", carriers: 1, policy: "accept-and-project" },
+];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
   platformAuthOAuthPath: "/api/platform/auth/oauth", adminPlatformAuthOAuthPath: "/api/admin/platform/auth/oauth",

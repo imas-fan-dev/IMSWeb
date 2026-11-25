@@ -1,11 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { getFudabaMessages, type FudabaMessage } from "~/lib/api"
 import { MessageComposer, MessageReader } from "./wall-message-dialog"
 
-type Filter = "all" | "visible" | "office-hidden" | "admin-hidden"
+const STATUS_OPTIONS = [
+  { value: "all", label: "全部" },
+  { value: "visible", label: "公开可见" },
+  { value: "office-hidden", label: "支部隐藏" },
+  { value: "admin-hidden", label: "后台隐藏" },
+] as const
+
+type Filter = (typeof STATUS_OPTIONS)[number]["value"]
+
 export function MessagesPanel({
   mode,
   officeId,
@@ -13,6 +28,7 @@ export function MessagesPanel({
   mode: "mine" | "office" | "admin"
   officeId?: string
 }) {
+  const statusLabelId = useId()
   const [messages, setMessages] = useState<FudabaMessage[]>([])
   const [status, setStatus] = useState<Filter>("all")
   const [officeFilter, setOfficeFilter] = useState("")
@@ -113,20 +129,33 @@ export function MessagesPanel({
         </Button>
       </div>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="space-y-1 text-sm">
-          <span className="block">显示状态</span>
-          <select
+        <div className="space-y-1 text-sm">
+          <span id={statusLabelId} className="block">
+            显示状态
+          </span>
+          <Select
+            items={STATUS_OPTIONS}
             value={status}
             disabled={busy}
-            onChange={(event) => setStatus(event.target.value as Filter)}
-            className="h-11 rounded border bg-background px-3"
+            onValueChange={(value) => {
+              if (value !== null) setStatus(value)
+            }}
           >
-            <option value="all">全部</option>
-            <option value="visible">公开可见</option>
-            <option value="office-hidden">支部隐藏</option>
-            <option value="admin-hidden">后台隐藏</option>
-          </select>
-        </label>
+            <SelectTrigger
+              aria-labelledby={statusLabelId}
+              className="min-h-11 w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start" alignItemWithTrigger={false}>
+              {STATUS_OPTIONS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         {mode === "admin" ? (
           <form
             className="flex items-end gap-2"

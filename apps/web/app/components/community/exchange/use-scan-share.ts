@@ -3,10 +3,9 @@ import { toast } from "sonner"
 
 import {
   createScanSession,
-  getScanSession,
   isApiError,
+  sendWithAbort,
   type NamecardScanSession,
-  type NamecardScanSessionStatusResponse,
 } from "~/lib/api"
 import { notifyNamecardDataChanged } from "~/lib/namecards/data-refresh"
 
@@ -16,8 +15,7 @@ import {
   EXCHANGE_FAILED_MESSAGE,
 } from "./use-exchange-submit"
 
-/** 出示方轮询会话状态的间隔：够快让对方「扫完就看到结果」，又不至于打满接口。 */
-export const SCAN_STATUS_POLL_MS = 1500
+import { watchScanSession } from "./watch-scan-session"
 
 export type ScanSharePhase =
   | "creating"
@@ -39,10 +37,9 @@ export interface ScanShareState {
 }
 
 /**
- * 出示侧扫码交换：建会话 → 展示二维码 → 轮询到 `committed`。
+ * 出示侧扫码交换：建会话 → 展示二维码 → 订阅状态变化。
  *
- * 只在窗口打开时挂载（调用方用 `{open ? <Panel /> : null}`），关闭即卸载，
- * 轮询随 cleanup 停止；重新打开就是一次全新的会话，不需要在 effect 里清状态。
+ * 只在窗口打开时挂载，关闭即停止请求与订阅；重新打开会创建新会话。
  *
  * 对方提交成功时广播一次名片册变更（见 `notifyNamecardDataChanged`），
  * 让已挂载的列表在下一帧重新取数，同时刷新未读角标。
@@ -65,8 +62,9 @@ export function useScanShare({
   }, [onCommitted])
 
   useEffect(() => {
-    let active = true
-    let timer: number | undefined
+    const controller = new AbortController()
+    const { signal } = controller
+    let stopWatching: (() => void) | undefined
 
     const settleCommitted = () => {
       setPhase("committed")
@@ -82,49 +80,32 @@ export function useScanShare({
 
     const settleFailed = (error: unknown) => {
       setPhase("error")
-      const message = isApiError(error) ? error.message : EXCHANGE_FAILED_MESSAGE
+      const message = isApiError(error)
+        ? error.message
+        : EXCHANGE_FAILED_MESSAGE
       setErrorMessage(message)
       toast.error(message)
     }
 
-    const poll = (token: string) => {
-      timer = window.setTimeout(() => {
-        if (!active) return
-        void getScanSession(token)
-          .send()
-          .then((status: NamecardScanSessionStatusResponse) => {
-            if (!active) return
-            if (status.status === "committed") {
-              settleCommitted()
-              return
-            }
-            if (status.status === "expired") {
-              settleExpired()
-              return
-            }
-            poll(token)
-          })
-          .catch((error: unknown) => {
-            if (active) settleFailed(error)
-          })
-      }, SCAN_STATUS_POLL_MS)
-    }
-
-    void createScanSession(cardNumbers)
-      .send()
+    void sendWithAbort(createScanSession(cardNumbers), signal)
       .then((created) => {
-        if (!active) return
+        if (signal.aborted) return
         setSession(created)
         setPhase("waiting")
-        poll(created.token)
+        stopWatching = watchScanSession(
+          created.token,
+          (status) =>
+            status === "committed" ? settleCommitted() : settleExpired(),
+          settleFailed
+        )
       })
       .catch((error: unknown) => {
-        if (active) settleFailed(error)
+        if (!signal.aborted) settleFailed(error)
       })
 
     return () => {
-      active = false
-      clearTimeout(timer)
+      controller.abort()
+      stopWatching?.()
     }
   }, [attempt, cardNumbers])
 

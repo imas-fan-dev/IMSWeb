@@ -158,6 +158,7 @@ import { test } from 'vitest';
             'handleLockNamecard',
             'handleRejectNamecard',
             'handleResolveAdminNamecardFeedback',
+            'handleScanSessionStream',
             'handleServeAdminNamecardMedia',
             'handleServePlatformAccountIcon',
             'handleServePublicCardMedia',
@@ -528,7 +529,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 181);
+            assert.equal(Object.values(actual).flat().length, 182);
         });
 
 
