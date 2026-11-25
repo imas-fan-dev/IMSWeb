@@ -419,7 +419,7 @@
     "prepare": "node build-if-sources.mjs"
   },
   "dependencies": {
-    "zod": "3.25.76"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
