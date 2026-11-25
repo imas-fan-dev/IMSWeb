@@ -72,7 +72,7 @@
         "busboy": "1.6.0",
         "hono": "4.13.16",
         "jaconv": "^1.1.2",
-        "nodemailer": "10.0.0",
+        "nodemailer": "10.1.4",
         "parse5": "8.0.1",
         "pg": "^8.22.0",
         "pinyin-pro": "^3.29.5",
