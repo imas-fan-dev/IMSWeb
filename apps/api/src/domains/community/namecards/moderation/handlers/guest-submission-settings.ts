@@ -1,10 +1,8 @@
 import type { Context } from 'hono';
-import type {
-    AdminFudabaGuestSubmissionSettingsRequest,
-    FudabaGuestSubmissionSettingsResponse,
-} from '@imsweb/contracts/fudaba';
+import type { AdminFudabaGuestSubmissionSettingsRequest } from '@imsweb/contracts/fudaba';
 import type { AppEnvironment } from '@/app';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
+import type { FudabaGuestSubmissionSettingsResponse } from '@/domains/community/namecards/moderation/guest-submission-response';
 import { fudabaRepository } from '@/middleware/hono-context';
 
 type SettingsContext = Context<AppEnvironment, string, { out: { json: AdminFudabaGuestSubmissionSettingsRequest } }>;

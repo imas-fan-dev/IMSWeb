@@ -143,6 +143,7 @@ import { test } from 'vitest';
             'handleDeleteAdminNamecard',
             'handleFlagNamecard',
             'handleGetAdminNamecardDiff',
+            'handleGetGuestSubmissionSettings',
             'handleGetPublicCard',
             'handleGetPublicProfile',
             'handleListAdminNamecardFeedback',
@@ -164,6 +165,7 @@ import { test } from 'vitest';
             'handleServePublicCardMedia',
             'handleUnlockNamecard',
             'handleUpdateAdminNamecard',
+            'handleUpdateGuestSubmissionSettings',
             'handleAcceptExchange',
             'handleCommitCardShare',
             'handleCommitQuickExchange',
@@ -529,7 +531,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 182);
+            assert.equal(Object.values(actual).flat().length, 184);
         });
 
 
