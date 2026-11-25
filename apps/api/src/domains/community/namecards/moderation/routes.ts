@@ -8,7 +8,8 @@ import { handleListAdminNamecardFeedbackAudit } from "@/domains/community/nameca
 import { handleListAdminNamecardLockAudit } from "@/domains/community/namecards/moderation/handlers/list-admin-lock-audit";
 import { handleLockNamecard } from "@/domains/community/namecards/moderation/handlers/lock-namecard";
 import { handleRejectNamecard } from "@/domains/community/namecards/moderation/handlers/reject-namecard";
-import { fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
+import { adminFudabaGuestSubmissionSettingsRequestSchema, fudabaMediaQuerySchema } from "@imsweb/contracts/fudaba";
+import { handleGetGuestSubmissionSettings, handleUpdateGuestSubmissionSettings } from "@/domains/community/namecards/moderation/handlers/guest-submission-settings";
 import { handleServeAdminNamecardMedia } from "@/domains/community/namecards/moderation/handlers/serve-admin-namecard-media";
 import { handleResolveAdminNamecardFeedback } from "@/domains/community/namecards/moderation/handlers/resolve-admin-feedback";
 import { handleUnlockNamecard } from "@/domains/community/namecards/moderation/handlers/unlock-namecard";
@@ -73,6 +74,10 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         querySchemaValidator(adminNamecardListQuerySchema, { invalidMessage: "名片分页参数无效" }, validateAdminNamecardListQuery),
         handleListAdminNamecards,
     );
+    routes.get('/guest-submission', backofficeAuth, opOnly, handleGetGuestSubmissionSettings);
+    routes.put('/guest-submission', backofficeAuth, opOnly, backofficeCsrf,
+        jsonSchemaValidator(adminFudabaGuestSubmissionSettingsRequestSchema),
+        handleUpdateGuestSubmissionSettings);
     // The review queue compares the published copy with the submitted one, so
     // the diff endpoint stays separate from the list payload.
     // The report queue: readers flag a live card, an operator answers it.

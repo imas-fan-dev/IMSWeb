@@ -1,4 +1,9 @@
 import {
+  fudabaGuestSubmissionResponseSchema,
+  fudabaGuestSubmissionSettingsResponseSchema,
+} from "@imsweb/contracts/fudaba"
+import { FUDABA_GUEST_SUBMISSION_HEADER } from "@imsweb/contracts/fudaba/runtime"
+import {
   fudabaWallResponseSchema,
   fudabaWorldPlacementRequestSchema,
   fudabaWorldPlacementResponseSchema,
@@ -1047,7 +1052,19 @@ export function withdrawFudabaOwnerLocation(
   )
 }
 
-function appendCardFields(form: FormData, fields: FudabaCardFields) {
+type ClaimCardFields = Pick<
+  FudabaCardFields,
+  | "producerName"
+  | "isGroupCard"
+  | "producerReading"
+  | "seriesCodes"
+  | "favoriteCharacterIds"
+  | "madeOn"
+  | "groupName"
+  | "tags"
+>
+
+function appendClaimCardFields(form: FormData, fields: ClaimCardFields) {
   form.append("producerName", fields.producerName)
   form.append("isGroupCard", String(fields.isGroupCard ?? false))
   form.append("producerReading", fields.producerReading ?? "")
@@ -1056,17 +1073,62 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
     "favoriteCharacterIds",
     JSON.stringify(fields.favoriteCharacterIds)
   )
+  form.append("madeOn", fields.madeOn ?? "")
+  form.append("groupName", fields.groupName ?? "")
+  if (fields.tags) form.append("tags", JSON.stringify(fields.tags))
+}
+
+function appendCardFields(form: FormData, fields: FudabaCardFields) {
+  appendClaimCardFields(form, fields)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)
   form.append("exchangeMode", fields.exchangeMode)
-  form.append("madeOn", fields.madeOn ?? "")
-  form.append("groupName", fields.groupName ?? "")
   form.append("isOriginal", String(fields.isOriginal))
   form.append("madeWithAi", String(fields.madeWithAi))
   form.append("visible", String(fields.visible))
   form.append("credits", JSON.stringify(fields.credits))
-  // 标签随保存一起提交，multipart 里是 JSON 字符串；没填就整个省略。
-  if (fields.tags) form.append("tags", JSON.stringify(fields.tags))
+}
+
+export function getFudabaGuestSubmission() {
+  return apiClient.Get(
+    exchangePath("/cards/guest-submission"),
+    parsed(fudabaGuestSubmissionSettingsResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+    })
+  )
+}
+
+export function createFudabaGuestCard(
+  input: ClaimCardFields &
+    Pick<CreateFudabaCardInput, "front" | "back" | "images" | "rotations">
+) {
+  const { front, back, images = [], rotations, ...fields } = input
+  const form = new FormData()
+  appendClaimCardFields(form, fields)
+  appendCardMedia(form, { front, back, images, rotations })
+  return apiClient.Post(
+    exchangePath("/cards"),
+    form,
+    parsed(fudabaGuestSubmissionResponseSchema, {
+      errorSchema: fudabaErrorResponseSchema,
+      headers: { [FUDABA_GUEST_SUBMISSION_HEADER]: "1" },
+    })
+  )
+}
+
+function appendCardMedia(
+  form: FormData,
+  {
+    front,
+    back,
+    images = [],
+    rotations,
+  }: Pick<CreateFudabaCardInput, "front" | "back" | "images" | "rotations">
+) {
+  form.append("front", front)
+  if (back) form.append("back", back)
+  for (const image of images) form.append("images", image)
+  if (rotations) form.append("rotations", JSON.stringify(rotations))
 }
 
 export function createFudabaCard(input: CreateFudabaCardInput) {
@@ -1079,10 +1141,7 @@ export function createFudabaCard(input: CreateFudabaCardInput) {
   } = fudabaCardCreateSchema.parse(input)
   const form = new FormData()
   appendCardFields(form, fields)
-  form.append("front", front)
-  if (back) form.append("back", back)
-  for (const image of images) form.append("images", image)
-  if (rotations) form.append("rotations", JSON.stringify(rotations))
+  appendCardMedia(form, { front, back, images, rotations })
   return platformApiClient.Post(
     exchangePath("/cards"),
     form,

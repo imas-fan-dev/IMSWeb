@@ -27,6 +27,7 @@ import type {
     CreateFudabaCardClaimInput,
     CreateFudabaCardSupplementInput,
     CreateOwnedFudabaOfficeInput,
+    CreateGuestFudabaCardInput,
     CreateOwnedFudabaCardInput,
     FudabaAdminCardClaimRecord,
     FudabaCardClaimRecord,
@@ -192,6 +193,7 @@ const ADMIN_CLAIM_COLUMNS = `claim.id, claim.legacy_card_id,
     claim.state, claim.message, claim.payload, claim.review_note, claim.reviewed_by,
     claim.reviewed_at, claim.revision, claim.created_at, claim.updated_at,
     profile.display_name AS claimant_display_name,
+    guest_card.id AS source_card_id,
     ${livePageKeyProjection('guest_card', 'ASC')} AS legacy_front_key,
     ${liveBackPageKeyProjection('guest_card')} AS legacy_back_key,
     (SELECT target.card_number FROM fudaba_cards target
@@ -419,6 +421,7 @@ type FudabaCardSupplementRow = Omit<
 
 type FudabaAdminCardClaimRow = FudabaCardClaimRow & {
     claimant_display_name: string;
+    source_card_id: string | null;
     legacy_front_key: string;
     legacy_back_key: string | null;
     target_card_number: number | string | null;
@@ -769,6 +772,7 @@ function adminClaimRecord(
     return {
         ...claimRecord(row),
         claimant_display_name: row.claimant_display_name,
+        source_card_id: row.source_card_id,
         legacy_front_key: row.legacy_front_key,
         legacy_back_key: row.legacy_back_key,
         target_card_number:
@@ -3585,8 +3589,32 @@ export class SqlFudabaRepository implements FudabaRepository {
         }
     }
 
-    createCardForOwner(
-        input: CreateOwnedFudabaCardInput,
+    async getGuestSubmissionEnabled(): Promise<boolean> {
+        const row = await queryOne<{ enabled: boolean }>(this.database,
+            'SELECT enabled FROM namecard_guest_submission_settings WHERE singleton_id=1');
+        return row?.enabled === true;
+    }
+
+    async setGuestSubmissionEnabled(enabled: boolean): Promise<boolean> {
+        const result = await queryOne<{ enabled: boolean }>(this.database,
+            'UPDATE namecard_guest_submission_settings SET enabled=? WHERE singleton_id=1 RETURNING enabled',
+            [enabled]);
+        if (!result) throw new Error('Namecard guest submission settings unavailable');
+        return result.enabled;
+    }
+
+    createCardForOwner(input: CreateOwnedFudabaCardInput): Promise<FudabaCardMutationResult> {
+        return this.createSubmittedCard(input, input.ownerAccountId);
+    }
+
+    createGuestCard(input: CreateGuestFudabaCardInput): Promise<FudabaCardMutationResult> {
+        return this.createSubmittedCard(input, null, input.tags);
+    }
+
+    private createSubmittedCard(
+        input: Omit<CreateOwnedFudabaCardInput, 'ownerAccountId'>,
+        ownerAccountId: string | null,
+        guestTags?: readonly string[],
     ): Promise<FudabaCardMutationResult> {
         return this.serializeWrite(() =>
             this.database.transaction(async (database) => {
@@ -3606,33 +3634,41 @@ export class SqlFudabaRepository implements FudabaRepository {
                     input.producerName,
                     input.producerReading,
                 );
+                // Read and lock the setting in the write transaction so disabling it
+                // also stops guest uploads that are still being processed.
+                if (ownerAccountId === null) {
+                    const config = await queryOne<{ enabled: boolean }>(database,
+                        'SELECT enabled FROM namecard_guest_submission_settings WHERE singleton_id=1 FOR SHARE');
+                    if (!config?.enabled) return { status: "unavailable" };
+                }
                 const result = await database
                     .prepare(
                         `INSERT INTO fudaba_cards
-                    (id, owner_account_id, producer_name, producer_reading,
+                    (id, owner_account_id, origin, producer_name, producer_reading,
                      sort_name_key, sort_name_bucket,
                      bio, trade_note,
                      exchange_mode, made_on, group_name, is_group_card, is_original,
                      made_with_ai, visible, publication_status, revision,
                      created_at, updated_at, deleted_at)
-                 SELECT ?, account.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, NULL
-                 FROM platform_accounts account
-                 JOIN agencies series
-                   ON series.code=? AND ${cardSeriesEligibility("series")}
-                 WHERE account.id=? AND account.status='active'
-                   AND account.deleted_at IS NULL
+                 SELECT ?, account.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, NULL
+                 FROM agencies series
+                 LEFT JOIN platform_accounts account
+                   ON account.id=? AND account.status='active' AND account.deleted_at IS NULL
+                 WHERE series.code=? AND ${cardSeriesEligibility("series")}
+                   AND (account.id IS NOT NULL OR ?)
                  ON CONFLICT(id) DO NOTHING
                  RETURNING ${CARD_COLUMNS}`,
                     )
                     .bind(
                         input.id,
+                        ownerAccountId === null ? 'guest' : 'exchange',
                         input.producerName,
                         input.producerReading ?? null,
                         sort.key,
                         sort.bucket,
                         input.bio,
-                        input.tradeNote,
-                        input.exchangeMode,
+                        ownerAccountId === null ? null : input.tradeNote,
+                        ownerAccountId === null ? 'none' : input.exchangeMode,
                         input.madeOn,
                         input.groupName,
                         this.bindBoolean(input.isGroupCard ?? false),
@@ -3641,12 +3677,16 @@ export class SqlFudabaRepository implements FudabaRepository {
                         this.bindBoolean(input.visible),
                         input.createdAt,
                         input.updatedAt,
+                        ownerAccountId,
                         input.seriesCodes[0],
-                        input.ownerAccountId,
+                        this.bindBoolean(ownerAccountId === null),
                     )
                     .run<FudabaCardRow>();
                 const saved = result.results[0];
                 if (!saved) return { status: "unavailable" };
+                if (guestTags?.length) {
+                    await this.tagRepository.replaceForCard(database, input.id, guestTags);
+                }
                 await this.replaceCardFavorites(database, input.id, characters);
                 await this.replaceCardSeries(database, input.id, input.seriesCodes);
                 await this.replaceCardCredits(database, input.id, input.credits ?? []);

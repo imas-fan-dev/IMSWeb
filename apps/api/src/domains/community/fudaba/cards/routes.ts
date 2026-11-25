@@ -25,7 +25,8 @@ import { handleServeFudabaOwnerCardMedia } from '@/domains/community/fudaba/card
 import { createHandleFudabaCardInteraction } from '@/domains/community/fudaba/cards/handlers/set-card-interaction';
 import { handleUpdateFudabaCard } from '@/domains/community/fudaba/cards/handlers/update-card';
 import { handleReplaceFudabaOwnedMedia } from '@/domains/community/fudaba/cards/handlers/replace-owned-media';
-import { platformUploadRateLimit, platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
+import { platformWriteRateLimit } from '@/middleware/platform-mutation-limit';
+import { fudabaCardSubmissionGuards, handleGetFudabaGuestSubmission } from '@/domains/community/fudaba/cards/guest-submission';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import { createCapabilityRouter, type ImsCapabilityRouter } from '@/routing/capability-router';
 
@@ -42,7 +43,8 @@ export function fudabaCardRoutes(): ImsCapabilityRouter {
             routes.on('HEAD', '/me/cards/:cardId/media/:side', platformAuth, paramSchemaValidator(fudabaCardMediaParamsSchema), querySchemaValidator(fudabaMediaQuerySchema), handleServeFudabaOwnerCardMedia);
         }
     }
-    routes.post('/cards', requireFudabaWrite, platformAuth, activePlatformMutation, platformCsrf, platformUploadRateLimit, platformWriteRateLimit, handleCreateFudabaCard);
+    routes.get('/cards/guest-submission', handleGetFudabaGuestSubmission);
+    routes.post('/cards', requireFudabaWrite, ...fudabaCardSubmissionGuards, handleCreateFudabaCard);
     for (const [path, kind, active] of [
         ['/cards/:cardId/like', 'like', true],
         ['/cards/:cardId/like', 'like', false],

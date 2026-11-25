@@ -16,7 +16,7 @@ import type {
     FudabaCardPageWrite,
     FudabaCardRecord
 } from '@/ports/repositories';
-import { randomHex } from '@/utils/crypto/random';
+import type { FudabaGuestSubmissionResponse } from '@imsweb/contracts/fudaba';
 import { messageFromError, statusFromError } from '@/utils/http/error-response';
 import { convertUserImageToWebp } from '@/utils/media/user-image';
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
@@ -33,6 +33,7 @@ function oneFile(value: UploadedFile | UploadedFile[] | undefined): UploadedFile
 export async function handleCreateFudabaCard(
     c: Context<AppEnvironment>
 ): Promise<Response> {
+    const ownerAccountId = c.get('platformUser')?.id ?? null;
     const runtime = services(c);
     if (!runtime.uploads || !runtime.images || !runtime.storage) {
         throw new Error('Upload services unavailable');
@@ -58,7 +59,7 @@ export async function handleCreateFudabaCard(
         if (!front) {
             throw Object.assign(new Error('必须上传名片正面'), { status: 400 });
         }
-        const fields = parseFudabaCardCreateFields(upload.fields);
+        const fields = parseFudabaCardCreateFields(upload.fields, ownerAccountId === null);
         const { tags, ...cardFields } = fields;
         // 旋转和上传同一次保存：写入前转好，revision 只由这次创建产生。
         const rotations = parseMediaRotations(upload.fields.rotations);
@@ -131,7 +132,6 @@ export async function handleCreateFudabaCard(
         );
         const accent = (await runtime.images.dominantColor?.(rotatedFront)) ?? null;
         const cardId = crypto.randomUUID();
-        const ownerAccountId = c.get('platformUser')!.id;
         const pages: FudabaCardPageWrite[] = [];
         const store = async (
             pageId: string,
@@ -211,19 +211,24 @@ export async function handleCreateFudabaCard(
         cleanupCreatedObjects = false;
         let result: FudabaCardMutationResult;
         try {
-            result = await repository.createCardForOwner({
+            const input = {
                 id: cardId,
-                ownerAccountId,
                 ...cardFields,
                 pages,
                 accent,
                 createdAt: now,
-                updatedAt: now
-            });
+                updatedAt: now,
+            };
+            result = ownerAccountId === null
+                ? await repository.createGuestCard({ ...input, tags: tags ?? [] })
+                : await repository.createCardForOwner({ ...input, ownerAccountId });
         } catch (error) {
             let recovered: FudabaCardRecord | null | undefined;
             try {
-                recovered = await repository.findCardForOwner(cardId, ownerAccountId);
+                recovered = ownerAccountId === null
+                    ? await repository.findCardById(cardId)
+                    : await repository.findCardForOwner(cardId, ownerAccountId);
+                if (ownerAccountId === null && recovered === null) cleanupCreatedObjects = true;
             } catch (recoveryError) {
                 console.error(
                     'Unable to reconcile an uncertain Fudaba card creation',
@@ -244,6 +249,10 @@ export async function handleCreateFudabaCard(
                     );
                 })
             ) {
+                if (ownerAccountId === null) {
+                    await storePreviews(recovered.revision);
+                    return c.json({ success: true } satisfies FudabaGuestSubmissionResponse, 201);
+                }
                 // 幂等恢复也要补标签：创建提交成功但标签写入失败时重试仍能收敛。
                 if (tags !== undefined) {
                     recovered.tags = await namecardTagRepository(c).replace({
@@ -272,9 +281,14 @@ export async function handleCreateFudabaCard(
             await Promise.all(createdKeys.map((key) =>
                 deleteObjectWithCompensation(runtime, key)
             ));
+            cleanupCreatedObjects = false;
             return c.json({ success: false, code: 'FUDABA_CARD_UNAVAILABLE' }, 409);
         }
         cleanupCreatedObjects = false;
+        if (ownerAccountId === null) {
+            await storePreviews(result.card.revision);
+            return c.json({ success: true } satisfies FudabaGuestSubmissionResponse, 201);
+        }
         // 标签即时生效：内容已落库后再整组替换，不进审核载荷。
         if (tags !== undefined) {
             result.card.tags = await namecardTagRepository(c).replace({

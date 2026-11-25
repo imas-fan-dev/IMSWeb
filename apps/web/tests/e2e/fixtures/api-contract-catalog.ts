@@ -91,6 +91,9 @@ import {
   fudabaCardInteractionResponseSchema,
   fudabaCardUpdateRequestSchema,
   fudabaCardMutationResponseSchema,
+  adminFudabaGuestSubmissionSettingsRequestSchema,
+  fudabaGuestSubmissionResponseSchema,
+  fudabaGuestSubmissionSettingsResponseSchema,
   fudabaErrorResponseSchema,
   fudabaIgnoredQuerySchema,
   fudabaMapConfigSchema,
@@ -577,6 +580,25 @@ export function resolveApiContract(
     return {
       query: fudabaCardQuerySchema,
       responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/cards/guest-submission`)
+    return { responses: { 200: fudabaGuestSubmissionSettingsResponseSchema } }
+  if (method === "POST" && path === `${exchange}/cards`)
+    return {
+      rawBody: {
+        name: "Namecard creation multipart request",
+        reason:
+          "Card artwork and metadata arrive together as multipart form data.",
+        schema: z.string().min(1),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        201: z.union([
+          fudabaGuestSubmissionResponseSchema,
+          fudabaCardMutationResponseSchema,
+        ]),
+        ...fudabaErrors,
+      },
     }
   if (
     method === "GET" &&
@@ -1183,6 +1205,15 @@ export function resolveApiContract(
     return {
       responses: { 200: namecardPageSchema, 404: namecardErrorResponseSchema },
     }
+  if (path === "/api/admin/cards/guest-submission") {
+    if (method === "GET")
+      return { responses: { 200: fudabaGuestSubmissionSettingsResponseSchema } }
+    if (method === "PUT")
+      return {
+        body: adminFudabaGuestSubmissionSettingsRequestSchema,
+        responses: { 200: fudabaGuestSubmissionSettingsResponseSchema },
+      }
+  }
   if (method === "GET" && path === "/api/admin/cards")
     return {
       query: adminNamecardListQuerySchema,

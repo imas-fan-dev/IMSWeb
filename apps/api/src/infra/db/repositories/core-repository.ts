@@ -3345,9 +3345,13 @@ export class SqlCoreRepository implements NamecardRepository {
             `WITH expired AS (
                  SELECT card.id, card.card_number
                    FROM fudaba_cards card
-                   JOIN namecard_guest_attributes guest ON guest.card_id=card.id
+                   LEFT JOIN namecard_guest_attributes guest ON guest.card_id=card.id
                   WHERE card.publication_status IN ('withdrawn','rejected')
-                    AND COALESCE(guest.withdrawn_at, guest.rejected_at, card.created_at) <= ?
+                    AND CASE WHEN guest.card_id IS NOT NULL
+                        THEN COALESCE(guest.withdrawn_at, guest.rejected_at, card.created_at)
+                        WHEN card.origin='guest' AND card.owner_account_id IS NULL
+                             AND card.deleted_at IS NULL AND card.publication_status='rejected'
+                        THEN card.updated_at END <= ?
              ), pages AS (
                  SELECT page.card_id, page.queue, page.page_id, page.object_version
                    FROM fudaba_card_pages page

@@ -5,6 +5,7 @@ import { makeCardPage } from "../../mocks/data/namecards"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -91,6 +92,80 @@ async function mockPlatformSession(page: Page) {
     "GET"
   )
 }
+
+test.describe("anonymous namecard submission", () => {
+  for (const enabled of [false, true]) {
+    test(`the wall create button ${enabled ? "opens the guest form" : "requires login"}`, async ({
+      page,
+      api,
+    }) => {
+      installEmptyWikiCatalogMock(api)
+      await mockAnonymousPlatformSession()
+      await api.mockRoute(
+        "**/api/cards**",
+        async (route) => {
+          await route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+        },
+        "GET"
+      )
+      await api.mockRoute(
+        "**/api/community/exchange/cards/guest-submission",
+        async (route) => {
+          await route.fulfill({ json: { success: true, enabled } })
+        },
+        "GET"
+      )
+      if (!enabled) {
+        installPlatformOAuthProvidersMock(api)
+        await page.goto("/community/cards")
+        await page.getByRole("button", { name: "新建名片" }).click()
+        await expect(page).toHaveURL(/\/account\/login$/)
+        return
+      }
+
+      await api.mockRoute(
+        "**/api/community/exchange/series",
+        async (route) => {
+          await route.fulfill({ json: seriesCatalog })
+        },
+        "GET",
+        { min: 1, max: 2 }
+      )
+      let submitted:
+        | { header: string | undefined; body: string | null }
+        | undefined
+      await api.mockRoute(
+        "**/api/community/exchange/cards",
+        async (route) => {
+          submitted = {
+            header: route.request().headers()["x-namecard-guest-submission"],
+            body: route.request().postData(),
+          }
+          await route.fulfill({ status: 201, json: { success: true } })
+        },
+        "POST"
+      )
+      await page.goto("/community/cards")
+      await page.getByRole("button", { name: "新建名片" }).click()
+      const dialog = page.getByRole("dialog", { name: "匿名投稿名片" })
+      await dialog
+        .getByRole("textbox", { name: "制作人名称", exact: true })
+        .fill("访客制作人")
+      await dialog.getByRole("checkbox", { name: "765PRO" }).click()
+      await dialog.locator("input[aria-label='选择名片图片']").setInputFiles({
+        name: "front.gif",
+        mimeType: "image/gif",
+        buffer: Buffer.from(FRONT_IMAGE.split(",")[1], "base64"),
+      })
+      await dialog.getByRole("button", { name: "提交审核" }).click()
+      await expect(dialog).not.toBeVisible()
+      expect(submitted?.header).toBe("1")
+      expect(submitted?.body).toContain('name="front"; filename="front.gif"')
+      expect(submitted?.body).toContain('name="producerName"')
+      expect(submitted?.body).toContain('name="seriesCodes"')
+    })
+  }
+})
 
 test.describe("namecard claim workflow", () => {
   test("anonymous visitors do not see the legacy-card claim action", async ({
@@ -855,7 +930,36 @@ test.describe("namecard claim workflow", () => {
       "PUT"
     )
 
+    await api.mockRoute(
+      "/api/admin/cards/guest-submission",
+      async (route) => {
+        await route.fulfill({ json: { success: true, enabled: false } })
+      },
+      "GET"
+    )
+    const changes: boolean[] = []
+    await api.mockRoute(
+      "/api/admin/cards/guest-submission",
+      async (route) => {
+        const { enabled } = route.request().postDataJSON() as {
+          enabled: boolean
+        }
+        expect(route.request().headers()["x-csrftoken"]).toBe(
+          "claim-admin-csrf"
+        )
+        changes.push(enabled)
+        await route.fulfill({ json: { success: true, enabled } })
+      },
+      "PUT",
+      2
+    )
     await page.goto("/admin/cards")
+    await page.getByRole("button", { name: "允许匿名投稿" }).click()
+    await page.getByRole("button", { name: "关闭匿名投稿" }).click()
+    await expect(
+      page.getByRole("button", { name: "允许匿名投稿" })
+    ).toBeEnabled()
+    expect(changes).toEqual([true, false])
     await expect(page.getByRole("tab", { name: "投稿审核" })).toBeVisible()
     await expect(page.getByText("注册制作人")).toBeVisible()
 

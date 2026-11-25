@@ -140,7 +140,6 @@ export class SqlNamecardTagRepository implements NamecardTagRepository {
     }
 
     async replace(input: NamecardTagReplaceInput): Promise<NamecardTagRecord[]> {
-        const tags = normalizeCardTags(input.names);
         const card = input.cardId
             ? await queryOne<{ id: string }>(
                   this.database,
@@ -159,7 +158,18 @@ export class SqlNamecardTagRepository implements NamecardTagRepository {
         if (!card) {
             throw Object.assign(new Error("名片不存在"), { status: 404 });
         }
-        const blocklist = await this.blockRules(this.database);
+        return this.database.transaction((database) =>
+            this.replaceForCard(database, card.id, input.names)
+        );
+    }
+
+    async replaceForCard(
+        database: SqlDatabase,
+        cardId: string,
+        names: readonly string[],
+    ): Promise<NamecardTagRecord[]> {
+        const tags = normalizeCardTags(names);
+        const blocklist = await this.blockRules(database);
         if (blocklist.length > 0) {
             const blocked = tags.find((tag) => matchBlockRule(tag.normalized, blocklist));
             if (blocked) {
@@ -168,37 +178,22 @@ export class SqlNamecardTagRepository implements NamecardTagRepository {
         }
         const presets =
             tags.length > 0
-                ? await this.resolvePresets(this.database, tags.map((tag) => tag.normalized))
+                ? await this.resolvePresets(database, tags.map((tag) => tag.normalized))
                 : new Map<string, number>();
-        await this.database.transaction(async (database) => {
-            await executeSql(
-                database,
-                `DELETE FROM namecard_tags WHERE card_id=?`,
-                [card.id]
-            );
-            if (tags.length === 0) return;
-            await database.batch(
-                tags.map((tag, index) =>
-                    database
-                        .prepare(
-                            `INSERT INTO namecard_tags
-                                 (card_id, name, normalized, preset_id,
-                                  display_order)
-                             VALUES (?, ?, ?, ?, ?)`
-                        )
-                        .bind(
-                            card.id,
-                            tag.name,
-                            tag.normalized,
-                            presets.get(tag.normalized) ?? null,
-                            index
-                        )
-                )
-            );
-        });
-        await this.database.batch(
+        await executeSql(database, 'DELETE FROM namecard_tags WHERE card_id=?', [cardId]);
+        if (tags.length === 0) return [];
+        await database.batch(
+            tags.map((tag, index) =>
+                database.prepare(
+                    `INSERT INTO namecard_tags
+                        (card_id, name, normalized, preset_id, display_order)
+                     VALUES (?, ?, ?, ?, ?)`
+                ).bind(cardId, tag.name, tag.normalized, presets.get(tag.normalized) ?? null, index)
+            )
+        );
+        await database.batch(
             tags.map((tag) =>
-                this.database
+                database
                     .prepare(
                         `INSERT INTO namecard_tag_registry (normalized, name)
                          VALUES (?, ?)

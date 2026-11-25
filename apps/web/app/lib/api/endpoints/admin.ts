@@ -84,6 +84,10 @@ import {
   platformAccountKindRequestSchema,
 } from "@imsweb/contracts/namecards"
 import type { z } from "@imsweb/contracts/z"
+import {
+  adminFudabaGuestSubmissionSettingsRequestSchema,
+  fudabaGuestSubmissionSettingsResponseSchema,
+} from "@imsweb/contracts/fudaba"
 import { parsed } from "../parsed"
 import { adminApiClient } from "../admin-client"
 import { PUBLIC_CACHE_INVALIDATION_SOURCE } from "../cache-policy"
@@ -443,6 +447,29 @@ export interface AdminNamecardListFilters {
   ownerAccountId?: string
 }
 
+const GUEST_SUBMISSION_SETTINGS = adminApiPath("/cards/guest-submission")
+
+export function getAdminNamecardGuestSubmission() {
+  return adminApiClient.Get(
+    GUEST_SUBMISSION_SETTINGS,
+    parsed(fudabaGuestSubmissionSettingsResponseSchema, {
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeAuth(),
+    })
+  )
+}
+
+export function updateAdminNamecardGuestSubmission(enabled: boolean) {
+  return adminApiClient.Put(
+    GUEST_SUBMISSION_SETTINGS,
+    adminFudabaGuestSubmissionSettingsRequestSchema.parse({ enabled }),
+    parsed(fudabaGuestSubmissionSettingsResponseSchema, {
+      errorSchema: adminNamecardHttpErrorSchema,
+      meta: withBackofficeCsrf(),
+    })
+  )
+}
+
 export function getAdminNamecards(
   page = 1,
   filters?: AdminNamecardListFilters
@@ -773,8 +800,7 @@ export interface AdminNamecardTagSearchInput {
 
 export type AdminNamecardFreeSort = "frequency" | "recent"
 
-export interface AdminNamecardFreeTagSearchInput
-  extends AdminNamecardTagSearchInput {
+export interface AdminNamecardFreeTagSearchInput extends AdminNamecardTagSearchInput {
   sort?: AdminNamecardFreeSort
 }
 

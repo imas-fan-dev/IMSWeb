@@ -531,6 +531,21 @@ export const fudabaOwnerCardDetailSchema = z
   })
   .strict();
 
+export const fudabaGuestSubmissionSettingsResponseSchema = successEnvelope({
+  enabled: z.boolean(),
+}).strict();
+export const fudabaGuestSubmissionResponseSchema = successEnvelope({}).strict();
+export const adminFudabaGuestSubmissionSettingsRequestSchema = z.object({
+  enabled: z.boolean(),
+}).strict();
+export type AdminFudabaGuestSubmissionSettingsRequest = z.infer<
+  typeof adminFudabaGuestSubmissionSettingsRequestSchema
+>;
+export type FudabaGuestSubmissionSettingsResponse = z.infer<
+  typeof fudabaGuestSubmissionSettingsResponseSchema
+>;
+export type FudabaGuestSubmissionResponse = z.infer<typeof fudabaGuestSubmissionResponseSchema>;
+
 export const fudabaCardMutationResponseSchema = successEnvelope({
   card: fudabaOwnerCardSchema,
 }).strict();

@@ -22,6 +22,7 @@ const EXPLICIT_QUERY_ADDITIONS = [
 // New management capabilities are reconciled separately; the existing baseline,
 // including all public routes and their unknown-key policies, stays frozen.
 const EXPLICIT_ADMIN_ADDITIONS = [
+  { module: "@imsweb/contracts/fudaba", symbol: "adminFudabaGuestSubmissionSettingsRequestSchema", kind: "json", method: "PUT", path: "/api/admin/cards/guest-submission", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogCreateCharacterRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/characters", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogDefaultProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/default-profile", carriers: 1, policy: "reject" },

@@ -21,7 +21,7 @@ export interface StoreCardPageInput {
     body: Uint8Array;
     width: number;
     height: number;
-    accountId: string;
+    accountId: string | null;
     /** Optional ownership token so a failed claim/supplement copy can be compensated. */
     ownerToken?: string;
     /** Called before the put so a failed write can still be compensated. */
@@ -63,7 +63,7 @@ export async function storeCardPage(
             kind: 'fudaba-card-image',
             page: input.pageId,
             queue: input.queue,
-            account: input.accountId
+            ...(input.accountId ? { account: input.accountId } : {})
         }
     });
     return {

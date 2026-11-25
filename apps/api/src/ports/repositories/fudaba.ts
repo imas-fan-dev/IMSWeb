@@ -314,6 +314,10 @@ export interface CreateOwnedFudabaCardInput {
     updatedAt: string;
 }
 
+export type CreateGuestFudabaCardInput = Omit<CreateOwnedFudabaCardInput, 'ownerAccountId'> & {
+    tags: string[];
+};
+
 export interface UpdateOwnedFudabaCardMetadataInput {
     cardId: string;
     ownerAccountId: string;
@@ -416,6 +420,7 @@ export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
 
 export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
     claimant_display_name: string;
+    source_card_id: string | null;
     /** 老卡正面/背面的对象 key，认领审核通过时作为复制来源。 */
     legacy_front_key: string;
     legacy_back_key: string | null;
@@ -1095,6 +1100,9 @@ export interface FudabaRepository {
         cardId: string,
         ownerAccountId: string,
     ): Promise<FudabaCardRecord | null>;
+    getGuestSubmissionEnabled(): Promise<boolean>;
+    setGuestSubmissionEnabled(enabled: boolean): Promise<boolean>;
+    createGuestCard(input: CreateGuestFudabaCardInput): Promise<FudabaCardMutationResult>;
     createCardForOwner(
         input: CreateOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;

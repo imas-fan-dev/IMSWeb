@@ -141,17 +141,17 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 445,
-      mountedMethodPaths: 344,
-      noInputRoutes: 101,
-      requestCarriers: 457,
+      mountedRegistrations: 448,
+      mountedMethodPaths: 345,
+      noInputRoutes: 103,
+      requestCarriers: 458,
       policies: {
-        reject: 122,
+        reject: 123,
         "accept-and-project": 221,
         passthrough: 17,
         "non-object-applicable": 97,
       },
-      responses: { total: 885, json: 815, nonJson: 70 },
+      responses: { total: 890, json: 820, nonJson: 70 },
       unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
@@ -163,6 +163,7 @@ test.describe('route inventory compiler', () => {
       policies: { reject: 88, "accept-and-project": 186, passthrough: 17, "non-object-applicable": 84 },
     });
     assert.deepEqual(current.reconciliation.explicitAdminAdditions, [
+      { module: "@imsweb/contracts/fudaba", symbol: "adminFudabaGuestSubmissionSettingsRequestSchema", kind: "json", method: "PUT", path: "/api/admin/cards/guest-submission", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogCreateCharacterRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/characters", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/catalog", symbol: "adminCatalogDefaultProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/default-profile", carriers: 1, policy: "reject", actualCarriers: 1 },

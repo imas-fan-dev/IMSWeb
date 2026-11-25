@@ -16,6 +16,7 @@ import { AdminPageHeader } from "~/components/admin/admin-ui"
 import { useConfirmAction } from "~/pages/admin/hooks/use-confirm-action"
 import { ActionConfirmDialog } from "./action-confirm-dialog"
 import { ClaimReviewTab } from "./claim-review-tab"
+import { GuestSubmissionToggle } from "./guest-submission-toggle"
 import { useDebouncedValue } from "~/lib/use-debounced-value"
 import {
   approveAdminNamecard,
@@ -339,15 +340,18 @@ export default function AdminCardsPage() {
         title="制作人名片审核"
         description="统一处理投稿审核与旧名片认领，投稿来源在下方筛选。"
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            disabled={loading}
-            onClick={() => void refresh()}
-          >
-            <RefreshCwIcon data-icon="inline-start" />
-            刷新
-          </Button>
+          <>
+            <GuestSubmissionToggle />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={() => void refresh()}
+            >
+              <RefreshCwIcon data-icon="inline-start" />
+              刷新
+            </Button>
+          </>
         }
       />
 

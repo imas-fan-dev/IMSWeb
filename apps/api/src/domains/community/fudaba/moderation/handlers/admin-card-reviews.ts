@@ -885,7 +885,8 @@ export async function handleReviewFudabaCardClaim(
             // the review upgrades it in place; only the artwork has to move
             // to owner-owned objects because the owner media route serves
             // protected keys.
-            const boundCardId = `legacy-${context.legacy_card_id}`;
+            const boundCardId = context.source_card_id;
+            if (!boundCardId) throw new Error('认领来源名片不可用');
             const copied = await copyLegacyMedia(
                 services(c),
                 context,

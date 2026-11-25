@@ -1804,6 +1804,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
             revision: 0,
             claimant_display_name: 'Claimant',
             target_card_number: null,
+            source_card_id: 'legacy-1',
             legacy_front_key: 'community/fudaba/cards/legacy-1/live/front.webp',
             legacy_back_key: 'community/fudaba/cards/legacy-1/live/back.webp'
         };
@@ -3953,6 +3954,7 @@ async function seedPublishedOfficeFixture(database: ManagedSqlDatabase, officeId
                 '20261120120000_namecard_tags',
                 '20261121120000_namecard_project_visibility',
                 '20261123120000_namecard_notification_events',
+                '20261125120000_namecard_guest_submission_settings',
             ]);
             const currentOffice = await fixture.repository.findOfficeById(original.id);
             assert.equal(currentOffice?.review_state, 'pending');

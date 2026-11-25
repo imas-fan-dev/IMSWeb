@@ -1,5 +1,7 @@
 import { hasAsciiControl } from "../runtime-primitives.js";
 
+export const FUDABA_GUEST_SUBMISSION_HEADER = "X-Namecard-Guest-Submission";
+
 export { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 
 export {

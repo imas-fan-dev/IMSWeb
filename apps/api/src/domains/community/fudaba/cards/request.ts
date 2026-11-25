@@ -372,11 +372,24 @@ function cardFieldsSchemaValidator(
  * 创建只送 multipart 字符串：先做强制转换，再交给创建侧的 zod schema 判规则。
  */
 export function parseFudabaCardCreateFields(
-    fields: Record<string, string>
+    fields: Record<string, string>,
+    guest = false,
 ): FudabaCardFields {
+    if (guest) {
+        allowedKeys(fields, [
+            'producerName', 'producerReading', 'isGroupCard', 'groupName', 'madeOn',
+            'seriesCodes', 'favoriteCharacterIds', 'tags', 'rotations',
+        ]);
+    }
     // 旋转随图提交，由 `parseMediaRotations` 单独解析，不属于卡片内容字段。
     const content: Record<string, unknown> = { ...fields };
     delete content.rotations;
+    if (guest) {
+        // The claim-style form has no bio or exchange note.
+        content.bio = '';
+        content.tradeNote = '';
+        content.favoriteCharacterIds ??= '[]';
+    }
     return cardFieldsSchemaValidator(fudabaCardFieldsSubmissionSchema, content);
 }
 
