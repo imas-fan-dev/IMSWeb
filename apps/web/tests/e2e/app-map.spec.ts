@@ -575,6 +575,9 @@ test.describe("app map", () => {
               const navigation = document
                 .querySelector("nav > [data-glass-fallback]")!
                 .getBoundingClientRect()
+              const controls = document
+                .querySelector("[data-exchange-side-controls]")
+                ?.getBoundingClientRect()
               const hit = document.elementFromPoint(
                 search.x + search.width / 2,
                 (search.bottom + navigation.top) / 2
@@ -584,6 +587,8 @@ test.describe("app map", () => {
                 moreWidth: more.width,
                 moreHeight: more.height,
                 gap: Math.round(navigation.top - search.bottom),
+                controlsGap:
+                  controls && Math.round(search.top - controls.bottom),
                 mapGap: !element.contains(hit),
                 navigationHit: navigation.top >= search.bottom,
               }
@@ -594,6 +599,7 @@ test.describe("app map", () => {
             moreWidth: 44,
             moreHeight: 44,
             gap: 12,
+            controlsGap: 12,
             mapGap: true,
             navigationHit: true,
           })
@@ -1270,7 +1276,6 @@ test.describe("app map", () => {
       await expect(
         globalNavigation.getByRole("link", { name: "我的", exact: true })
       ).toHaveAttribute("aria-current", "page")
-
     }
   )
 
