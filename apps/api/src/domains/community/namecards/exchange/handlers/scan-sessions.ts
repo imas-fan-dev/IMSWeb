@@ -16,7 +16,8 @@ import {
     scanSessionExpiry,
     scanTokenHash,
 } from '@/domains/community/namecards/exchange/scan';
-import { namecardRepository } from '@/middleware/hono-context';
+import { namecardRepository, services } from '@/middleware/hono-context';
+import { openPlatformChangeStream } from '@/middleware/platform-change-stream';
 
 const INVALID_SCAN_MESSAGE = '二维码已失效，请让对方重新生成';
 /** 不存在与不属于自己一律同一句话：不能靠状态码试出别人的二维码。 */
@@ -56,10 +57,11 @@ export async function handleCreateScanSession(
     return c.json({ token, expiresAt } satisfies NamecardScanSessionResponse);
 }
 
-/** 出示方轮询:还没被扫、已过期,或已经被某次交换消费掉。 */
+/** 出示方的权威状态快照，也兼容仍在轮询的旧客户端。 */
 export async function handleGetScanSessionStatus(
     c: NamecardScanStatusContext,
 ): Promise<Response> {
+    c.header('Cache-Control', 'private, no-store');
     const accountId = c.get('platformUser')!.id;
     const { token } = c.req.valid('param');
     const session = await namecardRepository(c).findOwnedScanSession(
@@ -82,6 +84,30 @@ export async function handleGetScanSessionStatus(
         expiresAt: new Date(session.expires_at).toISOString(),
         exchangeId: status === 'committed' ? session.consumed_by_exchange_id : null,
     } satisfies NamecardScanSessionStatusResponse);
+}
+
+/** Only the presenter may subscribe; the stream carries no token or exchange data. */
+export async function handleScanSessionStream(c: NamecardScanStatusContext): Promise<Response> {
+    c.header('Cache-Control', 'private, no-store, no-transform');
+    const accountId = c.get('platformUser')!.id;
+    const { token } = c.req.valid('param');
+    const session = await namecardRepository(c).findOwnedScanSession(scanTokenHash(token), accountId);
+    if (!session) {
+        return c.json({ error: MISSING_SCAN_MESSAGE } satisfies NamecardErrorResponse, 404);
+    }
+    if (c.req.raw.method === 'HEAD') return c.body(null, 204);
+
+    const events = services(c).namecardNotificationEvents;
+    const stream = openPlatformChangeStream(c, 'scan.changed', (subscriber) =>
+        events?.subscribeScan?.(accountId, session.id, subscriber),
+        new Date(session.expires_at).getTime(),
+    );
+    if (stream) return c.body(stream, 200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'X-Accel-Buffering': 'no'
+    });
+    c.header('Retry-After', '5');
+    return c.json({ error: '扫码实时连接暂不可用' } satisfies NamecardErrorResponse, 503);
 }
 
 /** 扫码方提交时,出示方早已选好名单,这里只补自己给出的那张。 */

@@ -11,6 +11,15 @@
       "test": { "file": "apps/api/tests/server/platform-session-security.contract.test.ts", "symbol": "inbox SSE authenticates and emits only committed account-scoped changes" }
     },
     {
+      "id": "NAMECARD-SCAN-EVENT-STREAM-01",
+      "sourceFile": "apps/api/src/domains/community/namecards/exchange/handlers/scan-sessions.ts",
+      "symbol": "handleScanSessionStream",
+      "responseKind": "event-stream",
+      "reason": "Private scan session invalidations use SSE without carrying QR tokens or exchange data.",
+      "jsonErrorSchema": { "sourceFile": "packages/contracts/src/namecards.ts", "symbol": "namecardErrorResponseSchema" },
+      "test": { "file": "apps/api/tests/server/namecard-exchange.test.ts", "symbol": "scan SSE is owner-only and invalidates only after the session is consumed" }
+    },
+    {
       "id": "ADMIN-CATALOG-PROFILE-IMAGE-01",
       "sourceFile": "apps/api/src/domains/admin/catalog/handlers/serve-profile-image.ts",
       "symbol": "handleServeAdminCatalogProfileImage",

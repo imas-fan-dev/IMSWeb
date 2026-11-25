@@ -2,7 +2,6 @@ import { act, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ScanShareDialog } from "~/components/community/exchange/scan-share-dialog"
-import { SCAN_STATUS_POLL_MS } from "~/components/community/exchange/use-scan-share"
 import { EXCHANGE_COMPLETED_MESSAGE } from "~/components/community/exchange/use-exchange-submit"
 
 const apiMocks = vi.hoisted(() => ({
@@ -10,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   sendCreate: vi.fn(),
   getScanSession: vi.fn(),
   sendStatus: vi.fn(),
+  receiveScanChanges: vi.fn(),
 }))
 
 const toastMocks = vi.hoisted(() => ({
@@ -25,6 +25,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     ...actual,
     createScanSession: apiMocks.createScanSession,
     getScanSession: apiMocks.getScanSession,
+    receiveScanChanges: apiMocks.receiveScanChanges,
   }
 })
 
@@ -38,6 +39,7 @@ vi.mock("~/lib/namecards/data-refresh", () => ({
 
 vi.mock("sonner", () => ({ toast: toastMocks }))
 
+const SCAN_STATUS_POLL_MS = 1_500
 const EXPIRES_AT = "2026-11-19T12:00:00.000Z"
 
 function renderDialog(cardNumbers: readonly number[] = [3, 5]) {
@@ -56,6 +58,14 @@ async function flushCreate() {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+  vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+  apiMocks.receiveScanChanges.mockImplementation(
+    (_token, signal: AbortSignal) =>
+      new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true })
+      )
+  )
   apiMocks.createScanSession.mockReturnValue({ send: apiMocks.sendCreate })
   apiMocks.sendCreate.mockResolvedValue({
     token: "a".repeat(64),
@@ -70,6 +80,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -90,38 +101,43 @@ describe("ScanShareDialog", () => {
     expect(warning).toHaveClass("text-warning")
   })
 
-  it("polls until committed, announces success and refreshes namecard data", async () => {
+  it("reads only on SSE hints when healthy, then announces completion and closes", async () => {
+    renderDialog()
+    await flushCreate()
+    const [token, signal, changed] = apiMocks.receiveScanChanges.mock.calls[0]!
+    expect(token).toBe("a".repeat(64))
+    await act(async () => changed())
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(1)
     apiMocks.sendStatus.mockResolvedValue({
       status: "committed",
       expiresAt: EXPIRES_AT,
       exchangeId: "exchange-1",
     })
-    renderDialog()
-    await flushCreate()
-
-    expect(apiMocks.sendStatus).not.toHaveBeenCalled()
-    const token = "a".repeat(64)
-
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(SCAN_STATUS_POLL_MS)
+      changed()
+      changed()
     })
-
     expect(apiMocks.getScanSession).toHaveBeenCalledWith(token)
+    expect(signal.aborted).toBe(true)
     expect(toastMocks.success).toHaveBeenCalledWith(EXCHANGE_COMPLETED_MESSAGE)
     expect(refreshMocks.notify).toHaveBeenCalledTimes(1)
-    expect(
-      screen.getByText(EXCHANGE_COMPLETED_MESSAGE)
-    ).toBeVisible()
+    expect(screen.getByText(EXCHANGE_COMPLETED_MESSAGE)).toBeVisible()
   })
 
-  it("stops polling and offers a retry when the session expires", async () => {
+  it("polls after a stream failure and offers a retry when the session expires", async () => {
+    apiMocks.receiveScanChanges.mockResolvedValueOnce(undefined)
+    renderDialog()
+    await flushCreate()
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(1)
     apiMocks.sendStatus.mockResolvedValue({
       status: "expired",
       expiresAt: EXPIRES_AT,
       exchangeId: null,
     })
-    renderDialog()
-    await flushCreate()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SCAN_STATUS_POLL_MS)
@@ -129,8 +145,36 @@ describe("ScanShareDialog", () => {
 
     expect(toastMocks.error).toHaveBeenCalledWith("这次交换已过期")
     expect(screen.getByText("二维码已过期，请重新生成。")).toBeVisible()
-    expect(
-      screen.getByRole("button", { name: "重新生成" })
-    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "重新生成" })).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(2)
+    expect(apiMocks.receiveScanChanges).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops in the background and reconnects with a fresh snapshot on return", async () => {
+    const { unmount } = renderDialog()
+    await flushCreate()
+    const [, firstSignal, firstHint] =
+      apiMocks.receiveScanChanges.mock.calls[0]!
+    await act(async () => firstHint())
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(1)
+
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    document.dispatchEvent(new Event("visibilitychange"))
+    expect(firstSignal.aborted).toBe(true)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(1)
+
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    document.dispatchEvent(new Event("visibilitychange"))
+    const [, nextSignal, nextHint] = apiMocks.receiveScanChanges.mock.calls[1]!
+    await act(async () => nextHint())
+    expect(apiMocks.sendStatus).toHaveBeenCalledTimes(2)
+    unmount()
+    expect(nextSignal.aborted).toBe(true)
   })
 })

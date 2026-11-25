@@ -8,10 +8,39 @@ import { applyApiRequestPolicy } from "./request"
 const IDLE_TIMEOUT_MS = 50_000 // The server sends a heartbeat every 20 seconds.
 const MAX_FRAME_LENGTH = 8_192
 
-export async function receiveInboxChanges(
+export function receiveInboxChanges(
   accountId: string,
   signal: AbortSignal,
   changed: () => void
+): Promise<void> {
+  return receiveChanges(
+    exchangePath("/me/notifications/stream"),
+    "inbox.changed",
+    signal,
+    changed,
+    accountId
+  )
+}
+
+export function receiveScanChanges(
+  token: string,
+  signal: AbortSignal,
+  changed: () => void
+): Promise<void> {
+  return receiveChanges(
+    exchangePath(`/scan/sessions/${encodeURIComponent(token)}/stream`),
+    "scan.changed",
+    signal,
+    changed
+  )
+}
+
+async function receiveChanges(
+  path: string,
+  event: "inbox.changed" | "scan.changed",
+  signal: AbortSignal,
+  changed: () => void,
+  accountId?: string
 ): Promise<void> {
   signal.throwIfAborted()
   const connection = new AbortController()
@@ -30,7 +59,7 @@ export async function receiveInboxChanges(
       headers: { Accept: "text/event-stream" },
     }
     applyApiRequestPolicy({ config }, { authRealm: "platform" })
-    return fetch(API_ORIGIN + exchangePath("/me/notifications/stream"), {
+    return fetch(API_ORIGIN + path, {
       ...config,
       redirect: "error",
       cache: "no-store",
@@ -47,7 +76,7 @@ export async function receiveInboxChanges(
         getPlatformSession(),
         connection.signal
       )
-      if (session.account.id !== accountId) return
+      if (accountId !== undefined && session.account.id !== accountId) return
       response = await open()
     }
     if (
@@ -74,7 +103,7 @@ export async function receiveInboxChanges(
           if (separator.index > MAX_FRAME_LENGTH) return
           const frame = pending.slice(0, separator.index)
           pending = pending.slice(separator.index + separator[0].length)
-          if (frame.split(/\r?\n/).includes("event: inbox.changed")) changed()
+          if (frame.split(/\r?\n/).includes(`event: ${event}`)) changed()
         }
         if (pending.length > MAX_FRAME_LENGTH) return
       }

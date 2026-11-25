@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest"
 
-import { receiveInboxChanges } from "~/lib/api/namecard-notification-stream"
+import {
+  receiveInboxChanges,
+  receiveScanChanges,
+} from "~/lib/api/namecard-notification-stream"
 
 const { session } = vi.hoisted(() => ({ session: vi.fn() }))
 vi.mock("~/lib/api/endpoints/platform", () => ({
@@ -9,6 +12,7 @@ vi.mock("~/lib/api/endpoints/platform", () => ({
 
 afterEach(() => {
   session.mockReset()
+  vi.unstubAllGlobals()
 })
 
 it("reads split frames without treating heartbeat comments as inbox changes", async () => {
@@ -41,6 +45,25 @@ it("reads split frames without treating heartbeat comments as inbox changes", as
       credentials: "same-origin",
       headers: { Accept: "text/event-stream" },
     })
+  )
+})
+
+it("opens the scan session stream and ignores inbox events and heartbeats", async () => {
+  const fetchMock = vi.fn(
+    async () =>
+      new Response(
+        ": heartbeat\r\n\r\nevent: inbox.changed\r\ndata: {}\r\n\r\nevent: scan.changed\r\ndata: {}\r\n\r\n",
+        { headers: { "Content-Type": "text/event-stream; charset=utf-8" } }
+      )
+  )
+  vi.stubGlobal("fetch", fetchMock)
+  const changed = vi.fn()
+  const token = "a".repeat(64)
+  await receiveScanChanges(token, new AbortController().signal, changed)
+  expect(changed).toHaveBeenCalledTimes(1)
+  expect(fetchMock).toHaveBeenCalledWith(
+    `/api/community/exchange/scan/sessions/${token}/stream`,
+    expect.objectContaining({ credentials: "same-origin", cache: "no-store" })
   )
 })
 

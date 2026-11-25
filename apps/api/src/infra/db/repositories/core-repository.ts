@@ -3939,11 +3939,16 @@ export class SqlCoreRepository implements NamecardRepository {
                 });
             }
             if (input.scanSessionId) {
+                // NOTIFY is transaction-scoped: rollbacks cannot wake the presenter.
                 await executeSql(
                     database,
-                    `UPDATE public.namecard_scan_sessions
-                        SET consumed_at=?, consumed_by_exchange_id=?
-                      WHERE id=? AND consumed_at IS NULL`,
+                    `WITH consumed AS (
+                         UPDATE public.namecard_scan_sessions
+                            SET consumed_at=?, consumed_by_exchange_id=?
+                          WHERE id=? AND consumed_at IS NULL
+                          RETURNING id
+                     )
+                     SELECT pg_notify('ims_namecard_scan_changed', id::text) FROM consumed`,
                     [input.at, input.id, input.scanSessionId]
                 );
             }

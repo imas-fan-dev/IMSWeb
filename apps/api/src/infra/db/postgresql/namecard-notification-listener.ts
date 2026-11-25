@@ -2,14 +2,16 @@ import { Client } from 'pg';
 import { postgresPoolConfig, type PostgresConnectionOptions } from '@/infra/db/postgresql/connection';
 import type { NamecardNotificationEvents, NamecardNotificationSubscriber } from '@/ports/namecard-notification-events';
 
-const CHANNEL = 'ims_namecard_inbox_changed';
+const INBOX_CHANNEL = 'ims_namecard_inbox_changed';
+const SCAN_CHANNEL = 'ims_namecard_scan_changed';
 const MAX_PER_ACCOUNT = 8;
 const MAX_PER_PROCESS = 2048;
 const MIN_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
 
 export class PostgresNamecardNotificationListener implements NamecardNotificationEvents {
-    private readonly accounts = new Map<string, Set<NamecardNotificationSubscriber>>();
+    private readonly topics = new Map<string, Set<NamecardNotificationSubscriber>>();
+    private readonly accountCounts = new Map<string, number>();
     private size = 0;
     private client?: Client;
     private ready = false;
@@ -48,13 +50,15 @@ export class PostgresNamecardNotificationListener implements NamecardNotificatio
         client.on('error', disconnected);
         client.on('end', disconnected);
         client.on('notification', ({ channel, payload }) => {
-            if (this.client !== client || !this.ready || channel !== CHANNEL || !payload) return;
-            for (const subscriber of this.accounts.get(payload) ?? []) subscriber.changed();
+            if (this.client !== client || !this.ready || !payload) return;
+            if (channel !== INBOX_CHANNEL && channel !== SCAN_CHANNEL) return;
+            for (const subscriber of this.topics.get(`${channel}:${payload}`) ?? []) subscriber.changed();
         });
         void (async () => {
             try {
                 await client.connect();
-                await client.query(`LISTEN ${CHANNEL}`);
+                await client.query(`LISTEN ${INBOX_CHANNEL}`);
+                await client.query(`LISTEN ${SCAN_CHANNEL}`);
                 if (this.client === client && !this.stopped) {
                     this.ready = true;
                     this.retryMs = MIN_RETRY_MS;
@@ -66,26 +70,39 @@ export class PostgresNamecardNotificationListener implements NamecardNotificatio
     }
 
     subscribe(accountId: string, subscriber: NamecardNotificationSubscriber): (() => void) | null {
-        if (!this.ready || this.stopped || this.size >= MAX_PER_PROCESS) return null;
-        const account = this.accounts.get(accountId) ?? new Set<NamecardNotificationSubscriber>();
-        if (account.size >= MAX_PER_ACCOUNT) return null;
-        this.accounts.set(accountId, account);
-        account.add(subscriber);
+        return this.subscribeTopic(accountId, `${INBOX_CHANNEL}:${accountId}`, subscriber);
+    }
+
+    subscribeScan(accountId: string, sessionId: string, subscriber: NamecardNotificationSubscriber): (() => void) | null {
+        return this.subscribeTopic(accountId, `${SCAN_CHANNEL}:${sessionId}`, subscriber);
+    }
+
+    private subscribeTopic(accountId: string, key: string, subscriber: NamecardNotificationSubscriber): (() => void) | null {
+        const count = this.accountCounts.get(accountId) ?? 0;
+        if (!this.ready || this.stopped || this.size >= MAX_PER_PROCESS || count >= MAX_PER_ACCOUNT) return null;
+        const topic = this.topics.get(key) ?? new Set<NamecardNotificationSubscriber>();
+        if (topic.has(subscriber)) return null;
+        this.topics.set(key, topic);
+        this.accountCounts.set(accountId, count + 1);
+        topic.add(subscriber);
         this.size++;
         return () => {
-            if (!account.delete(subscriber)) return;
+            if (!topic.delete(subscriber)) return;
             this.size--;
-            if (!account.size) this.accounts.delete(accountId);
+            if (!topic.size) this.topics.delete(key);
+            const remaining = (this.accountCounts.get(accountId) ?? 1) - 1;
+            if (remaining) this.accountCounts.set(accountId, remaining);
+            else this.accountCounts.delete(accountId);
         };
     }
 
     private closeSubscribers(): void {
-        const accounts = [...this.accounts.values()];
-        for (const account of accounts) {
-            for (const subscriber of account) subscriber.close();
-            account.clear();
+        for (const topic of this.topics.values()) {
+            for (const subscriber of topic) subscriber.close();
+            topic.clear();
         }
-        this.accounts.clear();
+        this.topics.clear();
+        this.accountCounts.clear();
         this.size = 0;
     }
 

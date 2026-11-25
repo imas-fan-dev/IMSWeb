@@ -141,17 +141,17 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 444,
-      mountedMethodPaths: 343,
+      mountedRegistrations: 445,
+      mountedMethodPaths: 344,
       noInputRoutes: 101,
-      requestCarriers: 456,
+      requestCarriers: 457,
       policies: {
         reject: 122,
-        "accept-and-project": 220,
+        "accept-and-project": 221,
         passthrough: 17,
         "non-object-applicable": 97,
       },
-      responses: { total: 881, json: 813, nonJson: 68 },
+      responses: { total: 885, json: 815, nonJson: 70 },
       unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
@@ -216,6 +216,7 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessagePlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId/placement", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba", symbol: "fudabaCardOfficePlacementParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWorldPlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "reject", actualCarriers: 1 },
+      { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/sessions/:token/stream", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

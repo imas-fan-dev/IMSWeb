@@ -898,7 +898,7 @@ export function commitScanSession(token: string, input: ExchangeCommitInput) {
 }
 
 /**
- * 出示方轮询会话状态（`active` / `expired` / `committed`）。
+ * 出示方读取会话状态（`active` / `expired` / `committed`）。
  *
  * 只有创建者能读；`exchangeId` 仅在 `committed` 后给值，前端只需要状态与到期时间。
  */
