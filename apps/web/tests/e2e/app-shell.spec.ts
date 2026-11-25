@@ -104,7 +104,7 @@ test.beforeEach(async ({ page, api }) => {
 
 test.describe("app shell", () => {
   test(
-    "keeps the five App roots usable inside the safe area",
+    "keeps the four App roots and the exchange action usable inside the safe area",
     {
       tag: ["@app-landscape", "@app-webkit"],
     },
@@ -117,10 +117,12 @@ test.describe("app shell", () => {
       await expect(navigation.getByRole("link")).toHaveText([
         "首页",
         "社区",
-        "交换地图",
         "资料",
         "我的",
       ])
+      await expect(
+        navigation.getByRole("button", { name: "打开名片交换菜单" })
+      ).toBeVisible()
 
       await expect
         .poll(() =>

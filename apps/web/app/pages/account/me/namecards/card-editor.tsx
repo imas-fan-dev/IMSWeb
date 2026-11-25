@@ -43,7 +43,7 @@ import {
   releaseMediaSlot,
   type MediaSlot,
 } from "./card-media-gallery"
-import { PublicationBadge } from "./card-inventory"
+import { PublicationBadge } from "./card-tile"
 import { CardFields } from "./card-editor-fields"
 import { CardModule, type CardModuleModes } from "./card-module"
 import {
@@ -190,6 +190,7 @@ export function CardEditor({
     groupName: "团体名称不符合要求。",
     producerReading: "制作人名读法只能使用日文假名、英文字母、撇号与连字符。",
     madeOn: "制作日期需要在 2002 至 2099 年之间。",
+    tags: "标签不符合要求（最多 20 个，每个不超过 64 字）。",
     seriesCodes: "所属企划不符合要求（最多 64 个）。",
     favoriteCharacterIds: "担当角色不符合要求（最多 200 位且不能重复）。",
     bio: "个人简介超出长度限制，请精简。",
@@ -300,6 +301,9 @@ export function CardEditor({
         expectedRevision: latest.revision,
       }).send()
       setDraft(cardFields(result.card))
+      // 提交后页面行可能从 live 换到 pending（或反之）；用最终修订重种槽位，
+      // 免得画廊继续拿着上一轮的图片地址。
+      seedSlots(result.card)
       onSaved(result.card)
       // Saving exactly what is on the wall again drops the waiting revision
       // instead of queueing an identical one.

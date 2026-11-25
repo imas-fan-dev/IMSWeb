@@ -18,6 +18,12 @@ const defaultWebPort = 5173;
 const loopbackHost = "127.0.0.1";
 const readinessTimeoutMs = 90_000;
 const supportedPlatforms = new Set(["darwin", "linux", "win32"]);
+// Local development opens every Fudaba gate so the exchange, wall and message
+// board are usable without extra setup. The map gate needs a style URL, so the
+// same keyless OpenFreeMap style the deployment example documents is injected
+// when the environment does not name one.
+const defaultFudabaMapStyleUrl =
+  "https://tiles.openfreemap.org/styles/positron";
 
 const localInfrastructureDefaults = Object.freeze({
   IMS_POSTGRES_PORT: "5432",
@@ -31,6 +37,7 @@ const localInfrastructureDefaults = Object.freeze({
   IMS_RUSTFS_SECRET_KEY: "imsweb-local-password",
   IMS_RUSTFS_BUCKET: "imsweb-media-local",
   IMS_VALKEY_PORT: "6379",
+  IMS_MAIL_QUEUE_PORT: "6380",
 });
 
 function usage() {
@@ -54,7 +61,7 @@ Options:
 Environment overrides:
   IMS_DEV_API_PORT, IMS_DEV_EMAIL_WORKER_HEALTH_PORT, IMS_DEV_WEB_PORT
   IMS_DEV_R2_ENV_FILE
-  IMS_VALKEY_PORT
+  IMS_VALKEY_PORT, IMS_MAIL_QUEUE_PORT
   IMS_DEV_FUDABA_PUBLIC_READ_ENABLED, IMS_DEV_FUDABA_WRITE_ENABLED
   IMS_DEV_FUDABA_MAP_ENABLED, IMS_DEV_FUDABA_MAP_STYLE_URL
   IMS_DEV_FUDABA_MAP_STYLE_URLS
@@ -180,7 +187,9 @@ function developmentBooleanFlag(environment, name) {
   const value = String(environment[name] || "")
     .trim()
     .toLowerCase();
-  if (!value) return "false";
+  // An unset flag is a local developer who wants the feature, not a deployment
+  // that must stay dark; opt out explicitly with `IMS_DEV_*=false`.
+  if (!value) return "true";
   if (value === "true" || value === "false") return value;
   throw new Error(`${name} must be true or false`);
 }
@@ -298,15 +307,10 @@ function resolveFudabaDevelopmentEnvironment(environment) {
     environment,
     "IMS_DEV_FUDABA_MAP_ENABLED",
   );
-  const mapStyleUrl = developmentMapStyleUrl(environment);
+  const mapStyleUrl =
+    developmentMapStyleUrl(environment) || defaultFudabaMapStyleUrl;
   const mapStyleUrls = developmentMapStyleUrls(environment);
   const geocoding = developmentGeocodingConfig(environment);
-  if (mapEnabled === "true" && !mapStyleUrl) {
-    throw new Error(
-      "IMS_DEV_FUDABA_MAP_STYLE_URL is required when " +
-        "IMS_DEV_FUDABA_MAP_ENABLED=true",
-    );
-  }
   return {
     IMS_FUDABA_PUBLIC_READ_ENABLED: developmentBooleanFlag(
       environment,
@@ -315,6 +319,10 @@ function resolveFudabaDevelopmentEnvironment(environment) {
     IMS_FUDABA_WRITE_ENABLED: developmentBooleanFlag(
       environment,
       "IMS_DEV_FUDABA_WRITE_ENABLED",
+    ),
+    IMS_FUDABA_MESSAGE_CREATE_ENABLED: developmentBooleanFlag(
+      environment,
+      "IMS_DEV_FUDABA_MESSAGE_CREATE_ENABLED",
     ),
     IMS_FUDABA_MAP_ENABLED: mapEnabled,
     IMS_FUDABA_MAP_STYLE_URL: mapStyleUrl,
@@ -545,6 +553,7 @@ export function resolveDevelopmentConfiguration({
       defaultEmailWorkerHealthPort,
     "IMS_DEV_EMAIL_WORKER_HEALTH_PORT",
   );
+  const mailQueuePort = parsePort(infrastructure.IMS_MAIL_QUEUE_PORT, "IMS_MAIL_QUEUE_PORT");
   const reservedDevelopmentPorts = new Map([
     [options.apiPort, "API"],
     [options.webPort, "Web"],
@@ -553,6 +562,9 @@ export function resolveDevelopmentConfiguration({
     [rustfsPort, "RustFS API"],
     [rustfsConsolePort, "RustFS console"],
   ]);
+  const queueConflict = reservedDevelopmentPorts.get(mailQueuePort);
+  if (queueConflict) throw new Error(`Mail queue port must be different from the ${queueConflict} port`);
+  reservedDevelopmentPorts.set(mailQueuePort, "mail queue");
   const conflictingService = reservedDevelopmentPorts.get(emailWorkerHealthPort);
   if (conflictingService) {
     throw new Error(
@@ -591,6 +603,7 @@ export function resolveDevelopmentConfiguration({
   );
   const rustfsConsoleOrigin = `http://${loopbackHost}:${rustfsConsolePort}`;
   const valkeyUrl = `redis://${loopbackHost}:${valkeyPort}`;
+  const mailQueueUrl = `redis://${loopbackHost}:${mailQueuePort}`;
   const databaseUrl = encodedPostgresUrl({
     host: loopbackHost,
     port: postgresPort,
@@ -606,7 +619,7 @@ export function resolveDevelopmentConfiguration({
   }
   composeArguments.push("--profile", "local-cache");
   if (!options.r2) composeArguments.push("--profile", "local-storage");
-  composeArguments.push("-f", composePath);
+  composeArguments.push("-f", composePath, "-f", path.join(repositoryRoot, "deploy/compose.dev.yaml"));
 
   const applicationEnvironment = sanitizedApplicationEnvironment(environment);
   const objectStorageEnvironment = options.r2
@@ -638,6 +651,7 @@ export function resolveDevelopmentConfiguration({
     IMS_COOKIE_SECURE: "false",
     IMS_CACHE_BACKEND: "valkey",
     IMS_VALKEY_URL: valkeyUrl,
+    IMS_MAIL_QUEUE_URL: mailQueueUrl,
     IMS_CLIENT_ADDRESS_SOURCE: "direct",
     ...resolveFudabaDevelopmentEnvironment(environment),
     DATABASE_URL: databaseUrl,
@@ -660,6 +674,7 @@ export function resolveDevelopmentConfiguration({
     rustfsConsoleOrigin,
     valkeyUrl,
     valkeyPort,
+    mailQueuePort,
     databaseUrl,
     postgresPort,
     rustfsPort,
@@ -681,6 +696,7 @@ export function resolveDevelopmentConfiguration({
       IMS_PROJECT_ROOT: repositoryRoot,
       IMS_PLATFORM_JWT_SECRET: "imsweb-local-development-platform-secret",
       DATABASE_URL: databaseUrl,
+      IMS_MAIL_QUEUE_URL: mailQueueUrl,
       IMS_EMAIL_WORKER_HEALTH_HOST: loopbackHost,
       IMS_EMAIL_WORKER_HEALTH_PORT: String(emailWorkerHealthPort),
     },
@@ -713,6 +729,7 @@ export function buildCommandPlan(configuration) {
         "-d",
         "postgres",
         "valkey",
+        "mail-queue",
         ...(usesRustfs ? ["rustfs"] : []),
       ],
       env: configuration.composeEnvironment,
@@ -735,6 +752,11 @@ export function buildCommandPlan(configuration) {
     valkeyReady: {
       command: "docker",
       args: [...compose, "exec", "-T", "valkey", "valkey-cli", "ping"],
+      env: configuration.composeEnvironment,
+    },
+    mailQueueReady: {
+      command: "docker",
+      args: [...compose, "exec", "-T", "mail-queue", "valkey-cli", "ping"],
       env: configuration.composeEnvironment,
     },
     rustfsInit: usesRustfs
@@ -781,6 +803,7 @@ export function buildCommandPlan(configuration) {
         ...compose,
         "stop",
         ...(usesRustfs ? ["rustfs-init", "rustfs"] : []),
+        "mail-queue",
         "valkey",
         "postgres",
       ],
@@ -1408,6 +1431,13 @@ async function doctor(configuration, plan) {
         : portFailureHint(valkeyPortProbe, configuration.valkeyPort, "Valkey"),
   });
 
+  const mailQueuePortProbe = await probePort(configuration.mailQueuePort);
+  checks.push({
+    label: `Mail queue port ${configuration.mailQueuePort} available`,
+    ok: mailQueuePortProbe.available,
+    hint: portFailureHint(mailQueuePortProbe, configuration.mailQueuePort, "mail queue"),
+  });
+
   for (const check of checks) {
     process.stdout.write(`[${check.ok ? "ok" : "fail"}] ${check.label}\n`);
     if (!check.ok && check.hint) {
@@ -1429,6 +1459,7 @@ function printPlan(configuration, plan) {
     ],
     ["Wait for PostgreSQL", plan.postgresReady],
     ["Wait for Valkey", plan.valkeyReady],
+    ["Wait for mail queue", plan.mailQueueReady],
     ...(plan.rustfsInit ? [["Initialize RustFS bucket", plan.rustfsInit]] : []),
     ["Apply PostgreSQL migrations", plan.migrate],
     ["Start Hono API", plan.api],
@@ -1471,6 +1502,7 @@ export async function prepareDevelopmentEnvironment(
   );
   await operations.waitForCommand("Waiting for PostgreSQL", plan.postgresReady);
   await operations.waitForCommand("Waiting for Valkey", plan.valkeyReady);
+  await operations.waitForCommand("Waiting for mail queue", plan.mailQueueReady);
   if (plan.rustfsInit) {
     process.stdout.write("[dev] Waiting for RustFS\n");
     await operations.waitForUrl(

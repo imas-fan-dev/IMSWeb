@@ -34,6 +34,8 @@ export interface FudabaCardFields {
     madeWithAi: boolean;
     producerName: string;
     seriesCodes: string[];
+    /** 标签：即时生效，不进审核载荷。 */
+    tags?: string[];
     tradeNote: string;
     /** 显示状态: whether other visitors see the card at all. */
     visible: boolean;
@@ -126,6 +128,7 @@ function parseCredits(value: unknown): unknown {
 const FIELD_COERCIONS: Record<string, (value: unknown) => unknown> = {
     seriesCodes: parseSeriesCodes,
     favoriteCharacterIds: parseJson,
+    tags: parseJson,
     credits: parseCredits,
     isGroupCard: parseFlag,
     isOriginal: parseFlag,
@@ -234,7 +237,8 @@ function normalizeCardFields(fields: FudabaCardFieldsRequest): FudabaCardFields 
         madeWithAi: fields.madeWithAi,
         // 团体名片的表述是「任何人都可以自由领取」，所以它必须可见。
         visible: isGroupCard ? true : fields.visible,
-        credits: fields.credits
+        credits: fields.credits,
+        tags: fields.tags
     };
 }
 
@@ -285,9 +289,9 @@ function finiteNumber(
 function zIndex(value: unknown): number {
     if (
         typeof value !== 'number' || !Number.isSafeInteger(value) ||
-        value < 1 || value > 999
+        value < 1 || value > 2_147_483_000
     ) {
-        throw badRequest('zIndex 必须是 1 到 999 之间的整数');
+        throw badRequest('zIndex 超出墙面层级范围');
     }
     return value;
 }
@@ -368,11 +372,24 @@ function cardFieldsSchemaValidator(
  * 创建只送 multipart 字符串：先做强制转换，再交给创建侧的 zod schema 判规则。
  */
 export function parseFudabaCardCreateFields(
-    fields: Record<string, string>
+    fields: Record<string, string>,
+    guest = false,
 ): FudabaCardFields {
+    if (guest) {
+        allowedKeys(fields, [
+            'producerName', 'producerReading', 'isGroupCard', 'groupName', 'madeOn',
+            'seriesCodes', 'favoriteCharacterIds', 'tags', 'rotations',
+        ]);
+    }
     // 旋转随图提交，由 `parseMediaRotations` 单独解析，不属于卡片内容字段。
     const content: Record<string, unknown> = { ...fields };
     delete content.rotations;
+    if (guest) {
+        // The claim-style form has no bio or exchange note.
+        content.bio = '';
+        content.tradeNote = '';
+        content.favoriteCharacterIds ??= '[]';
+    }
     return cardFieldsSchemaValidator(fudabaCardFieldsSubmissionSchema, content);
 }
 
@@ -399,10 +416,11 @@ export function parseFudabaCardPlacement(
     value: unknown
 ): FudabaCardPlacementSubmission {
     const body = object(value);
-    exactKeys(body, ['x', 'y', 'rotation', 'zIndex', 'expectedRevision']);
+    exactKeys(body, ['layoutVersion', 'x', 'y', 'rotation', 'zIndex', 'expectedRevision']);
+    if (body.layoutVersion !== 1) throw badRequest('layoutVersion 无效');
     return {
-        positionX: finiteNumber(body.x, 'x', 0, 100),
-        positionY: finiteNumber(body.y, 'y', 0, 100),
+        positionX: finiteNumber(body.x, 'x', -1_000_000, 1_000_000),
+        positionY: finiteNumber(body.y, 'y', -1_000_000, 1_000_000),
         rotation: finiteNumber(body.rotation, 'rotation', -12, 12),
         zIndex: zIndex(body.zIndex),
         expectedRevision: body.expectedRevision === null

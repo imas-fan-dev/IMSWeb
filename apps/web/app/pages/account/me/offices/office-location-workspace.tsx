@@ -1,3 +1,4 @@
+import { MessagesPanel } from "~/pages/community/exchange/messages-panel"
 import {
   Building2Icon,
   CircleAlertIcon,
@@ -20,6 +21,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   createFudabaOffice,
+  getFudabaOfficeSeries,
   getFudabaOwnerOffice,
   getFudabaOwnerOffices,
   updateFudabaOwnerOffice,
@@ -48,14 +50,12 @@ type WorkspacePhase = "loading" | "ready" | "error"
 export function OfficeLocationWorkspace({
   initialOfficeId,
   initialTarget,
-  series,
   homeCity,
   readOnly,
   onWriteClosed,
 }: {
   initialOfficeId?: string
   initialTarget?: MapSearchTarget | null
-  series: FudabaSeries[]
   homeCity: string | null
   readOnly: boolean
   onWriteClosed(): void
@@ -63,6 +63,7 @@ export function OfficeLocationWorkspace({
   const mapDialog = useExchangeMapDialog()
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<WorkspacePhase>("loading")
+  const [series, setSeries] = useState<FudabaSeries[]>([])
   const [offices, setOffices] = useState<FudabaOwnerOffice[]>([])
   const [office, setOffice] = useState<FudabaOwnerOffice | null>(null)
   const [creating, setCreating] = useState(false)
@@ -153,9 +154,13 @@ export function OfficeLocationWorkspace({
     setPhase("loading")
     setLoadError(null)
     try {
-      const result = await getFudabaOwnerOffices().send()
+      const [result, officeSeries] = await Promise.all([
+        getFudabaOwnerOffices().send(),
+        getFudabaOfficeSeries({ owner: true }).send(),
+      ])
       if (generation.current !== current) return
       setOffices(result.items)
+      setSeries(officeSeries.items)
       setPhase("ready")
       const next =
         result.items.find((item) => item.id === selectedId.current)?.id ??
@@ -409,6 +414,9 @@ export function OfficeLocationWorkspace({
                 if (office) void loadSelection(office.id)
               }}
             />
+            {office && !creating ? (
+              <MessagesPanel mode="office" officeId={office.id} />
+            ) : null}
           </div>
         ) : (
           <Empty className="mt-8 min-h-72 border-y">

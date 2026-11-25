@@ -140,11 +140,14 @@ test.describe('development environment launcher', () => {
     assertIsolatedPlatformSecret(configuration);
     assert.equal(
       configuration.apiEnvironment.IMS_FUDABA_PUBLIC_READ_ENABLED,
-      "false",
+      "true",
     );
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "false");
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "false");
-    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL, "");
+    assert.equal(configuration.apiEnvironment.IMS_FUDABA_WRITE_ENABLED, "true");
+    assert.equal(configuration.apiEnvironment.IMS_FUDABA_MAP_ENABLED, "true");
+    assert.equal(
+      configuration.apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+      "https://tiles.openfreemap.org/styles/positron",
+    );
     assert.equal(configuration.apiEnvironment.IMS_FUDABA_GEOCODING_ENDPOINT, "");
     assert.equal(
       configuration.apiEnvironment.IMS_FUDABA_GEOCODING_USER_AGENT,
@@ -335,9 +338,11 @@ test.describe('development environment launcher', () => {
     ]) {
       assert.throws(() => resolve({ [name]: "yes" }), new RegExp(`${name} must`));
     }
-    assert.throws(
-      () => resolve({ IMS_DEV_FUDABA_MAP_ENABLED: "true" }),
-      /IMS_DEV_FUDABA_MAP_STYLE_URL is required/,
+    // The map gate opens by default, so an unnamed style URL falls back to the
+    // documented keyless OpenFreeMap style instead of failing startup.
+    assert.equal(
+      resolve({}).apiEnvironment.IMS_FUDABA_MAP_STYLE_URL,
+      "https://tiles.openfreemap.org/styles/positron",
     );
     assert.throws(
       () =>
@@ -449,11 +454,12 @@ test.describe('development environment launcher', () => {
     });
     const plan = buildCommandPlan(configuration);
 
-    assert.deepEqual(plan.infrastructure.args.slice(-5), [
+    assert.deepEqual(plan.infrastructure.args.slice(-6), [
       "up",
       "-d",
       "postgres",
       "valkey",
+      "mail-queue",
       "rustfs",
     ]);
     assert.deepEqual(plan.composeRuntime.args.slice(-2), ["ps", "--quiet"]);
@@ -492,10 +498,11 @@ test.describe('development environment launcher', () => {
       "--strictPort",
     ]);
     assert.equal(plan.web.args.includes("--"), false);
-    assert.deepEqual(plan.down.args.slice(-5), [
+    assert.deepEqual(plan.down.args.slice(-6), [
       "stop",
       "rustfs-init",
       "rustfs",
+      "mail-queue",
       "valkey",
       "postgres",
     ]);
@@ -523,15 +530,16 @@ test.describe('development environment launcher', () => {
     });
     const plan = buildCommandPlan(configuration);
 
-    assert.deepEqual(plan.infrastructure.args.slice(-4), [
+    assert.deepEqual(plan.infrastructure.args.slice(-5), [
       "up",
       "-d",
       "postgres",
       "valkey",
+      "mail-queue",
     ]);
     assert.equal(plan.infrastructure.args.includes("rustfs"), false);
     assert.equal(plan.rustfsInit, undefined);
-    assert.deepEqual(plan.down.args.slice(-3), ["stop", "valkey", "postgres"]);
+    assert.deepEqual(plan.down.args.slice(-4), ["stop", "mail-queue", "valkey", "postgres"]);
   });
 
   test("development launcher enforces the repository Node baseline", async () => {
@@ -700,6 +708,7 @@ test.describe('development environment launcher', () => {
       "Starting PostgreSQL, Valkey, and RustFS",
       "Waiting for PostgreSQL",
       "Waiting for Valkey",
+      "Waiting for mail queue",
       "RustFS:http://127.0.0.1:9000/health",
       "Initializing the local RustFS bucket",
       "Applying PostgreSQL migrations",
@@ -742,6 +751,7 @@ test.describe('development environment launcher', () => {
       "Starting PostgreSQL and Valkey",
       "Waiting for PostgreSQL",
       "Waiting for Valkey",
+      "Waiting for mail queue",
       "Applying PostgreSQL migrations",
     ]);
   });

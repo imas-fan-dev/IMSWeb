@@ -1,8 +1,5 @@
 import AxeBuilder from "@axe-core/playwright"
-import type {
-  FudabaCardPage,
-  FudabaOwnerOffice,
-} from "@imsweb/contracts/fudaba"
+import type { FudabaOwnerOffice } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
@@ -220,51 +217,53 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
     expect(await request.headerValue("cookie")).toBeNull()
     await route.fulfill({ body: avatarFixture, contentType: "image/svg+xml" })
   })
-  await api.mockRoute(
-    "**/api/community/exchange/me/series",
-    async (route) => {
-      await route.fulfill({
-        json: {
-          items: [
-            {
-              id: 1,
-              code: "765",
-              displayName: "765PRO",
-              color: "#f34f6d",
-              iconUrl: "/brand/series/wall/765pro.webp",
-              imageTransform: {
-                fit: "contain",
-                focalX: 0.5,
-                focalY: 0.5,
-                zoom: 1,
-                rotation: 0,
+  for (const path of ["series", "office-series"]) {
+    await api.mockRoute(
+      `**/api/community/exchange/me/${path}`,
+      async (route) => {
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                id: 1,
+                code: "765",
+                displayName: "765PRO",
+                color: "#f34f6d",
+                iconUrl: "/brand/series/wall/765pro.webp",
+                imageTransform: {
+                  fit: "contain",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                displayOrder: 0,
+                activeOfficeCount: 1,
               },
-              displayOrder: 0,
-              activeOfficeCount: 1,
-            },
-            {
-              id: 2,
-              code: "cg",
-              displayName: "灰姑娘女孩",
-              color: "#2581c7",
-              iconUrl: null,
-              imageTransform: {
-                fit: "cover",
-                focalX: 0.5,
-                focalY: 0.5,
-                zoom: 1,
-                rotation: 0,
+              {
+                id: 2,
+                code: "cg",
+                displayName: "灰姑娘女孩",
+                color: "#2581c7",
+                iconUrl: null,
+                imageTransform: {
+                  fit: "cover",
+                  focalX: 0.5,
+                  focalY: 0.5,
+                  zoom: 1,
+                  rotation: 0,
+                },
+                displayOrder: 1,
+                activeOfficeCount: 1,
               },
-              displayOrder: 1,
-              activeOfficeCount: 1,
-            },
-          ],
-        },
-      })
-    },
-    "GET",
-    workspaceReads
-  )
+            ],
+          },
+        })
+      },
+      "GET",
+      workspaceReads
+    )
+  }
   await api.mockRoute(
     "**/api/wiki/catalog",
     async (route) => {
@@ -341,18 +340,6 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
       await route.fulfill({ json: makeCharacterCatalog() })
     },
     "GET"
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/me/favorites?**",
-    async (route) => {
-      const response = {
-        items: [],
-        pageInfo: { hasNextPage: false, nextCursor: null },
-      } satisfies FudabaCardPage
-      await route.fulfill({ status: 200, json: response })
-    },
-    "GET",
-    { min: 1, max: workspaceReads }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",
@@ -527,6 +514,22 @@ test.describe("account personal workspace", () => {
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
     })
+    await dispatcher.mockRoute(
+      `**/api/community/exchange/offices/${office.id}/messages?*`,
+      (route) => {
+        const query = new URL(route.request().url()).searchParams
+        expect(query.get("status")).toBe("all")
+        expect(query.get("limit")).toBe("50")
+        return route.fulfill({
+          json: {
+            messages: [],
+            pageInfo: { hasNextPage: false, nextCursor: null },
+          },
+        })
+      },
+      "GET",
+      { min: 1, max: 2 }
+    )
     await page.goto("/account/me/profile")
 
     await expect(
@@ -699,7 +702,7 @@ test.describe("account personal workspace", () => {
 
     if (isMobile)
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
-    await page.getByRole("link", { name: /^交换名片/ }).click()
+    await page.getByRole("link", { name: /^名片管理/ }).click()
     await expect(page).toHaveURL(/\/account\/me\/namecards(?:[?#]|$)/)
     await expect(
       page.getByLabel("我的名片清单").getByText("浏览器制作人", { exact: true })

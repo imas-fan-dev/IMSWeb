@@ -17,7 +17,7 @@ import {
   nonJsonBoundaryManifestPath,
 } from "./non-json-boundary-manifest.mjs";
 
-const validKinds = new Set(["binary", "html", "redirect", "static", "no-content", "compatibility-text-error"]);
+const validKinds = new Set(["binary", "html", "redirect", "static", "no-content", "event-stream", "compatibility-text-error"]);
 const textContentType = "text/plain; charset=UTF-8";
 
 function exists(file) {

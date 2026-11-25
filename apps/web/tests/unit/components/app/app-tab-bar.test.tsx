@@ -25,6 +25,20 @@ vi.mock("~/lib/app-target", () => ({
 }))
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => runtime.tauri }))
 
+const apiMocks = vi.hoisted(() => ({
+  getExchangeCandidates: vi.fn(),
+  getCardLayout: vi.fn(),
+}))
+
+vi.mock("~/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/api")>()
+  return {
+    ...actual,
+    getExchangeCandidates: apiMocks.getExchangeCandidates,
+    getCardLayout: apiMocks.getCardLayout,
+  }
+})
+
 const themeMocks = vi.hoisted(() => ({ resolvedTheme: "light" }))
 
 const nativeMocks = vi.hoisted(() => ({
@@ -44,12 +58,15 @@ vi.mock("next-themes", () => ({
 
 vi.mock("~/lib/native-glass", () => ({
   isAndroidRuntimeIdentity: (userAgent: string) => /Android/i.test(userAgent),
+  isIosRuntimeIdentity: (identity: { userAgent: string }) =>
+    /\b(iPad|iPhone|iPod)\b/i.test(identity.userAgent),
   configureNativeGlass: nativeMocks.configure,
   destroyNativeGlass: nativeMocks.destroy,
   nativeTabRoute: (event: Event) =>
     event instanceof CustomEvent && typeof event.detail?.route === "string"
       ? event.detail.route
       : null,
+  NATIVE_TAB_ACTION_EVENT: "ims:native-tab-action",
   NATIVE_TAB_SELECT_EVENT: "ims:native-tab-select",
   shouldAttemptNativeGlass: nativeMocks.shouldAttempt,
   updateNativeGlass: nativeMocks.update,
@@ -136,36 +153,33 @@ describe("AppTabBar platform material", () => {
     })
     const [configuredOptions] = nativeMocks.configure.mock.calls[0]
     expect(configuredOptions.selectedColor).toEqual(nativeSelectedColor)
-    expect(
-      configuredOptions.items.map(
-        (item: { lucideIcon: string }) => item.lucideIcon
-      )
-    ).toEqual(["house", "users", "map-pinned", "book-open-text", "circle-user"])
     expect(configuredOptions.items[2]).toEqual({
-      route: "/community/exchange",
-      lucideIcon: "map-pinned",
-      title: "交换地图",
+      action: "exchange",
+      title: "交换",
+      menu: {
+        close: "收起名片交换菜单",
+        group: "多人交换",
+        nfc: "碰一碰",
+        qr: "二维码",
+      },
     })
-
-    window.dispatchEvent(
-      new CustomEvent("ims:native-tab-select", {
-        detail: { route: "/community/exchange" },
+    const select = (route: string) =>
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("ims:native-tab-select", { detail: { route } })
+        )
       })
-    )
-
+    select("/community/exchange")
+    expect(screen.getByTestId("location").textContent).toBe("/")
+    select("/community")
+    expect(screen.getByTestId("location")).toHaveTextContent("/community")
     await waitFor(() => {
-      expect(screen.getByTestId("location").textContent).toBe(
-        "/community/exchange"
+      expect(nativeMocks.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          selectedIndex: 1,
+          currentRoute: "/community",
+        })
       )
-    })
-    await waitFor(() => {
-      expect(nativeMocks.update).toHaveBeenLastCalledWith({
-        dark: false,
-        hidden: false,
-        interactionBlocked: false,
-        selectedColor: nativeSelectedColor,
-        selectedIndex: 2,
-      })
     })
   })
 
@@ -180,7 +194,11 @@ describe("AppTabBar platform material", () => {
       expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
     })
     expect(nativeMocks.configure).toHaveBeenCalledWith(
-      expect.objectContaining({ dark: false, selectedIndex: 2 })
+      expect.objectContaining({
+        dark: false,
+        selectedIndex: -1,
+        currentRoute: "/community/exchange",
+      })
     )
     await waitFor(() => {
       expect(nativeMocks.update).toHaveBeenLastCalledWith({
@@ -188,7 +206,10 @@ describe("AppTabBar platform material", () => {
         hidden: false,
         interactionBlocked: false,
         selectedColor: nativeSelectedColor,
-        selectedIndex: 2,
+        selectedIndex: -1,
+        currentRoute: "/community/exchange",
+        routeKey: "default",
+        accountBadge: "",
       })
     })
   })
@@ -214,6 +235,9 @@ describe("AppTabBar platform material", () => {
         interactionBlocked: true,
         selectedColor: nativeSelectedColor,
         selectedIndex: 0,
+        currentRoute: "/",
+        routeKey: "default",
+        accountBadge: "",
       })
     })
 
@@ -229,6 +253,9 @@ describe("AppTabBar platform material", () => {
         interactionBlocked: false,
         selectedColor: nativeSelectedColor,
         selectedIndex: 0,
+        currentRoute: "/",
+        routeKey: "default",
+        accountBadge: "",
       })
     })
   })
@@ -348,6 +375,10 @@ describe("AppTabBar platform material", () => {
         hidden: false,
         interactionBlocked: false,
         selectedColor: nativeSelectedColor,
+        selectedIndex: -1,
+        currentRoute: "/not-found",
+        routeKey: "default",
+        accountBadge: "",
       })
     })
   })
@@ -396,9 +427,9 @@ describe("AppTabBar Android drag ownership", () => {
       expect(bar.querySelectorAll(".glass-lens")).toHaveLength(1)
       expect(bar.querySelectorAll(".glass-lens-skin")).toHaveLength(1)
       if (enabled)
-        expect(screen.getByRole("link", { name: "交换地图" })).toHaveClass(
-          "text-primary"
-        )
+        expect(
+          screen.getByRole("button", { name: "打开名片交换菜单" })
+        ).toBeVisible()
     }
   )
 
@@ -517,4 +548,143 @@ describe("AppTabBar prerendered runtime admission", () => {
       }
     }
   )
+})
+
+describe("AppTabBar exchange action", () => {
+  beforeEach(() => {
+    runtime.app = true
+    runtime.tauri = false
+    nativeMocks.shouldAttempt.mockReturnValue(false)
+    nativeMocks.configure.mockResolvedValue({ supported: false })
+    apiMocks.getExchangeCandidates.mockReturnValue({
+      send: vi.fn().mockResolvedValue({ limit: 20, cards: [] }),
+    })
+    apiMocks.getCardLayout.mockReturnValue({
+      send: vi.fn().mockResolvedValue(null),
+    })
+  })
+
+  it("replaces the centre tab only on the App target", () => {
+    const { unmount } = renderTabBar()
+    expect(
+      screen.queryByRole("link", { name: "交换地图" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "打开名片交换菜单" })
+    ).toBeVisible()
+
+    unmount()
+    runtime.app = false
+    renderTabBar()
+    expect(screen.getByRole("link", { name: "交换地图" })).toBeVisible()
+    expect(
+      screen.queryByRole("button", { name: "打开名片交换菜单" })
+    ).not.toBeInTheDocument()
+  })
+
+  it("expands the arc, freezes the other tabs and collapses on the scrim", () => {
+    const { container } = renderTabBar("/community/exchange")
+
+    fireEvent.click(screen.getByRole("button", { name: "打开名片交换菜单" }))
+
+    expect(
+      screen.getByRole("button", { name: "收起名片交换菜单" })
+    ).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "二维码" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "碰一碰" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "多人交换" })).toBeDisabled()
+    expect(
+      screen.getByRole("link", { name: "首页" }).closest("li")
+    ).toHaveAttribute("inert")
+
+    fireEvent.click(
+      container.querySelector('[data-slot="exchange-scrim"]') as HTMLElement
+    )
+
+    expect(
+      screen.getByRole("button", { name: "打开名片交换菜单" })
+    ).toHaveAttribute("aria-expanded", "false")
+    // 遮罩常驻（退场动画要它），收起态必须不可见且不可点。
+    const scrim = container.querySelector('[data-slot="exchange-scrim"]')
+    expect(scrim).toHaveClass("opacity-0", "pointer-events-none")
+  })
+
+  it("collapses when the close icon is pressed", () => {
+    renderTabBar()
+
+    fireEvent.click(screen.getByRole("button", { name: "打开名片交换菜单" }))
+    fireEvent.click(screen.getByRole("button", { name: "收起名片交换菜单" }))
+
+    expect(
+      screen.getByRole("button", { name: "打开名片交换菜单" })
+    ).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("opens the scan-share picker from the QR sub-action", async () => {
+    renderTabBar()
+
+    fireEvent.click(screen.getByRole("button", { name: "打开名片交换菜单" }))
+    fireEvent.click(screen.getByRole("button", { name: "二维码" }))
+
+    expect(
+      await screen.findByRole("dialog", { name: "扫码交换" })
+    ).toBeVisible()
+    expect(await screen.findByText("你还没有已发布的名片")).toBeVisible()
+    expect(screen.getByRole("button", { name: "扫码" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "分享" })).toBeDisabled()
+  })
+
+  it("hands the native Exchange action off to the QR picker without changing tabs", async () => {
+    nativeMocks.shouldAttempt.mockReturnValue(true)
+    nativeMocks.configure.mockResolvedValue({ supported: true })
+    renderTabBar("/community")
+    await waitFor(() =>
+      expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
+    )
+    const openExchange = () => {
+      window.dispatchEvent(
+        new CustomEvent("ims:native-tab-action", {
+          detail: { action: "exchange" },
+        })
+      )
+    }
+    let release = () => {}
+    act(() => {
+      release = blockNativeTabBarInteraction()
+    })
+    try {
+      act(openExchange)
+      expect(
+        screen.queryByRole("dialog", { name: "名片交换" })
+      ).not.toBeInTheDocument()
+    } finally {
+      act(release)
+    }
+    act(openExchange)
+    expect(
+      await screen.findByRole("dialog", { name: "名片交换" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "碰一碰" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "多人交换" })).toBeDisabled()
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "二维码" }))
+    expect(
+      await screen.findByRole("dialog", { name: "扫码交换" })
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "扫码" })).toBeVisible()
+    expect(screen.getByTestId("location")).toHaveTextContent("/community")
+    expect(nativeMocks.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hidden: true, selectedIndex: 1 })
+    )
+  })
+
+  it("points desktop at the phone app when 扫码 is pressed", async () => {
+    renderTabBar()
+
+    fireEvent.click(screen.getByRole("button", { name: "打开名片交换菜单" }))
+    fireEvent.click(screen.getByRole("button", { name: "二维码" }))
+    fireEvent.click(await screen.findByRole("button", { name: "扫码" }))
+
+    expect(await screen.findByText("请在手机 App 内扫码")).toBeVisible()
+  })
 })

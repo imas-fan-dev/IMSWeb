@@ -1,6 +1,7 @@
 import { LoaderCircleIcon, LockIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { Button } from "~/components/ui/button"
 import {
   Dialog,
@@ -53,12 +54,25 @@ const RAW_LABELS: DiffLabels = {
   seriesList: (codes) => codes.join("、"),
 }
 
+/**
+ * 标签即时生效、不属于待审内容：契约把 `tags` 挂在 diff 根上，两版内容本身
+ * 不带它。这里仍旧显式剥离，保证任何来源的 `tags` 都不会变成对比行。
+ */
+function withoutTags(side: DiffSide): DiffSide {
+  const candidate = side as DiffSide & { tags?: unknown }
+  if (!("tags" in candidate)) return side
+  const next = { ...candidate }
+  delete next.tags
+  return next
+}
+
 export function diffFields(
   live: DiffSide,
   pending: DiffSide | null,
   labels: DiffLabels = RAW_LABELS
 ): DiffRow[] {
-  const next = pending ?? live
+  const current = withoutTags(live)
+  const next = withoutTags(pending ?? live)
   const submitted = pending !== null
   const text = (label: string, before: string, after: string) =>
     textRow(label, before, after, submitted)
@@ -69,20 +83,20 @@ export function diffFields(
     render: (values: readonly string[]) => string = RAW_LABELS.seriesList
   ) => listRow(label, before, after, render, submitted)
   return [
-    text("团体名片", YES_NO(live.isGroupCard === true), YES_NO(next.isGroupCard === true)),
-    text("制作人名称", live.producerName ?? "", next.producerName ?? ""),
-    text("制作人读音", live.producerReading ?? "", next.producerReading ?? ""),
-    text("所属团体", live.groupName ?? "", next.groupName ?? ""),
-    text("制作日期", live.madeOn ?? "", next.madeOn ?? ""),
-    list("企划", live.seriesCodes, next.seriesCodes, labels.seriesList),
-    list("担当角色", charactersList(live), charactersList(next)),
-    text("简介", live.bio ?? "", next.bio ?? ""),
-    list("制作人员", creditsList(live), creditsList(next)),
-    text("原创标记", DECLARED(live.isOriginal), DECLARED(next.isOriginal)),
-    text("AI 标记", DECLARED(live.madeWithAi), DECLARED(next.madeWithAi)),
-    text("交换说明", live.tradeNote ?? "", next.tradeNote ?? ""),
-    text("交换模式", EXCHANGE_MODES[live.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
-    text("公开显示", YES_NO(live.visible), YES_NO(next.visible)),
+    text("团体名片", YES_NO(current.isGroupCard === true), YES_NO(next.isGroupCard === true)),
+    text("制作人名称", current.producerName ?? "", next.producerName ?? ""),
+    text("制作人读音", current.producerReading ?? "", next.producerReading ?? ""),
+    text("所属团体", current.groupName ?? "", next.groupName ?? ""),
+    text("制作日期", current.madeOn ?? "", next.madeOn ?? ""),
+    list("企划", current.seriesCodes, next.seriesCodes, labels.seriesList),
+    list("担当角色", charactersList(current), charactersList(next)),
+    text("简介", current.bio ?? "", next.bio ?? ""),
+    list("制作人员", creditsList(current), creditsList(next)),
+    text("原创标记", DECLARED(current.isOriginal), DECLARED(next.isOriginal)),
+    text("AI 标记", DECLARED(current.madeWithAi), DECLARED(next.madeWithAi)),
+    text("交换说明", current.tradeNote ?? "", next.tradeNote ?? ""),
+    text("交换模式", EXCHANGE_MODES[current.exchangeMode], EXCHANGE_MODES[next.exchangeMode]),
+    text("公开显示", YES_NO(current.visible), YES_NO(next.visible)),
   ]
 }
 
@@ -90,7 +104,7 @@ export function diffFields(
  * 审核队列里的详情窗：左边对比两版的图片，右边逐字段对比文字，底部只留裁决按钮。
  */
 export function NamecardReviewDialog({
-  card,
+  card: incomingCard,
   onOpenChange,
   onApprove,
   onReject,
@@ -102,6 +116,7 @@ export function NamecardReviewDialog({
   onReject: (card: AdminNamecard) => void
   onLock: (card: AdminNamecard) => void
 }) {
+  const card = useRetainedValue(incomingCard)
   const labels = useReviewLabels()
   const [diff, setDiff] = useState<AdminNamecardDiff | null>(null)
   const [failed, setFailed] = useState(false)
@@ -125,7 +140,7 @@ export function NamecardReviewDialog({
   const fields = diff ? diffFields(diff.live, diff.pending, labels) : []
 
   return (
-    <Dialog open={card !== null} onOpenChange={onOpenChange}>
+    <Dialog open={incomingCard !== null} onOpenChange={onOpenChange}>
       <DialogContent layout="pinned" className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>名片 #{card?.id ?? ""}</DialogTitle>

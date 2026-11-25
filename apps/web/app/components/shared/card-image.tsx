@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import type { CSSProperties, ReactNode, SyntheticEvent } from "react"
 
 import { useOwnerCardMedia } from "./use-owner-card-media"
@@ -12,6 +13,11 @@ export interface CardImageProps {
   draggable?: boolean
   fallback?: ReactNode
   failedFallback?: ReactNode
+  /**
+   * 交换墙的图默认匿名可读；这张卡对所有匿名读者关闭时才置 true，让凭据生效
+   * （App 没有 cookie，只能靠 Bearer）。
+   */
+  authorize?: boolean
   onLoad?: (event: SyntheticEvent<HTMLImageElement>) => void
   onError?: (event: SyntheticEvent<HTMLImageElement>) => void
 }
@@ -33,10 +39,14 @@ export function CardImage({
   draggable,
   fallback = null,
   failedFallback,
+  authorize = false,
   onLoad,
   onError,
 }: CardImageProps) {
-  const media = useOwnerCardMedia(src ?? null)
+  const media = useOwnerCardMedia(src ?? null, { authorize })
+  // 解码失败的 blob 可能是上一次请求的半成品：同一张源图只额外重取一次，
+  // 避免坏图在「重取 → 新 blob → 解码失败」之间循环；换图后重新计数。
+  const retriedSource = useRef<string | null>(null)
   if (!media.src) {
     return media.failed ? (failedFallback ?? fallback) : fallback
   }
@@ -50,7 +60,16 @@ export function CardImage({
       decoding={decoding}
       draggable={draggable}
       onLoad={onLoad}
-      onError={onError}
+      onError={(event) => {
+        if (
+          media.src?.startsWith("blob:") &&
+          retriedSource.current !== src
+        ) {
+          retriedSource.current = src ?? null
+          media.retry()
+        }
+        onError?.(event)
+      }}
     />
   )
 }

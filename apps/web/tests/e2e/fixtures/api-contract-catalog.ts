@@ -1,4 +1,27 @@
 import {
+  fudabaWallLayoutResponseSchema,
+  fudabaWallSceneResponseSchema,
+} from "@imsweb/contracts/fudaba/messages"
+import {
+  fudabaMixedWallQuerySchema,
+  fudabaMixedWallResponseSchema,
+  fudabaMessageCreateRequestSchema,
+  fudabaMessageEditRequestSchema,
+  fudabaMessagePlacementRequestSchema,
+  fudabaMessageModerationRequestSchema,
+  fudabaMessageListQuerySchema,
+  fudabaMessageResponseSchema,
+  fudabaMessageDestroyResponseSchema,
+  fudabaMessageListResponseSchema,
+  fudabaMessageErrorResponseSchema,
+} from "@imsweb/contracts/fudaba/messages"
+import {
+  fudabaWallQuerySchema,
+  fudabaWallResponseSchema,
+  fudabaWorldPlacementRequestSchema,
+  fudabaWorldPlacementResponseSchema,
+} from "@imsweb/contracts/fudaba/wall"
+import {
   communityContentSchema,
   communityContentErrorResponseSchema,
   adminCommunityContentSnapshotSchema,
@@ -68,6 +91,9 @@ import {
   fudabaCardInteractionResponseSchema,
   fudabaCardUpdateRequestSchema,
   fudabaCardMutationResponseSchema,
+  adminFudabaGuestSubmissionSettingsRequestSchema,
+  fudabaGuestSubmissionResponseSchema,
+  fudabaGuestSubmissionSettingsResponseSchema,
   fudabaErrorResponseSchema,
   fudabaIgnoredQuerySchema,
   fudabaMapConfigSchema,
@@ -139,6 +165,8 @@ import {
   expectedNamecardRevisionRequestSchema,
   flaggedNamecardRequestSchema,
   lockedNamecardRequestSchema,
+  namecardCardLayoutRequestSchema,
+  namecardCardLayoutSchema,
   namecardListErrorResponseSchema,
   namecardListQuerySchema,
   namecardMutationResponseSchema,
@@ -152,6 +180,8 @@ import {
   myPlatformAccountsSchema,
   namecardReactionListQuerySchema,
   reactionSchema,
+  namecardCollectionPageSchema,
+  namecardCollectionQuerySchema,
 } from "@imsweb/contracts/namecards"
 import {
   newsErrorResponseSchema,
@@ -436,7 +466,106 @@ export function resolveApiContract(
     }
 
   const exchange = "/api/community/exchange"
-  if (method === "GET" && path === `${exchange}/series`)
+  const messageErrors = {
+    400: fudabaMessageErrorResponseSchema,
+    401: fudabaMessageErrorResponseSchema,
+    403: fudabaMessageErrorResponseSchema,
+    404: fudabaMessageErrorResponseSchema,
+    409: fudabaMessageErrorResponseSchema,
+    410: fudabaMessageErrorResponseSchema,
+    429: fudabaMessageErrorResponseSchema,
+    500: fudabaMessageErrorResponseSchema,
+    503: fudabaMessageErrorResponseSchema,
+  }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-layout$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallLayoutResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall-scene$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaWallSceneResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/mixed-wall$/.test(path)
+  )
+    return {
+      query: fudabaMixedWallQuerySchema,
+      responses: { 200: fudabaMixedWallResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "GET" &&
+    (/^\/api\/community\/exchange\/offices\/[^/]+\/messages$/.test(path) ||
+      path === exchange + "/me/messages" ||
+      path === exchange + "/messages")
+  )
+    return {
+      query: fudabaMessageListQuerySchema,
+      responses: { 200: fudabaMessageListResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "POST" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/messages$/.test(path)
+  )
+    return {
+      body: fudabaMessageCreateRequestSchema,
+      responses: {
+        200: fudabaMessageResponseSchema,
+        201: fudabaMessageResponseSchema,
+        ...messageErrors,
+      },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return { responses: { 200: fudabaMessageResponseSchema, ...messageErrors } }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return {
+      body: fudabaMessageEditRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "DELETE" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+$/.test(path)
+  )
+    return {
+      responses: { 200: fudabaMessageDestroyResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+\/placement$/.test(path)
+  )
+    return {
+      body: fudabaMessagePlacementRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/messages\/[^/]+\/(office-moderation|moderation)$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaMessageModerationRequestSchema,
+      responses: { 200: fudabaMessageResponseSchema, ...messageErrors },
+    }
+
+  if (
+    method === "GET" &&
+    (path === `${exchange}/series` || path === `${exchange}/office-series`)
+  )
     return { responses: { 200: fudabaSeriesListSchema, ...fudabaErrors } }
   if (method === "GET" && path === `${exchange}/characters`)
     return {
@@ -452,6 +581,25 @@ export function resolveApiContract(
       query: fudabaCardQuerySchema,
       responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
     }
+  if (method === "GET" && path === `${exchange}/cards/guest-submission`)
+    return { responses: { 200: fudabaGuestSubmissionSettingsResponseSchema } }
+  if (method === "POST" && path === `${exchange}/cards`)
+    return {
+      rawBody: {
+        name: "Namecard creation multipart request",
+        reason:
+          "Card artwork and metadata arrive together as multipart form data.",
+        schema: z.string().min(1),
+        contentType: multipartFormDataContentTypeSchema,
+      },
+      responses: {
+        201: z.union([
+          fudabaGuestSubmissionResponseSchema,
+          fudabaCardMutationResponseSchema,
+        ]),
+        ...fudabaErrors,
+      },
+    }
   if (
     method === "GET" &&
     /^\/api\/community\/exchange\/cards\/[^/]+\/reactions$/.test(path)
@@ -461,11 +609,33 @@ export function resolveApiContract(
     }
   if (
     (method === "PUT" || method === "DELETE") &&
-    /^\/api\/community\/exchange\/cards\/[^/]+\/(like|favorite)$/.test(path)
+    /^\/api\/community\/exchange\/cards\/[^/]+\/like$/.test(path)
   )
     return {
       body: z.object({}).strict(),
       responses: { 200: fudabaCardInteractionResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "GET" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/wall$/.test(path)
+  )
+    return {
+      query: fudabaWallQuerySchema,
+      responses: { 200: fudabaWallResponseSchema, ...fudabaErrors },
+    }
+  if (
+    method === "PUT" &&
+    /^\/api\/community\/exchange\/offices\/[^/]+\/cards\/[^/]+\/world-placement$/.test(
+      path
+    )
+  )
+    return {
+      body: fudabaWorldPlacementRequestSchema,
+      responses: {
+        200: fudabaWorldPlacementResponseSchema,
+        201: fudabaWorldPlacementResponseSchema,
+        ...fudabaErrors,
+      },
     }
   if (
     method === "GET" &&
@@ -489,7 +659,11 @@ export function resolveApiContract(
       query: fudabaPlaceSearchQuerySchema,
       responses: { 200: fudabaPlaceSearchResponseSchema, ...fudabaErrors },
     }
-  if (method === "GET" && path === `${exchange}/me/series`)
+  if (
+    method === "GET" &&
+    (path === `${exchange}/me/series` ||
+      path === `${exchange}/me/office-series`)
+  )
     return {
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaSeriesListSchema, ...fudabaErrors },
@@ -532,6 +706,17 @@ export function resolveApiContract(
     return {
       query: fudabaIgnoredQuerySchema,
       responses: { 200: fudabaOwnerCardListSchema, ...fudabaErrors },
+    }
+  // 精确匹配必须排在下面的名片详情正则之前，否则 `/cards/layout` 会被当成详情。
+  if (method === "GET" && path === `${exchange}/me/cards/layout`)
+    return {
+      query: fudabaIgnoredQuerySchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
+    }
+  if (method === "PUT" && path === `${exchange}/me/cards/layout`)
+    return {
+      body: namecardCardLayoutRequestSchema,
+      responses: { 200: namecardCardLayoutSchema, ...fudabaErrors },
     }
   if (
     method === "GET" &&
@@ -583,15 +768,15 @@ export function resolveApiContract(
       },
       responses: { 200: fudabaCardMutationResponseSchema, ...fudabaErrors },
     }
-  if (method === "GET" && path === `${exchange}/me/favorites`)
-    return {
-      query: fudabaCardQuerySchema,
-      responses: { 200: fudabaCardPageSchema, ...fudabaErrors },
-    }
   if (method === "POST" && path === `${exchange}/offices`)
     return {
       body: fudabaOfficeFieldsRequestSchema,
       responses: { 200: fudabaOfficeMutationResponseSchema, ...fudabaErrors },
+    }
+  if (method === "GET" && path === `${exchange}/me/collection`)
+    return {
+      query: namecardCollectionQuerySchema,
+      responses: { 200: namecardCollectionPageSchema, ...fudabaErrors },
     }
   if (method === "GET" && path === `${exchange}/me/offices`)
     return {
@@ -1020,6 +1205,15 @@ export function resolveApiContract(
     return {
       responses: { 200: namecardPageSchema, 404: namecardErrorResponseSchema },
     }
+  if (path === "/api/admin/cards/guest-submission") {
+    if (method === "GET")
+      return { responses: { 200: fudabaGuestSubmissionSettingsResponseSchema } }
+    if (method === "PUT")
+      return {
+        body: adminFudabaGuestSubmissionSettingsRequestSchema,
+        responses: { 200: fudabaGuestSubmissionSettingsResponseSchema },
+      }
+  }
   if (method === "GET" && path === "/api/admin/cards")
     return {
       query: adminNamecardListQuerySchema,

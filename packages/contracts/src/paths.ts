@@ -150,6 +150,11 @@ export function exchangeMyHistoryPath(): string {
   return exchangePath("me/exchanges")
 }
 
+/** 属主的名片清单布局（分组 / 排序 / 快速清单一并保存）。 */
+export function exchangeMyCardsLayoutPath(): string {
+  return exchangePath("me/cards/layout")
+}
+
 export function exchangeDecisionPath(
   exchangeId: string,
   decision: "accept" | "decline"
@@ -163,6 +168,10 @@ export function exchangeScanSessionPath(): string {
   return exchangePath("scan/sessions")
 }
 
+/** 扫码落地页：二维码里的站点链接对应的公开读取。 */
+export function exchangeScanLandingPath(token: string): string {
+  return exchangePath(`scan/${encodeURIComponent(token)}`)
+}
 export function exchangeScanCommitPath(token: string): string {
   return exchangePath(`scan/sessions/${encodeURIComponent(token)}/commit`)
 }

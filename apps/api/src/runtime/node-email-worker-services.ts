@@ -9,9 +9,12 @@ import { PlatformEmailJobPayloadCipherAdapter } from '@/infra/email/smtp/platfor
 import { ConfiguredPlatformEmailService } from '@/infra/email/smtp/platform-email-service';
 import { PlatformEmailSecretCipher } from '@/infra/email/smtp/platform-email-secrets';
 import { NodeEmailDeliveryRunner } from '@/runtime/node-email-delivery-runner';
+import { NodeValkeyMailRunner } from '@/runtime/node-valkey-mail-runner';
+import { openValkeyMailQueue, requireMailQueueUrl, type ValkeyMailQueue } from '@/infra/cache/valkey/mail-queue';
+import { SqlStationMessageRepository } from '@/infra/db/repositories/station-message-repository';
 
 export interface NodeEmailWorkerServices {
-    runner: NodeEmailDeliveryRunner;
+    runner: Pick<NodeEmailDeliveryRunner, 'start' | 'isReady' | 'isLive' | 'close'>;
     close(deadlineAt?: number): Promise<void>;
 }
 
@@ -26,6 +29,7 @@ export async function createNodeEmailWorkerServices(
     const database = PostgresConnection.create(
         options.databaseConfig ?? parseNodeDatabaseConfig(environment),
     );
+    let queue: ValkeyMailQueue | undefined;
     try {
         await new PostgresqlSchemaStrategy().initializePlatform(database);
         const secret = parsePlatformJwtSecret(environment);
@@ -35,16 +39,23 @@ export async function createNodeEmailWorkerServices(
             configuration,
             new PlatformEmailSecretCipher(secret),
         );
-        const runner = new NodeEmailDeliveryRunner(
-            delivery,
-            new PlatformEmailJobPayloadCipherAdapter(secret),
-            sender,
-        );
+        const mailQueue = queue = await openValkeyMailQueue(requireMailQueueUrl(environment));
+        const cipher = new PlatformEmailJobPayloadCipherAdapter(secret);
+        // Drain OTP jobs written before cutover. New producers never insert SQL jobs.
+        const legacy = new NodeEmailDeliveryRunner(delivery, cipher, sender);
+        const current = new NodeValkeyMailRunner(mailQueue, delivery, new SqlStationMessageRepository(database), cipher, sender);
+        const runner: NodeEmailWorkerServices['runner'] = {
+            start() { current.start(); legacy.start(); },
+            isReady() { return current.isReady() && legacy.isReady(); },
+            isLive() { return current.isLive() && legacy.isLive(); },
+            async close(deadlineAt) { await Promise.all([current.close(deadlineAt), legacy.close(deadlineAt)]); },
+        };
         let closing: Promise<void> | undefined;
         return {
             runner,
             close(deadlineAt?: number): Promise<void> {
                 closing ??= runner.close(deadlineAt).then(async () => {
+                    mailQueue.close();
                     const closingDatabase = Promise.resolve().then(() => database.close());
                     if (deadlineAt === undefined) {
                         await closingDatabase;
@@ -70,6 +81,7 @@ export async function createNodeEmailWorkerServices(
             },
         };
     } catch (error) {
+        queue?.close();
         await database.close().catch(() => undefined);
         throw error;
     }

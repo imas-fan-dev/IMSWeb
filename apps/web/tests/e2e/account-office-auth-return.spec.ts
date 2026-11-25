@@ -63,14 +63,10 @@ test("desktop map creation uses desktop login and returns to the original office
         capabilities: { fudabaWrite: true },
       },
     ],
-    ...["series", "cards", "offices"].map((name) => [
+    ...["series", "office-series", "cards", "offices"].map((name) => [
       `/api/community/exchange/me/${name}`,
       { items: [] },
     ]),
-    [
-      "/api/community/exchange/me/favorites",
-      { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-    ],
   ] as const) {
     await api.mock(
       { method: "GET", path: String(path), times: { min: 1, max: 4 } },

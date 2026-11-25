@@ -24,17 +24,27 @@ import type {
     PublicProfile as PublicProfileContract,
     RandomOwnerlessCard as RandomOwnerlessCardContract,
     RandomOwnerlessCardError as RandomOwnerlessCardErrorContract,
+    NamecardCardLayout as NamecardCardLayoutContract,
     NamecardCardShare as NamecardCardShareContract,
+    NamecardCardShareLink as NamecardCardShareLinkContract,
     NamecardCollectionPage as NamecardCollectionPageContract,
+    NamecardCollectionOwners as NamecardCollectionOwnersContract,
     NamecardCollectionVisibilityResponse as NamecardCollectionVisibilityContract,
     NamecardExchangeDecision as NamecardExchangeDecisionContract,
+    NamecardExchangeDetail as NamecardExchangeDetailContract,
     NamecardExchangeHistoryPage as NamecardExchangeHistoryPageContract,
     NamecardExchangeResult as NamecardExchangeResultContract,
     NamecardQuickExchange as NamecardQuickExchangeContract,
     NamecardQuickSettings as NamecardQuickSettingsContract,
     NamecardScanSession as NamecardScanSessionContract,
+    NamecardScanLanding as NamecardScanLandingContract,
+    NamecardScanSessionStatusResponse as NamecardScanSessionStatusContract,
     PublicProfileError as PublicProfileErrorContract,
     WallInsights as WallInsightsContract,
+    NamecardTagError,
+    NamecardTagSetResponse as NamecardTagSetContract,
+    NamecardTagSuggestResponse as NamecardTagSuggestContract,
+    NamecardTagValidateResponse as NamecardTagValidateContract,
 } from '@imsweb/contracts/namecards';
 
 export type NamecardResponseId = number;
@@ -71,13 +81,32 @@ export type NamecardQuickExchangeResponse = NamecardQuickExchangeContract;
 export type NamecardQuickSettingsResponse = NamecardQuickSettingsContract;
 export type NamecardExchangeResultResponse = NamecardExchangeResultContract;
 export type NamecardCollectionPageResponse = NamecardCollectionPageContract;
+/** 所属用户选择器只回一份精简名单（卡主 + 自己）。 */
+export type NamecardCollectionOwnersResponse =
+    NamecardCollectionOwnersContract;
 export type NamecardExchangeHistoryPageResponse =
     NamecardExchangeHistoryPageContract;
 export type NamecardExchangeDecisionResponse = NamecardExchangeDecisionContract;
+/** 通知窗口的交换详情。 */
+export type NamecardExchangeDetailResponse = NamecardExchangeDetailContract;
 export type NamecardScanSessionResponse = NamecardScanSessionContract;
+export type NamecardScanLandingResponse = NamecardScanLandingContract;
+/** 出示方轮询二维码状态：未扫 / 已过期 / 已被某次交换消费。 */
+export type NamecardScanSessionStatusResponse =
+    NamecardScanSessionStatusContract;
+/** 属主清单布局的读写共用一份返回体。 */
+export type NamecardCardLayoutResponse = NamecardCardLayoutContract;
+/** 属主侧单卡分享链接：只回短链路径段，URL 由前端按当前 origin 拼。 */
+export type NamecardCardShareLinkResponse = NamecardCardShareLinkContract;
 /** 名片册的可见性切换只回一个确认标记。 */
 export type NamecardCollectionVisibilityResponse =
     NamecardCollectionVisibilityContract;
+/** 内联标签保存与候选的响应体。 */
+export type NamecardTagSetResponse = NamecardTagSetContract;
+export type NamecardTagSuggestResponse = NamecardTagSuggestContract;
+export type NamecardTagValidateResponse = NamecardTagValidateContract;
+/** 标签写入失败的业务错误（400/404/409/500 共用）。 */
+export type NamecardTagErrorResponse = NamecardTagError;
 
 
 interface NamecardRow {
@@ -113,6 +142,7 @@ interface NamecardRow {
     series_codes?: unknown;
     credits?: unknown;
     owner_account_id?: unknown;
+    tags?: unknown;
 }
 
 function responseId(value: unknown): NamecardResponseId {
@@ -178,6 +208,25 @@ function responseCredits(value: unknown): PublicNamecardResponse['credits'] {
         }));
 }
 
+function responseTags(
+    value: unknown
+): Array<{ name: string; presetId: number | null }> {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return [];
+        const name = 'name' in entry ? entry.name : undefined;
+        if (typeof name !== 'string' || name.trim() === '') return [];
+        const presetId = 'presetId' in entry ? entry.presetId : null;
+        return [{
+            name,
+            presetId:
+                typeof presetId === 'number' && Number.isSafeInteger(presetId)
+                    ? presetId
+                    : null
+        }];
+    });
+}
+
 function responseCreditRoles(
     value: unknown
 ): PublicNamecardResponse['credits'][number]['roles'] {
@@ -230,6 +279,7 @@ export function toPublicNamecardResponse(
         accent: responseOptionalString(row.accent),
         seriesCodes: responseStringList(row.series_codes),
         credits: responseCredits(row.credits),
+        tags: responseTags(row.tags),
         canEdit:
             typeof row.owner_account_id === 'string' &&
             row.owner_account_id === viewerAccountId,
@@ -240,7 +290,11 @@ export function toPublicNamecardResponse(
         claimStatus: responseClaimStatus(row.claim_status),
         supplementPending: row.supplement_pending === true,
         viewerClaimState: responseViewerClaimState(row.viewer_claim_state),
-        ...(pages && pages.length > 0 ? { pages: [...pages] } : {}),
+        // 页数只在真的读到页面行时给出（同 `pages` 的出现条件），
+        // 与后台 `toAdminNamecardResponse` 的「正 + 中间 + 反」是同一个数。
+        ...(pages && pages.length > 0
+            ? { pages: [...pages], pageCount: pages.length }
+            : {}),
         status: responseString(row.status, 'status'),
         created_at: responseTimestamp(row.created_at)
     };
@@ -298,7 +352,8 @@ export function toAdminNamecardDiffResponse(
         lockReason: record.lockReason,
         reviewReason: record.reviewReason,
         live: diffSide(record.live),
-        pending: record.pending ? diffSide(record.pending) : null
+        pending: record.pending ? diffSide(record.pending) : null,
+        tags: responseTags(record.tags)
     };
 }
 

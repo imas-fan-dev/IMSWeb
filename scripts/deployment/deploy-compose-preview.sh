@@ -426,6 +426,31 @@ if [[ -n "$current_dir" ]] &&
     fail "current preview image predates the B1 email cooldown schema and cannot be the automatic rollback target"
 fi
 
+wait_for_mail_queue() {
+    for _ in $(seq 1 "$database_attempts"); do
+        if [[ $(compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
+            "$image_ref" exec -T mail-queue valkey-cli ping 2>/dev/null) == PONG ]]; then
+            return 0
+        fi
+        sleep "$probe_delay"
+    done
+    return 1
+}
+
+candidate_worker_started=false
+start_candidate_worker() {
+    candidate_worker_started=true
+    compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" "$image_ref" up -d --no-build --no-deps \
+        --scale "email-worker=$worker_replicas" email-worker
+}
+
+quiesce_legacy_station_sender() {
+    # Rolling upgrades of Valkey-backed releases share the same leased queue.
+    [[ -n "$current_dir" ]] || return 0
+    if grep -q '^  mail-queue:$' "$current_compose"; then return 0; fi
+    compose "$current_compose" "$current_override" "$current_image" stop api
+}
+
 deployment_error=
 printf '%s\n' "Pulling $image_ref for the API and email worker."
 if ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
@@ -434,6 +459,11 @@ if ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
 elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
     "$image_ref" up -d --no-build postgres valkey; then
     deployment_error="candidate data service startup failed"
+elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
+    "$image_ref" up -d --no-build mail-queue; then
+    deployment_error="candidate mail queue startup failed"
+elif ! wait_for_mail_queue; then
+    deployment_error="candidate mail queue readiness check failed"
 elif ! wait_for_postgres "$release_dir/compose.yaml" \
     "$release_dir/compose.preview.yaml" "$image_ref"; then
     deployment_error="candidate PostgreSQL readiness check failed"
@@ -443,9 +473,9 @@ elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
     "$image_ref" run --rm --no-deps api \
     node apps/api/scripts/migration/postgres-migrations.js; then
     deployment_error="candidate PostgreSQL migration failed"
-elif ! compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" \
-    "$image_ref" up -d --no-build --no-deps \
-    --scale "email-worker=$worker_replicas" email-worker; then
+elif ! quiesce_legacy_station_sender; then
+    deployment_error="could not stop the legacy station email sender"
+elif ! start_candidate_worker; then
     deployment_error="candidate email worker startup failed"
 elif ! wait_for_email_workers "$release_dir/compose.yaml" \
     "$release_dir/compose.preview.yaml" "$image_ref"; then
@@ -466,6 +496,11 @@ if [[ -n "$deployment_error" ]]; then
         "$image_ref" logs --no-color --tail 200 email-worker api >&2 || true
 
     if [[ -n "$current_dir" && "$current_dir" != "$release_dir" ]]; then
+        if [[ "$candidate_worker_started" == true ]] && ! grep -q '^  mail-queue:$' "$current_compose"; then
+            # Prevent overlap with the old API sender during a cross-cutover rollback.
+            compose "$release_dir/compose.yaml" "$release_dir/compose.preview.yaml" "$image_ref" stop api email-worker ||
+                fail "$deployment_error; unable to stop candidate mail consumers for rollback"
+        fi
         printf '%s\n' "Restoring previous preview release $current_release" >&2
         if ! compose_has_email_worker "$current_compose" "$current_override" "$current_image"; then
             fail "$deployment_error; the previous preview release has no email worker and cannot be an automatic rollback target after the Release A migration"

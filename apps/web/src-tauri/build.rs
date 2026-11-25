@@ -29,34 +29,39 @@ fn replace_generated_ios_asset(source: &Path, destination: &Path, label: &str) {
     if destination.exists() {
         fs::remove_file(destination).unwrap_or_else(|error| {
             panic!(
-                "remove generated iOS Lucide {label} asset {}: {error}",
+                "remove generated iOS {label} asset {}: {error}",
                 destination.display()
             )
         });
     }
     fs::copy(source, destination).unwrap_or_else(|error| {
         panic!(
-            "copy generated iOS Lucide {label} asset from {}: {error}",
+            "copy generated iOS {label} asset from {}: {error}",
             source.display()
         )
     });
 }
 
-fn sync_ios_lucide_assets() {
+fn sync_ios_navigation_assets() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR")
         .unwrap_or_else(|error| panic!("Cargo must supply CARGO_MANIFEST_DIR: {error}"));
-    let source_catalog =
-        Path::new(&manifest_dir).join("plugins/native-glass/ios/Sources/Resources/Lucide.xcassets");
+    let resources = Path::new(&manifest_dir).join("plugins/native-glass/ios/Sources/Resources");
     let destination_catalog = Path::new(&manifest_dir).join("gen/apple/Assets.xcassets");
 
-    for icon in LUCIDE_TAB_ICONS.into_iter().chain(LUCIDE_CONTROL_ICONS) {
-        let source_set = source_catalog.join(format!("{icon}.imageset"));
+    let assets = LUCIDE_TAB_ICONS
+        .into_iter()
+        .chain(LUCIDE_CONTROL_ICONS)
+        .map(|icon| ("Lucide.xcassets", icon, "pdf"))
+        .chain([("AppNavigation.xcassets", "exchange-two-namecards", "svg")]);
+    for (catalog, icon, extension) in assets {
+        let source_set = resources.join(catalog).join(format!("{icon}.imageset"));
         let destination_set = destination_catalog.join(format!("{icon}.imageset"));
         let source_metadata = source_set.join("Contents.json");
-        let source_pdf = source_set.join(format!("{icon}.pdf"));
+        let vector = format!("{icon}.{extension}");
+        let source_vector = source_set.join(&vector);
 
         println!("cargo:rerun-if-changed={}", source_metadata.display());
-        println!("cargo:rerun-if-changed={}", source_pdf.display());
+        println!("cargo:rerun-if-changed={}", source_vector.display());
 
         if !destination_catalog.exists() {
             continue;
@@ -64,7 +69,7 @@ fn sync_ios_lucide_assets() {
 
         fs::create_dir_all(&destination_set).unwrap_or_else(|error| {
             panic!(
-                "create generated iOS Lucide asset directory {}: {error}",
+                "create generated iOS asset directory {}: {error}",
                 destination_set.display()
             )
         });
@@ -73,17 +78,13 @@ fn sync_ios_lucide_assets() {
             &destination_set.join("Contents.json"),
             "metadata",
         );
-        replace_generated_ios_asset(
-            &source_pdf,
-            &destination_set.join(format!("{icon}.pdf")),
-            "vector",
-        );
+        replace_generated_ios_asset(&source_vector, &destination_set.join(vector), "vector");
     }
 }
 
 fn main() {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
-        sync_ios_lucide_assets();
+        sync_ios_navigation_assets();
     }
 
     tauri_build::build()

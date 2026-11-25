@@ -95,10 +95,8 @@ const publicRoutes: Array<{
     path: "/community/exchange",
     title: /名片交换事务所.*IMSWeb/i,
     apis: [
-      { path: "/api/wiki/catalog", times: 1 },
-      { path: "/api/community/exchange/series", times: 1 },
+      { path: "/api/community/exchange/office-series", times: 1 },
       { path: "/api/community/exchange/offices", times: 1 },
-      { path: "/api/community/exchange/cards", times: 1 },
       { path: "/api/community/exchange/map/config", times: 1 },
       {
         path: "/api/community/exchange/map/offices",
@@ -147,7 +145,7 @@ const publicRoutes: Array<{
   {
     path: "/story/classic",
     title: /经典剧情详情.*IMSWeb/i,
-    apis: [{ path: "/api/wiki/catalog", times: 1 }],
+    apis: [],
   },
   {
     path: "/works/sc",
@@ -527,6 +525,12 @@ test.describe("home smoke", () => {
     await expect(root).not.toHaveClass(/dark/)
     await page.evaluate(() => {
       const root = document.documentElement
+      // Simulate an element named for a separate layout transition.
+      const tile = document.createElement("div")
+      tile.id = "theme-transition-tile"
+      tile.style.cssText =
+        "position: fixed; width: 20px; height: 20px; view-transition-name: layout-tile"
+      document.body.append(tile)
       const observer = new MutationObserver(() => {
         if (root.dataset.themeTransition !== "circle") return
 
@@ -534,7 +538,8 @@ test.describe("home smoke", () => {
         observer.disconnect()
 
         const captureReveal = () => {
-          const animation = document.getAnimations().find((candidate) => {
+          const animations = document.getAnimations()
+          const animation = animations.find((candidate) => {
             const effect = candidate.effect
             return (
               effect instanceof KeyframeEffect &&
@@ -554,6 +559,14 @@ test.describe("home smoke", () => {
           )
           root.dataset.themeTransitionStart = String(keyframes[0]?.clipPath)
           root.dataset.themeTransitionEnd = String(keyframes.at(-1)?.clipPath)
+          root.dataset.themeTransitionHasTileSnapshot = String(
+            animations.some(({ effect }) => {
+              return (
+                effect instanceof KeyframeEffect &&
+                effect.pseudoElement?.endsWith("(layout-tile)")
+              )
+            })
+          )
         }
         requestAnimationFrame(captureReveal)
       })
@@ -574,7 +587,15 @@ test.describe("home smoke", () => {
       "data-theme-transition-end",
       /circle\([\d.]+px at [\d.]+px [\d.]+px\)/
     )
+    await expect(root).toHaveAttribute(
+      "data-theme-transition-has-tile-snapshot",
+      "false"
+    )
     await expect(root).not.toHaveAttribute("data-theme-transition")
+    await expect(page.locator("#theme-transition-tile")).toHaveCSS(
+      "view-transition-name",
+      "layout-tile"
+    )
     await expect
       .poll(() => page.evaluate(() => localStorage.getItem("theme")))
       .toBe("dark")

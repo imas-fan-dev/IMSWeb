@@ -15,15 +15,12 @@ import {
   type EventPage,
 } from "@imsweb/contracts/events"
 import {
-  fudabaCardPageSchema,
-  fudabaCardQuerySchema,
   fudabaMapConfigSchema,
   fudabaMapOfficeListSchema,
   fudabaMapQuerySchema,
   fudabaOfficePageSchema,
   fudabaOfficeQuerySchema,
   fudabaSeriesListSchema,
-  type FudabaCardPage,
   type FudabaMapConfig,
   type FudabaMapOfficeList,
   type FudabaOfficePage,
@@ -69,10 +66,6 @@ const emptyExchangeOffices = {
   items: [],
   pageInfo: { hasNextPage: false, nextCursor: null },
 } satisfies FudabaOfficePage
-const emptyExchangeCards = {
-  items: [],
-  pageInfo: { hasNextPage: false, nextCursor: null },
-} satisfies FudabaCardPage
 const exchangeMapConfig = {
   provider: "maplibre",
   search: { provider: "nominatim" },
@@ -111,11 +104,11 @@ export type SeededPublicApiRegistration = {
     | "/api/chronicle"
     | "/api/community-posts/spotlight"
     | "/api/community/content"
-    | "/api/community/exchange/cards"
     | "/api/community/exchange/map/config"
     | "/api/community/exchange/map/offices"
     | "/api/community/exchange/offices"
     | "/api/community/exchange/series"
+    | "/api/community/exchange/office-series"
     | "/api/events"
     | "/api/homepage-links"
     | "/api/birthdays"
@@ -205,11 +198,15 @@ function installLiveScheduleMock(api: ApiDispatcher, times: ApiTimes) {
   })
 }
 
-function installExchangeSeriesMock(api: ApiDispatcher, times: ApiTimes) {
+function installExchangeSeriesMock(
+  api: ApiDispatcher,
+  times: ApiTimes,
+  suffix: "/series" | "/office-series"
+) {
   api.expect({
     name: "deterministic public exchange series",
     method: "GET",
-    path: exchangePath("/series"),
+    path: exchangePath(suffix),
     responses: { 200: fudabaSeriesListSchema },
     times,
     handle: () => ({ status: 200, json: emptyExchangeSeries }),
@@ -225,18 +222,6 @@ function installExchangeOfficesMock(api: ApiDispatcher, times: ApiTimes) {
     responses: { 200: fudabaOfficePageSchema },
     times,
     handle: () => ({ status: 200, json: emptyExchangeOffices }),
-  })
-}
-
-function installExchangeCardsMock(api: ApiDispatcher, times: ApiTimes) {
-  api.expect({
-    name: "deterministic public exchange cards",
-    method: "GET",
-    path: exchangePath("/cards"),
-    query: fudabaCardQuerySchema,
-    responses: { 200: fudabaCardPageSchema },
-    times,
-    handle: () => ({ status: 200, json: emptyExchangeCards }),
   })
 }
 
@@ -286,8 +271,6 @@ export function installSeededPublicApis(
       installSpotlightMock(api, times)
     } else if (path === "/api/community/content") {
       installCommunityContentMock(api, times)
-    } else if (path === "/api/community/exchange/cards") {
-      installExchangeCardsMock(api, times)
     } else if (path === "/api/community/exchange/map/config") {
       installExchangeMapConfigMock(api, times)
     } else if (path === "/api/community/exchange/map/offices") {
@@ -295,7 +278,9 @@ export function installSeededPublicApis(
     } else if (path === "/api/community/exchange/offices") {
       installExchangeOfficesMock(api, times)
     } else if (path === "/api/community/exchange/series") {
-      installExchangeSeriesMock(api, times)
+      installExchangeSeriesMock(api, times, "/series")
+    } else if (path === "/api/community/exchange/office-series") {
+      installExchangeSeriesMock(api, times, "/office-series")
     } else if (path === "/api/events") {
       installEventsMock(api, times)
     } else if (path === "/api/homepage-links") {

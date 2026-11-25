@@ -140,6 +140,13 @@ Web 浏览器默认使用 core：Chromium desktop 的功能与精选可用性场
 `playwright.config.ts` 的 `resolveWebUiProjects` 拥有选择规则，core 与 extended 的并集
 必须等于保留的完整项目清单，交集为空。App 全部现有项目保持必需验证。
 
+普通 PR 的 CI Summary 会显示 **Playwright spec selection (advisory only)**。它复用工作区
+检测的 PR merge-base 到 PR head 差异：只有改动全部是新增或修改的 E2E spec 时，才按
+Web core 和 App 列出候选文件；如果还改了业务代码、共享 fixture 或配置，或遇到删除、
+重命名、无法读取差异等情况，已选中的浏览器验证仍建议跑完整套。候选只按文件路径判断，
+不代表 Playwright 实际发现的用例。摘要不会改变测试命令、浏览器项目或发布门禁。
+`release/v1.1 → main` 的发布 PR、push 和手动运行不生成这份摘要。
+
 手动执行扩展 UI：
 
 ```sh
@@ -269,6 +276,32 @@ Playwright E2E 不在 pre-commit hook 中；本地显式执行 `pnpm --filter @i
 `IMS_TEST_POSTGRES_ENABLED=false`，数据库集成测试仍是强制检查；默认值仍为启用。
 Preview 复用这套 CI 证据，不重复执行 API 测试。若在 CI job 里
 意外跳过 PostgreSQL 测试时，测试必须失败而非显示为成功。
+
+### 本地 PostgreSQL 测试库
+
+需要真实 PostgreSQL 的 API 测试（`run-test-owner.mjs api`、`test:migration` 不设
+`IMS_TEST_POSTGRES_ENABLED=false` 时）使用 `deploy/compose.yaml` 中的 `postgres-test`
+服务，它与 CI 的 `services.postgres` 使用同一镜像、账号和数据库名。
+
+```bash
+docker compose -f deploy/compose.yaml --profile test up -d --wait postgres-test
+export IMS_TEST_POSTGRES_ENABLED=true
+export IMS_TEST_DATABASE_URL='postgresql://imsweb:imsweb-test-password@127.0.0.1:15434/postgres'
+node scripts/testing/run-test-owner.mjs api
+docker compose -f deploy/compose.yaml --profile test stop postgres-test
+```
+
+- 数据在 tmpfs 中，容器停止即丢失，只用于测试；不要把它当作开发库。
+- 端口默认 `15434`，可通过 `IMS_POSTGRES_TEST_PORT` 修改，修改后同步调整
+  `IMS_TEST_DATABASE_URL`。
+- 容器不设 `restart` 自动拉起；需要时手动启动。
+- 测试的临时文件（Vitest 夹具、迁移套件的 SQLite/JSON 快照）默认写到 `TMPDIR`。
+  `run-test-owner.mjs` 在 `TMPDIR` 未设置、`/dev/shm` 是可写 tmpfs、且剩余空间不小于
+  1 GiB 时，会自动把子进程的 `TMPDIR` 指过去；显式设置的 `TMPDIR` 永远优先。把 `/tmp`
+  放在机械盘或 USB 盘上会让单次 fsync 变成几十毫秒，测试随即以 30 秒超时失败。
+  直接运行 `pnpm --filter @imsweb/api run test:migration` 这类脚本不经过这层兜底，
+  需要时自行 `export TMPDIR=/dev/shm`。
+- 不要为启动测试库新增 `package.json` 别名或可独立调用的跳过参数（见上文规则）。
 
 ### pre-commit 覆盖边界
 

@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "barcode-scanner",
+  "description": "Allows the mobile app to scan the one-time exchange QR code with the camera",
+  "windows": ["main"],
+  "platforms": ["iOS", "android"],
+  "permissions": ["barcode-scanner:default"]
+}

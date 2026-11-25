@@ -1,3 +1,5 @@
+import { fudabaWallQuerySchema } from '@imsweb/contracts/fudaba/wall';
+import { handleGetFudabaWall } from '@/domains/community/fudaba/directory/handlers/get-wall';
 import {
     fudabaCardIdParamsSchema,
     fudabaCardMediaParamsSchema,
@@ -21,12 +23,11 @@ import {
 import { handleGetFudabaMapConfig } from '@/domains/community/fudaba/directory/handlers/get-map-config';
 import { handleGetNamecardCharacterCatalog } from '@/domains/community/fudaba/directory/handlers/get-namecard-character-catalog';
 import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/directory/handlers/get-public-office';
-import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
 import { handleListFudabaPublicCards } from '@/domains/community/fudaba/directory/handlers/list-public-cards';
 import { handleServeExchangeCardMedia } from '@/domains/community/fudaba/directory/handlers/serve-public-card-media';
 import { handleListFudabaPublicOffices } from '@/domains/community/fudaba/directory/handlers/list-public-offices';
-import { handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
+import { handleListFudabaOfficeSeries, handleListFudabaOwnerSeries, handleListFudabaPublicSeries } from '@/domains/community/fudaba/directory/handlers/list-public-series';
 import { jsonSchemaValidator, paramSchemaValidator, querySchemaValidator } from '@/middleware/request-validation';
 import {
     createCapabilityRouter,
@@ -43,11 +44,26 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaPublicSeries
     );
     routes.get(
+        '/office-series',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        querySchemaValidator(fudabaEmptyQuerySchema),
+        handleListFudabaOfficeSeries
+    );
+    routes.get(
         '/offices',
         requireFudabaPublicRead,
         optionalPlatformAuth,
         querySchemaValidator(fudabaOfficeQuerySchema),
         handleListFudabaPublicOffices
+    );
+    routes.get(
+        '/offices/:officeSlug/wall',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        paramSchemaValidator(fudabaOfficeSlugParamsSchema),
+        querySchemaValidator(fudabaWallQuerySchema),
+        handleGetFudabaWall
     );
     routes.get(
         '/offices/:officeSlug',
@@ -67,6 +83,8 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
     routes.get(
         '/cards/:cardId/media/:side',
         requireFudabaPublicRead,
+        // 原卡被持有者下线（`hidden`）后不再公开放行，但**已经收到这张卡的人**仍要能看图（doc §5）。
+        optionalPlatformAuth,
         paramSchemaValidator(fudabaCardMediaParamsSchema),
         querySchemaValidator(fudabaMediaQuerySchema),
         handleServeExchangeCardMedia
@@ -115,7 +133,7 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         handleListFudabaMapOffices
     );
     routes.get('/me/series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOwnerSeries);
-    routes.get('/me/favorites', platformAuth, querySchemaValidator(fudabaCardQuerySchema), handleListFudabaFavoriteCards);
+    routes.get('/me/office-series', platformAuth, querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOfficeSeries);
     return routes;
 }
 
@@ -124,6 +142,6 @@ export function fudabaAdminDirectoryRoutes(): ImsCapabilityRouter {
     routes.get('/map/config', backofficeAuth, currentBackofficeOp,
         querySchemaValidator(fudabaEmptyQuerySchema), handleGetFudabaMapConfig);
     routes.get('/office-series', backofficeAuth, currentBackofficeOp,
-        querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaPublicSeries);
+        querySchemaValidator(fudabaEmptyQuerySchema), handleListFudabaOfficeSeries);
     return routes;
 }

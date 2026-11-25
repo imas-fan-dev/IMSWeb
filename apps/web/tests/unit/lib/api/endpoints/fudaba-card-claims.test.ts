@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { makeCardPage } from "@/mocks/data/namecards"
 import { installFetchMock } from "@/tests/unit/support/api-client"
@@ -11,10 +11,36 @@ import {
   getAdminFudabaCardClaims,
   createFudabaCardSupplement,
   getAdminFudabaCardReviews,
+  getNamecardNotifications,
   reviewAdminFudabaCard,
   reviewAdminFudabaCardClaim,
 } from "~/lib/api/endpoints/fudaba/card-claims"
 import { CSRF_HEADER_NAME } from "~/lib/api/request"
+
+it("does not reuse an inbox request still pending from a previous account", async () => {
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const fetchMock = installFetchMock(async () => {
+    if (fetchMock.mock.calls.length === 1) {
+      await pending
+      return Response.json({ items: [], unread: 7 })
+    }
+    return Response.json({ items: [], unread: 0 })
+  })
+
+  const previous = getNamecardNotifications().send()
+  try {
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const current = getNamecardNotifications().send()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await expect(current).resolves.toEqual({ items: [], unread: 0 })
+  } finally {
+    release()
+    await previous
+  }
+})
 
 const idol = { id: 1, name: "天海春香", seriesCode: "765" }
 const claim = {

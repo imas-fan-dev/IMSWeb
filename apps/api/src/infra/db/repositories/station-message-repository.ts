@@ -469,6 +469,66 @@ export class SqlStationMessageRepository implements StationMessageRepository {
         ).run();
     }
 
+    async listPendingStationMail(limit: number): Promise<{
+        messageId: string; accountId: string; maxAttempts: number;
+    }[]> {
+        const rows = await queryAll<{ message_id: string; account_id: string; email_attempts: number }>(
+            this.database,
+            `SELECT recipient.message_id, recipient.account_id, recipient.email_attempts
+               FROM public.station_message_recipients recipient
+               JOIN public.station_messages message ON message.id = recipient.message_id
+              WHERE message.status = 'sent' AND message.forward_email
+                AND recipient.delivered_at IS NOT NULL AND recipient.email_state = 'pending'
+              ORDER BY recipient.message_id, recipient.account_id LIMIT ?`,
+            [limit],
+        );
+        return rows.map((row) => ({
+            messageId: row.message_id,
+            accountId: row.account_id,
+            maxAttempts: Math.max(0, EMAIL_MAX_ATTEMPTS - Number(row.email_attempts)),
+        }));
+    }
+
+    async findPendingStationMail(messageId: string, accountId: string): Promise<{
+        recipient: string | null; subject: string; text: string;
+    } | null> {
+        return queryOne<{ recipient: string | null; subject: string; text: string }>(
+            this.database,
+            `SELECT credential.normalized_email AS recipient, message.title AS subject, message.body AS text
+               FROM public.station_messages message
+               JOIN public.station_message_recipients target ON target.message_id = message.id
+               LEFT JOIN public.platform_email_credentials credential ON credential.account_id = target.account_id
+              WHERE message.id = ? AND target.account_id = ? AND message.status = 'sent'
+                AND message.forward_email AND target.delivered_at IS NOT NULL AND target.email_state = 'pending'`,
+            [messageId, accountId],
+        );
+    }
+
+    async settleStationMail(messageId: string, accountId: string, result: { acceptedAt: number } | { failure: string } | { skipped: true }): Promise<void> {
+        const sent = 'acceptedAt' in result;
+        const state = sent ? 'sent' : 'skipped' in result ? 'skipped' : 'failed';
+        await this.database.transaction(async (transaction) => {
+            // Serialize the counters with other settlements for the same batch.
+            await queryOne(transaction, 'SELECT id FROM public.station_messages WHERE id = ? FOR UPDATE', [messageId]);
+            await sqlStatement(transaction,
+                `UPDATE public.station_message_recipients
+                    SET email_state = ?, email_sent_at = ?, email_error = ?
+                  WHERE message_id = ? AND account_id = ? AND email_state = 'pending'`,
+                [state, sent ? new Date(result.acceptedAt).toISOString() : null,
+                    'failure' in result ? result.failure : null, messageId, accountId],
+            ).run();
+            await sqlStatement(transaction,
+                `UPDATE public.station_messages
+                    SET email_sent_count = counts.sent, email_failed_count = counts.failed
+                   FROM (SELECT COUNT(*) FILTER (WHERE email_state = 'sent')::int AS sent,
+                                COUNT(*) FILTER (WHERE email_state = 'failed')::int AS failed
+                           FROM public.station_message_recipients WHERE message_id = ?) counts
+                  WHERE id = ? AND (email_sent_count, email_failed_count) IS DISTINCT FROM (counts.sent, counts.failed)`,
+                [messageId, messageId],
+            ).run();
+        });
+    }
+
     async claimEmailTargets(
         messageId: string,
         limit: number

@@ -19,6 +19,9 @@ export default defineConfig(
       "node_modules/**",
       "src-tauri/target/**",
       "src-tauri/gen/**",
+      // Vendored third-party plugin sources (see src-tauri/vendor/README.md);
+      // api-iife.js is upstream's browser bundle, not our code.
+      "src-tauri/vendor/**",
     ],
   },
   js.configs.recommended,

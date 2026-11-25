@@ -29,7 +29,6 @@ const noop = () => {}
 const tools = {
   onOpenFilter: noop,
   onOpenOffices: noop,
-  onOpenCards: noop,
   onRefresh: noop,
 }
 function Harness({

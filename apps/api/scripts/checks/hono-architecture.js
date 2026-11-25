@@ -319,12 +319,14 @@ const portContracts = new Map([
     ],
     ["repositories/platform.ts", ["PlatformAccountRepository"]],
     ["repositories/fudaba.ts", ["FudabaRepository"]],
+    ["repositories/fudaba-messages.ts", ["FudabaMessagesRepository"]],
     ["repositories/namecards.ts", ["NamecardRepository", "ReactionRepository"]],
     [
         "repositories/namecard-characters.ts",
         ["NamecardCharacterRepository"],
     ],
     ["repositories/namecard-units.ts", ["NamecardUnitRepository"]],
+    ["repositories/namecard-tags.ts", ["NamecardTagRepository"]],
     ["repositories/catalog.ts", ["CatalogRepository"]],
     ["repositories/station-messages.ts", ["StationMessageRepository"]],
     ["repositories/fudaba-review-policy.ts", ["FudabaReviewPolicy"]],
@@ -335,6 +337,7 @@ const portContracts = new Map([
     ["repositories/site-packages.ts", ["SitePackageRepository"]],
     ["repositories/wiki.ts", ["StoryRepository"]],
     ["repositories/index.ts", ["RepositoryServices"]],
+    ["namecard-notification-events.ts", ["NamecardNotificationEvents", "NamecardNotificationSubscriber"]],
     ["station-message-dispatch.ts", ["StationMessageDispatchRunner"]],
     ["runtime-services.ts", ["RuntimeServices", "NodeRuntimeServices"]],
     [
@@ -401,6 +404,7 @@ const utilsCategories = new Set([
     "crypto",
     "http",
     "media",
+    "sorting",
     "storage",
     "validation",
 ]);
@@ -596,6 +600,7 @@ const domainSections = new Map([
             "platform-users",
             "namecard-characters",
             "namecard-units",
+            "namecard-tags",
             "catalog",
             "station-messages",
         ],

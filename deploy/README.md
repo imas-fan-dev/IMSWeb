@@ -23,7 +23,7 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/compose.yaml config
 ```
 
-日常源码开发优先运行根目录 `pnpm dev`。它会复用本 Compose 文件启动并等待 PostgreSQL、Valkey 和 RustFS，
+日常源码开发优先运行根目录 `pnpm dev`。它会使用 `compose.yaml` 和仅用于本地源码开发的 `compose.dev.yaml`，启动并等待 PostgreSQL、缓存 Valkey、独立邮件队列 Valkey 和 RustFS，
 初始化 bucket、应用 migration，再启动宿主机上的 API、邮件 Worker 和 Web 热更新进程；无需先复制
 `deploy/.env`。如需调整本地依赖端口或凭据，再从模板创建该文件。停止依赖且保留数据卷使用
 `pnpm run dev:down`。启动和停止前可运行 `pnpm run dev:doctor`；统一入口仅允许 Unix socket、
@@ -33,12 +33,12 @@ Windows named pipe 或回环地址上的本机 Docker/Podman endpoint，远程 c
 
 ```sh
 pnpm run dev:api:up
-docker compose -f deploy/compose.yaml ps postgres valkey rustfs rustfs-init api
+docker compose -f deploy/compose.yaml ps postgres valkey mail-queue rustfs rustfs-init api
 curl --fail http://127.0.0.1:3000/api/wiki/test
 ```
 
 `dev:api:up` 是容器集成预览入口：它会构建 API 镜像，并按健康依赖顺序启动 PostgreSQL、
-Valkey、RustFS 初始化任务和 API，但不提供源码热更新。
+缓存 Valkey、邮件队列 Valkey、RustFS 初始化任务和 API，但不提供源码热更新。
 镜像构建通过 `IMS_DEBIAN_MIRROR_BASE`、`IMS_NPM_REGISTRY` 和
 `IMS_NODE_HEADERS_MIRROR` 分别覆盖 apt、Corepack/pnpm 与原生 Node headers 下载源；模板默认
 使用国内 npm 镜像，并为本地构建提供国内 Debian 镜像。不要把认证信息写入这些公开 mirror URL。
@@ -46,7 +46,7 @@ Valkey、RustFS 初始化任务和 API，但不提供源码热更新。
 
 ```sh
 pnpm run dev:postgresql:up
-docker compose --profile local-cache -f deploy/compose.yaml up -d valkey
+docker compose --profile local-cache -f deploy/compose.yaml -f deploy/compose.dev.yaml up -d valkey mail-queue
 pnpm run dev:rustfs:up
 pnpm run dev:node
 pnpm run dev:email-worker

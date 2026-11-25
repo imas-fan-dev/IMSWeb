@@ -2,8 +2,14 @@ import { toast } from "sonner"
 import { useEffect } from "react"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
-import { FieldGroup } from "~/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "~/components/ui/field"
 import { NamecardIdentityFields } from "~/components/community/namecard-identity-fields"
+import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
 import {
   SeriesMultiSelect,
   type SeriesOption,
@@ -25,6 +31,8 @@ export interface WallCardDraft {
   madeOn: string | null
   seriesCodes: string[]
   favoriteCharacterIds: number[]
+  /** 标签即时生效、不进审核载荷；与内容一起随窗口保存提交。 */
+  tags: string[]
 }
 
 export function wallCardDraftFromCard(card: {
@@ -35,6 +43,7 @@ export function wallCardDraftFromCard(card: {
   madeOn: string | null
   seriesCodes: string[]
   favoriteCharacters: { id: number }[]
+  tags?: readonly { name: string; presetId?: number | null }[]
 }): WallCardDraft {
   return {
     producerName: card.producerName ?? "",
@@ -46,6 +55,7 @@ export function wallCardDraftFromCard(card: {
     favoriteCharacterIds: card.favoriteCharacters.map(
       (character) => character.id
     ),
+    tags: (card.tags ?? []).map((tag) => tag.name),
   }
 }
 
@@ -164,6 +174,19 @@ export function NamecardWallFields({
           })
         }}
       />
+
+      <Field data-disabled={disabled || undefined}>
+        <FieldLabel>标签</FieldLabel>
+        <NamecardTagEditor
+          variant="form"
+          value={draft.tags}
+          disabled={disabled}
+          onChange={(tags) => patch({ tags })}
+        />
+        <FieldDescription>
+          标签即时生效、不参与审核；会随这次提交一起保存。
+        </FieldDescription>
+      </Field>
     </FieldGroup>
   )
 }

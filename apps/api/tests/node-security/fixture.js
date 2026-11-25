@@ -283,6 +283,7 @@ function createNodeSecurityFixture({ test, beforeAll, afterAll }) {
         process.env.NODE_ENV = 'test';
         process.env.IMS_JWT_SECRET = 'test-only-secret-with-sufficient-entropy';
         process.env.DATABASE_URL = databaseUrl;
+        process.env.IMS_MAIL_QUEUE_URL = process.env.IMS_TEST_MAIL_QUEUE_URL || 'redis://127.0.0.1:6380';
         process.env.IMS_OBJECT_STORAGE = 'filesystem';
         process.env.IMS_COMPENSATION_DIR = path.join(tempDir, 'compensation');
         process.env.IMS_UPLOADS_DIR = uploadsDir;

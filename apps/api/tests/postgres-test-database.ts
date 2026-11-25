@@ -75,4 +75,10 @@ export function connectPostgresTestDatabase(
     return createConnection(database);
 }
 
+export function postgresTestConnectionOptions(connection: PostgresConnection): PostgresConnectionOptions {
+    const database = allocations.get(connection);
+    if (!database) throw new Error('Unknown PostgreSQL test database');
+    return connectionOptions(database.databaseUrl);
+}
+
 afterAll(closeSharedPostgresTestAllocator);

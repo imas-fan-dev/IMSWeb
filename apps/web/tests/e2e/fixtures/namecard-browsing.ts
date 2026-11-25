@@ -385,43 +385,73 @@ export async function expectNamecardGalleryGeometry(page: Page) {
         element.querySelectorAll<HTMLButtonElement>(
           'button[aria-label^="查看制作人名片"]'
         )
-      ).map((button) => ({
-        ...rect(button),
-        label: button.getAttribute("aria-label"),
-        fit: getComputedStyle(button.querySelector("img")!).objectFit,
-      })),
+      )
+        // 轮播首尾各有一份 aria-hidden 的克隆页；可访问的真实页仍只有正/背两张。
+        .filter((button) => button.getAttribute("aria-hidden") !== "true")
+        .map((button) => ({
+          ...rect(button),
+          label: button.getAttribute("aria-label"),
+          fit: getComputedStyle(button.querySelector("img")!).objectFit,
+        })),
     }))
   })
   const [first, second, third, fourth] = geometry
   expect(first!.box.width).toBeCloseTo(second!.box.width, 0)
   expect(second!.box.x).toBeGreaterThanOrEqual(first!.box.right + 7)
   expect(second!.box.y - first!.box.y).toBeCloseTo(0, 0)
-  if (!mobile || Math.abs(first!.box.height - second!.box.height) < 0.1) {
-    expect(fourth!.box.y - third!.box.y).toBeCloseTo(0, 0)
+  if (mobile) {
+    expect(third!.box.x).toBeCloseTo(first!.box.x, 0)
+    expect(fourth!.box.x).toBeCloseTo(second!.box.x, 0)
+    expect(third!.box.y).toBeGreaterThanOrEqual(first!.box.bottom + 7)
+    expect(fourth!.box.y).toBeGreaterThanOrEqual(second!.box.bottom + 7)
+  } else {
+    // 桌面网格按断点铺 2/3/4 列（`sm:grid-cols-3 lg:grid-cols-4`），
+    // 不再固定两列；按实际列数校验每行对齐与行距。
+    const columns = await page
+      .locator("[data-namecard-gallery]")
+      .evaluate((gallery) =>
+        getComputedStyle(gallery).gridTemplateColumns
+          .split(/\s+/)
+          .filter(Boolean).length
+      )
+    expect(columns).toBeGreaterThanOrEqual(2)
+    for (const [index, card] of geometry.entries()) {
+      expect(card.box.width).toBeCloseTo(first!.box.width, 0)
+      expect(card.box.x).toBeCloseTo(geometry[index % columns]!.box.x, 0)
+      if (index < columns) {
+        expect(card.box.y).toBeCloseTo(first!.box.y, 0)
+      } else {
+        expect(card.box.y).toBeGreaterThanOrEqual(
+          geometry[index - columns]!.box.bottom + 7
+        )
+      }
+    }
   }
-  expect(third!.box.x).toBeCloseTo(first!.box.x, 0)
-  expect(fourth!.box.x).toBeCloseTo(second!.box.x, 0)
-  expect(third!.box.y).toBeGreaterThanOrEqual(first!.box.bottom + 7)
-  expect(fourth!.box.y).toBeGreaterThanOrEqual(second!.box.bottom + 7)
   for (const card of geometry) {
     expect(card.images).toHaveLength(2)
     const [front, back] = card.images
     for (const image of card.images) {
       expect(image.width).toBeGreaterThanOrEqual(44)
       expect(image.height).toBeGreaterThanOrEqual(44)
-      expect(image.x).toBeGreaterThanOrEqual(card.box.x)
-      expect(image.right).toBeLessThanOrEqual(card.box.right + 1)
+      expect(image.width).toBeCloseTo(front!.width, 0)
+      expect(image.height).toBeCloseTo(front!.height, 0)
     }
+    // 静态时只有正面在卡内可见；背面是等大的一格，切换后同样完整。
+    expect(front!.x).toBeGreaterThanOrEqual(card.box.x - 1)
+    expect(front!.right).toBeLessThanOrEqual(card.box.right + 1)
+    expect(front!.y).toBeGreaterThanOrEqual(card.box.y - 1)
+    expect(front!.bottom).toBeLessThanOrEqual(card.box.bottom + 1)
     if (mobile) {
       expect(card.background).not.toBe("rgba(0, 0, 0, 0)")
       expect(Number.parseFloat(card.radius)).toBe(8)
       expect(card.nestedCards).toBe(0)
-      expect(back!.x).toBeCloseTo(front!.x, 0)
-      expect(back!.y).toBeGreaterThanOrEqual(front!.bottom)
+      // 轮播一次只露出一面：背面是紧邻的下一格，等宽等高、完全可显示。
+      expect(back!.x).toBeCloseTo(front!.right, 0)
+      expect(back!.y).toBeCloseTo(front!.y, 0)
       expect(front!.fit).toBe("contain")
       expect(back!.fit).toBe("contain")
     } else {
-      expect(back!.x).toBeGreaterThanOrEqual(front!.right)
+      expect(back!.x).toBeGreaterThanOrEqual(front!.right - 1)
       expect(back!.y).toBeCloseTo(front!.y, 0)
     }
   }
@@ -456,7 +486,21 @@ export async function expectNamecardGalleryGeometry(page: Page) {
     })
     expect(first!.images[1]!.bottom).toBeLessThanOrEqual(availableBottom)
     expect(second!.images[1]!.bottom).toBeLessThanOrEqual(availableBottom)
-    expect(third!.images[0]!.y).toBeLessThan(availableBottom)
+    // 方形轮播和标签行让首排卡片更高，第二排首张不一定探出视口；
+    // 断言它滚动到视口中央后整面可见，而不是被固定栏或视口裁掉。
+    await cards.nth(2).evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" })
+    )
+    const thirdFace = await cards.nth(2).evaluate((element) => {
+      const face = element
+        .querySelector<HTMLElement>(
+          '[data-wall-slide="front"]:not([aria-hidden="true"])'
+        )!
+        .getBoundingClientRect()
+      return { top: face.top, bottom: face.bottom }
+    })
+    expect(thirdFace.top).toBeGreaterThanOrEqual(0)
+    expect(thirdFace.bottom).toBeLessThanOrEqual(availableBottom)
   }
   await expectNamecardNoOverflow(page)
 }
@@ -594,16 +638,18 @@ export async function expectNamecardReactionDensity(page: Page) {
     .poll(() =>
       groups.evaluateAll((elements) => {
         const mobile = !matchMedia("(min-width: 48rem)").matches
-        // Mobile summaries show at most three 32px-high natural-width pills
-        // with 14px graphics. Desktop shows every reaction with 20px graphics.
-        const minWidth = 31.5
-        const minHeight = 31.5
+        // Wall and detail share the compact scale: 20px pills / add trigger,
+        // 12px emoji and 10px labels at every breakpoint.
+        const minWidth = 19.5
+        const minHeight = 19.5
         return elements.every((group) => {
           const card = group.closest("[data-namecard-item]")!
           const cardBox = card.getBoundingClientRect()
           const date = card.querySelector("time")?.getBoundingClientRect()
           const back = card
-            .querySelectorAll("button")[1]!
+            .querySelector<HTMLButtonElement>(
+              'button[data-wall-slide="back"]:not([aria-hidden="true"])'
+            )!
             .getBoundingClientRect()
           if (
             date &&
@@ -631,10 +677,9 @@ export async function expectNamecardReactionDensity(page: Page) {
                 (!image ||
                   (image.complete &&
                     image.naturalWidth > 0 &&
-                    Math.abs(imageBox!.width - (mobile ? 14 : 20)) < 0.1 &&
-                    Math.abs(imageBox!.height - (mobile ? 14 : 20)) < 0.1 &&
-                    getComputedStyle(button).fontSize ===
-                      (mobile ? "11px" : "14px")))
+                    Math.abs(imageBox!.width - 12) < 0.1 &&
+                    Math.abs(imageBox!.height - 12) < 0.1 &&
+                    getComputedStyle(button).fontSize === "10px"))
               )
             })
           )

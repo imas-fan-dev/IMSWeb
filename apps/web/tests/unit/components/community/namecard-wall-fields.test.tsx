@@ -21,8 +21,8 @@ import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 const apiMocks = vi.hoisted(() => ({
   sendCharacterCatalog: vi.fn(),
   getNamecardCharacterCatalog: vi.fn(),
-  sendWikiCatalog: vi.fn(),
-  getWikiCatalog: vi.fn(),
+  sendOwnerSeries: vi.fn(),
+  getFudabaOwnerSeries: vi.fn(),
   sendOwnerCards: vi.fn(),
   getFudabaOwnerCards: vi.fn(),
 }))
@@ -41,7 +41,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   return {
     ...actual,
     getNamecardCharacterCatalog: apiMocks.getNamecardCharacterCatalog,
-    getWikiCatalog: apiMocks.getWikiCatalog,
+    getFudabaOwnerSeries: apiMocks.getFudabaOwnerSeries,
     getFudabaOwnerCards: apiMocks.getFudabaOwnerCards,
   }
 })
@@ -78,6 +78,7 @@ function draft(overrides: Partial<WallCardDraft> = {}): WallCardDraft {
     madeOn: null,
     seriesCodes: [],
     favoriteCharacterIds: [],
+    tags: [],
     ...overrides,
   }
 }
@@ -180,13 +181,13 @@ beforeEach(() => {
   apiMocks.getNamecardCharacterCatalog.mockReturnValue({
     send: apiMocks.sendCharacterCatalog,
   })
-  apiMocks.sendWikiCatalog.mockResolvedValue({
-    agencies: [
-      { code: "765", name: "765PRO ALLSTARS", color: "#f34e6c" },
-      { code: "cg", name: "CINDERELLA GIRLS", color: "#2681c8" },
+  apiMocks.sendOwnerSeries.mockResolvedValue({
+    items: [
+      { code: "765", displayName: "765PRO ALLSTARS", color: "#f34e6c" },
+      { code: "cg", displayName: "CINDERELLA GIRLS", color: "#2681c8" },
     ],
   })
-  apiMocks.getWikiCatalog.mockReturnValue({ send: apiMocks.sendWikiCatalog })
+  apiMocks.getFudabaOwnerSeries.mockReturnValue({ send: apiMocks.sendOwnerSeries })
   apiMocks.sendOwnerCards.mockResolvedValue({ items: [] })
   apiMocks.getFudabaOwnerCards.mockReturnValue({
     send: apiMocks.sendOwnerCards,
@@ -215,6 +216,7 @@ describe("wallCardDraftFromCard", () => {
       madeOn: null,
       seriesCodes: [],
       favoriteCharacterIds: [],
+      tags: [],
     })
   })
 
@@ -239,10 +241,38 @@ describe("wallCardDraftFromCard", () => {
       madeOn: "2025-10-07",
       seriesCodes: ["765", "cg"],
       favoriteCharacterIds: [1, 3],
+      tags: [],
     })
     // The draft owns its array: later wall edits must not mutate the card.
     seriesCodes.push("ml")
     expect(result.seriesCodes).toEqual(["765", "cg"])
+  })
+
+  it("carries the saved tag names and defaults a card without tags", () => {
+    const withTags = wallCardDraftFromCard({
+      producerName: "春香P",
+      producerReading: null,
+      groupName: null,
+      madeOn: null,
+      seriesCodes: [],
+      favoriteCharacters: [],
+      tags: [
+        { name: "765", presetId: 3 },
+        { name: "旧卡", presetId: null },
+      ],
+    })
+
+    expect(withTags.tags).toEqual(["765", "旧卡"])
+    expect(
+      wallCardDraftFromCard({
+        producerName: "春香P",
+        producerReading: null,
+        groupName: null,
+        madeOn: null,
+        seriesCodes: [],
+        favoriteCharacters: [],
+      }).tags
+    ).toEqual([])
   })
 })
 
@@ -326,6 +356,20 @@ describe("wallCardPayload", () => {
         twoSeries
       )
     ).toEqual({})
+  })
+
+  it("keeps tags out of the review payload", () => {
+    const liveTags: string[] = ["765"]
+    const tagged = draft({ ...live, tags: liveTags })
+
+    // 标签由 NamecardTagEditor 直接写标签接口，审核载荷不再重复携带。
+    const added = { ...tagged, tags: ["765", "娘"] }
+    expect(wallCardPayload("claim", added, tagged)).toEqual({})
+    expect(wallCardPayload("supplement", added, tagged)).toEqual({})
+    expect(wallCardChanged("supplement", added, tagged)).toBe(false)
+    expect(wallCardPayload("claim", { ...tagged, tags: [] }, tagged)).toEqual(
+      {}
+    )
   })
 })
 
@@ -414,6 +458,28 @@ describe("NamecardWallFields", () => {
     expect(screen.getByRole("group", { name: "担当角色候选" })).toBeTruthy()
     // Only the series field keeps its required marker.
     expect(screen.getAllByText("*")).toHaveLength(1)
+  })
+
+  it("edits tags in place and reports the chip removal on the draft", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderFields({ initial: draft({ tags: ["765", "旧卡"] }), onChange })
+
+    const tags = within(screen.getByRole("group", { name: "名片标签" }))
+    expect(tags.getByText("765")).toBeVisible()
+    expect(tags.getByText("旧卡")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "删除标签 旧卡" }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["765"] })
+    )
+
+    await user.click(screen.getByRole("button", { name: "添加标签" }))
+    await user.type(screen.getByRole("combobox", { name: "新标签" }), "新标签")
+    await user.keyboard("{Enter}")
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tags: ["765", "新标签"] })
+    )
   })
 
   it("reports the text edits, normalising the reading and clearing the group", async () => {

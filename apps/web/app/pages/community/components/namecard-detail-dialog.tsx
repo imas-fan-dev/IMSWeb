@@ -1,15 +1,17 @@
 import {
   ArrowLeftRightIcon,
+  EyeIcon,
+  EyeOffIcon,
   ShareIcon,
   PlusIcon,
   ShieldCheckIcon,
   SquarePenIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import type { MouseEvent } from "react"
+import { useEffect, useState } from "react"
 
 import { NamecardClaimBadge } from "~/components/community/namecard-claim-badge"
 import { creditParts } from "~/components/community/namecard-credit-format"
+import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
 import {
   CardMediaPreview,
   publicMediaSlotsFromCard,
@@ -27,23 +29,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "~/components/ui/popover"
-import { getFudabaSeries, NAMECARD_REACTIONS } from "~/lib/api"
+import { getFudabaSeries } from "~/lib/api"
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import type { FudabaSeries, Namecard, NamecardReactions } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
+import { useRetainedValue } from "~/lib/use-retained-value"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
-import { NamecardReactionEmoji } from "~/pages/community/components/namecard-reaction-emoji"
+import {
+  NamecardReactionPicker,
+  NamecardReactionRow,
+  orderedNamecardReactions,
+} from "~/pages/community/components/namecard-reaction-row"
 import { NamecardFeedbackDialog } from "~/pages/community/exchange/components/namecard-feedback-dialog"
+import { CardShareDialog } from "~/pages/account/me/namecards/components/card-share-dialog"
+import { useCardShareDialog } from "~/pages/exchange/use-card-share-dialog"
 
-const NAMECARD_REACTION_SET = new Set<string>(NAMECARD_REACTIONS)
 const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
@@ -55,173 +57,9 @@ const NAMECARD_DATE_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
 })
 
-type ReactionEntry = readonly [string, number]
-
-function activeNamecardReactions(reactions: NamecardReactions) {
-  return Object.entries(reactions).filter(
-    ([emoji, count]) => count > 0 && NAMECARD_REACTION_SET.has(emoji)
-  )
-}
-
-function mobileNamecardReactionSummary(reactions: NamecardReactions) {
-  return activeNamecardReactions(reactions)
-    .map((entry, index) => ({ entry, index }))
-    .sort(
-      (left, right) =>
-        right.entry[1] - left.entry[1] || left.index - right.index
-    )
-    .slice(0, 3)
-    .map(({ entry }) => entry)
-}
-
 export type NamecardReactionState = {
   reactions: NamecardReactions
   loading: boolean
-}
-
-function ReactionChip({
-  entry: [emoji, count],
-  compact,
-  className,
-  disabled,
-  onClick,
-}: {
-  entry: ReactionEntry
-  className?: string
-  compact?: boolean
-  disabled?: boolean
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
-}) {
-  return (
-    <Button
-      type="button"
-      className={cn(
-        "h-8 min-h-8 min-w-8 shrink-0 gap-0.5 rounded-full border border-border bg-background px-1 text-[11px] tabular-nums max-md:focus-visible:ring-inset md:min-w-0 md:gap-1.5 md:px-3 md:text-sm md:dark:border-input md:dark:bg-input/30",
-        !compact && "max-w-none grow-0",
-        compact &&
-          (String(count).length > 3
-            ? "max-w-none grow-0"
-            : "max-w-14 grow md:max-w-none md:grow-0"),
-        className
-      )}
-      variant="ghost"
-      disabled={disabled}
-      aria-label={`${emoji}，${count} 次反应`}
-      onClick={onClick}
-    >
-      <NamecardReactionEmoji emoji={emoji} compact={compact} />
-      {count}
-    </Button>
-  )
-}
-
-function NamecardReactionPicker({
-  reactions,
-  busy,
-  onReact,
-  className,
-  closeBelowMd = false,
-}: {
-  reactions: NamecardReactions
-  busy: boolean
-  onReact: (emoji: string) => Promise<boolean>
-  className?: string
-  closeBelowMd?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const [closedByBreakpoint, setClosedByBreakpoint] = useState(false)
-  useEffect(() => {
-    if (!closeBelowMd || !open) return
-    const desktop = window.matchMedia("(min-width: 48rem)")
-    const closeOnNarrowViewport = () => {
-      if (desktop.matches) return
-      setClosedByBreakpoint(true)
-      setOpen(false)
-    }
-    closeOnNarrowViewport()
-    desktop.addEventListener("change", closeOnNarrowViewport)
-    return () => desktop.removeEventListener("change", closeOnNarrowViewport)
-  }, [closeBelowMd, open])
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (nextOpen) setClosedByBreakpoint(false)
-        setOpen(nextOpen)
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <Button
-            ref={triggerRef}
-            type="button"
-            size="icon"
-            variant="ghost"
-            className={cn(
-              "size-11 rounded-full bg-transparent text-muted-foreground hover:bg-transparent hover:text-foreground max-md:focus-visible:ring-inset dark:hover:bg-transparent",
-              className
-            )}
-            title="添加反应"
-            aria-label="添加反应"
-            disabled={busy}
-          />
-        }
-      >
-        <span className="flex size-8 items-center justify-center rounded-full border border-dashed border-border group-hover/button:border-solid dark:border-input">
-          <PlusIcon aria-hidden="true" />
-        </span>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        sideOffset={6}
-        style={{ animation: "none" }}
-        className="max-h-(--available-height) w-72 max-w-(--available-width) overflow-y-auto"
-        finalFocus={
-          closeBelowMd && closedByBreakpoint
-            ? () => {
-                const row = triggerRef.current?.parentElement
-                const card = triggerRef.current?.closest("[data-namecard-item]")
-                const buttons = [
-                  ...(row?.querySelectorAll<HTMLButtonElement>("button") ?? []),
-                  ...(card?.querySelectorAll<HTMLButtonElement>("button") ??
-                    []),
-                ]
-                return (
-                  buttons.find(
-                    (button) =>
-                      !button.disabled && button.getClientRects().length > 0
-                  ) ?? false
-                )
-              }
-            : undefined
-        }
-      >
-        <PopoverTitle className="mb-2">选择反应</PopoverTitle>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1">
-          {NAMECARD_REACTIONS.map((emoji) => (
-            <Button
-              key={emoji}
-              type="button"
-              size="icon"
-              variant={reactions[emoji] ? "secondary" : "ghost"}
-              className="size-11 text-base"
-              disabled={busy}
-              aria-label={`${emoji}，添加反应`}
-              onClick={() => {
-                void onReact(emoji).then((success) => {
-                  if (success) setOpen(false)
-                })
-              }}
-            >
-              <NamecardReactionEmoji emoji={emoji} />
-            </Button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 export function NamecardReactionSummary({
@@ -234,52 +72,48 @@ export function NamecardReactionSummary({
   busy: boolean
   onOpen: (trigger: HTMLButtonElement) => void
   onReact: (emoji: string) => Promise<boolean>
+  /** 兼容旧调用方：胶囊尺寸已统一，`size` 不再改变高度。 */
+  size?: "default" | "sm"
 }) {
-  const all = activeNamecardReactions(reactions)
-  const mobile = mobileNamecardReactionSummary(reactions)
+  const all = orderedNamecardReactions(reactions)
   return (
     <div
-      className="flex min-h-8 min-w-0 flex-wrap items-center gap-0.75 md:gap-1.5"
+      className="flex min-h-5 min-w-0 flex-wrap items-center"
+      data-slot="namecard-reaction-summary"
       aria-label="名片反应摘要"
       aria-busy={loading || busy}
     >
-      {mobile.map((entry) => (
-        <ReactionChip
-          key={`mobile-${entry[0]}`}
-          entry={entry}
-          compact
-          onClick={(event) => onOpen(event.currentTarget)}
-          className="md:hidden"
-        />
-      ))}
-      {all.map((entry) => (
-        <ReactionChip
-          key={`desktop-${entry[0]}`}
-          entry={entry}
-          compact
-          disabled={!IS_APP_TARGET && busy}
-          onClick={(event) => {
-            if (IS_APP_TARGET) onOpen(event.currentTarget)
-            else void onReact(entry[0])
-          }}
-          className="max-md:hidden"
-        />
-      ))}
-      {!IS_APP_TARGET ? (
-        <NamecardReactionPicker
-          reactions={reactions}
-          busy={busy}
-          onReact={onReact}
-          className="max-md:hidden"
-          closeBelowMd
-        />
-      ) : null}
+      <NamecardReactionRow
+        reactions={reactions}
+        limit={3}
+        chipClassName="md:hidden"
+        onChipClick={(_entry, event) => onOpen(event.currentTarget)}
+      />
+      <NamecardReactionRow
+        reactions={reactions}
+        chipClassName="max-md:hidden"
+        chipDisabled={!IS_APP_TARGET && busy}
+        onChipClick={(entry, event) => {
+          if (IS_APP_TARGET) onOpen(event.currentTarget)
+          else void onReact(entry[0])
+        }}
+      >
+        {!IS_APP_TARGET ? (
+          <NamecardReactionPicker
+            reactions={reactions}
+            busy={busy}
+            onReact={onReact}
+            className="max-md:hidden"
+            closeBelowMd
+          />
+        ) : null}
+      </NamecardReactionRow>
       {all.length === 0 && !loading ? (
         <Button
           type="button"
           variant="ghost"
           className={cn(
-            "h-8 min-h-8 rounded-full border border-dashed px-2 text-xs text-muted-foreground",
+            "h-5 min-h-5 rounded-sm border border-dashed px-1.5 text-[10px] text-muted-foreground",
             !IS_APP_TARGET && "md:hidden"
           )}
           onClick={(event) => onOpen(event.currentTarget)}
@@ -347,41 +181,116 @@ function EmptyDash() {
 const FOOTER_BUTTON =
   "min-h-9 gap-1 px-2 text-xs [&_svg]:size-4 sm:min-h-11 sm:px-2.5 sm:text-sm"
 
+/** 【交换】的目标：页面层拿得到哪个就传哪个；实际查「对方已有」用 `?target=` / `?targetCard=`。 */
+export type NamecardExchangeTarget =
+  | { accountId: string }
+  | { cardNumber: number }
+
+/** 只读调用方（通知里的交换详情）没有反应数据，也不该伪造一份。 */
+const EMPTY_REACTION_STATE: NamecardReactionState = {
+  reactions: {},
+  loading: false,
+}
+
 export function NamecardDetailDialog({
-  card,
-  canClaim,
+  card: incomingCard,
+  canClaim = false,
   initialSide,
-  reactions,
-  busy,
+  reactions: incomingReactions = EMPTY_REACTION_STATE,
+  busy = false,
+  exchangeTarget,
+  exchangeTargetCard,
   onOpenChange,
   onOpenPreview,
   onClaim,
   onSupplement,
+  onExchange,
   onReact,
   onReturnFocus,
+  onTagsChange,
   dismissible = true,
+  readOnly = false,
+  showTags = true,
+  collection,
+  authorizeMedia = false,
 }: {
   card: Namecard | null
-  canClaim: boolean
+  canClaim?: boolean
   /** The gallery opens on the side the visitor clicked in the wall. */
   initialSide?: NamecardSide | null
-  reactions: NamecardReactionState
-  busy: boolean
+  reactions?: NamecardReactionState
+  busy?: boolean
+  /** 卡主的平台账号（主页已知 `profile.accountId` 时传它）。 */
+  exchangeTarget?: string | null
+  /** 卡号：公开墙拿不到账号 ID，只能把这张卡交给选卡窗口反查卡主。 */
+  exchangeTargetCard?: number | null
   onOpenChange: (open: boolean) => void
   /** 传的是画廊里的页面下标：可能超过两面，光靠 front/back 表达不全。 */
-  onOpenPreview: (index: number, trigger: HTMLButtonElement) => void
-  onClaim: (card: Namecard) => void
-  onSupplement: (card: Namecard) => void
-  onReact: (emoji: string) => Promise<boolean>
-  onReturnFocus: () => void
+  onOpenPreview?: (index: number, trigger: HTMLButtonElement) => void
+  onClaim?: (card: Namecard) => void
+  onSupplement?: (card: Namecard) => void
+  /** 【交换】由挂载页面打开它的选卡窗口（一页一个实例，不在窗里另起）。 */
+  onExchange?: (card: Namecard, target: NamecardExchangeTarget) => void
+  onReact?: (emoji: string) => Promise<boolean>
+  onReturnFocus?: () => void
+  /** 内联标签保存成功后回调，调用方据此更新列表里的同一张卡。 */
+  onTagsChange?: (tags: string[]) => void
+  /**
+   * 是否挂载标签区。通知里的交换详情传 `false`（那里只做只读核对）；
+   * 只读模式无论该值如何都不渲染编辑器。
+   */
+  showTags?: boolean
   /** 认领/补充窗开着时置 false，点它不算「点了详情窗外面」。 */
   dismissible?: boolean
+  /**
+   * 只读：卡片信息、页签与缩略图照旧，但**不渲染任何交互件**——反应区、
+   * 编辑/认领/补充/分享/交换全部缺席，只留下【反馈】。
+   * 通知里的交换详情拿它叠在交换窗上展示完整名片。
+   */
+  readOnly?: boolean
+  /**
+   * 名片册的交接：把【交换】换成【隐藏/取消隐藏】。传 `null` 表示这条是自己的名片
+   * （PRD §5），两个按钮都不出现；不传则是墙 / 主页的常规详情窗。
+   */
+  collection?:
+    | {
+        hidden: boolean
+        /** 写请求在飞时禁用，避免连点。 */
+        busy: boolean
+        onToggleHidden: () => void
+      }
+    | null
+  /**
+   * 名片册里原卡已被属主下线（`available: false`）时置 true：交换墙的媒体
+   * 只剩「持有者可读」，App 里没有 cookie，必须让图片走平台凭据。
+   */
+  authorizeMedia?: boolean
 }) {
+  // 关闭时父组件会立刻把 card 置空；但对话框还要播退场动画。保留最后一张卡，
+  // 让内容在淡出期间保持完整，不再出现「先空白再消失」。
+  const card = useRetainedValue(incomingCard)
+  // 关闭时父组件也会把反应数据换成空态；同样留住，退场期间不闪空。
+  const reactions =
+    useRetainedValue(incomingCard ? incomingReactions : null) ??
+    EMPTY_REACTION_STATE
   const navigate = useNavigation()
   const platform = useOptionalPlatformSession()
   const platformCanReport =
     platform.status === "authenticated" || platform.status === "restricted"
-  const entries = activeNamecardReactions(reactions.reactions)
+  const entries = orderedNamecardReactions(reactions.reactions)
+  // inline 编辑器自己保存，但详情窗是受控视图：保存成功后先把本地 chips 换掉，
+  // 再通知调用方刷新列表里的同一张卡（弹窗可能不重挂）。
+  const [savedTagState, setSavedTagState] = useState<{
+    cardId: string
+    tags: string[]
+  } | null>(null)
+  const savedTags =
+    card && savedTagState?.cardId === card.cardId
+      ? savedTagState.tags
+      : (card?.tags?.map((tag) => tag.name) ?? [])
+  // 只读调用方没有反应写路径；交互区在只读下整块不渲染，这里只保证类型完整。
+  const react = onReact ?? (() => Promise.resolve(false))
+  const share = useCardShareDialog()
   const [series, setSeries] = useState<ReadonlyMap<string, FudabaSeries>>(
     new Map()
   )
@@ -425,9 +334,33 @@ export function NamecardDetailDialog({
     ? card.claimStatus !== "unclaimed" || card.supplementPending
     : true
 
+  // 【交换】目标：调用方知道自己拿得到什么（主页 = 账号 ID，名片墙 = 卡号）。
+  // 公开卡投影里 `claimerUid` 恒为 null，所以它只作为兜底，不再当必填门槛。
+  const resolvedExchangeTarget: NamecardExchangeTarget | null =
+    exchangeTargetCard !== undefined && exchangeTargetCard !== null
+      ? { cardNumber: exchangeTargetCard }
+      : exchangeTarget
+        ? { accountId: exchangeTarget }
+        : card?.claimerUid
+          ? { accountId: String(card.claimerUid) }
+          : null
+  const canExchange =
+    card !== null &&
+    platformCanReport &&
+    resolvedExchangeTarget !== null &&
+    !card.collected &&
+    card.exchangeMode !== "none"
+  const exchangeBlockedTitle = card?.collected
+    ? "你已经拥有这张名片"
+    : card?.exchangeMode === "none"
+      ? "这张名片不接受交换"
+      : !platformCanReport
+        ? "登录后才能交换"
+        : "暂时无法交换"
+
   return (
     <Dialog
-      open={card !== null}
+      open={incomingCard !== null}
       onOpenChange={onOpenChange}
       disablePointerDismissal={!dismissible}
     >
@@ -435,7 +368,7 @@ export function NamecardDetailDialog({
         layout="pinned"
         className="sm:max-w-5xl"
         finalFocus={() => {
-          onReturnFocus()
+          onReturnFocus?.()
           return false
         }}
       >
@@ -486,9 +419,12 @@ export function NamecardDetailDialog({
                   key={slideKey}
                   slots={mediaSlots}
                   roleLabels={false}
+                  authorizeMedia={authorizeMedia}
                   initialIndex={initialSlide}
-                  onOpenPreview={(index, element) =>
-                    onOpenPreview(index, element)
+                  onOpenPreview={
+                    onOpenPreview
+                      ? (index, element) => onOpenPreview(index, element)
+                      : undefined
                   }
                   previewLabel={(index) =>
                     `放大制作人名片 ${card.id} ${
@@ -498,33 +434,52 @@ export function NamecardDetailDialog({
                 />
               ) : null}
 
-              <section aria-labelledby="namecard-detail-reactions">
-                <h2 id="namecard-detail-reactions" className="mb-2 font-medium">
-                  全部反应
-                </h2>
-                <div
-                  className="flex min-h-11 flex-wrap items-center gap-1.5"
-                  aria-label="名片全部反应"
-                  aria-busy={reactions.loading || busy}
-                >
-                  {entries.map((entry) => (
-                    <ReactionChip
-                      key={entry[0]}
-                      entry={entry}
-                      disabled={busy}
-                      onClick={() => void onReact(entry[0])}
-                    />
-                  ))}
-                  {!reactions.loading && entries.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">还没有反应</p>
-                  ) : null}
-                  <NamecardReactionPicker
-                    reactions={reactions.reactions}
-                    busy={busy}
-                    onReact={onReact}
+              {readOnly || !showTags || !card ? null : (
+                <section aria-labelledby="namecard-detail-tags">
+                  <h2 id="namecard-detail-tags" className="mb-2 font-medium">
+                    标签
+                  </h2>
+                  <NamecardTagEditor
+                    variant="inline"
+                    value={savedTags}
+                    cardId={card.cardId}
+                    disabled={platform.status !== "authenticated"}
+                    onChange={(tags) => {
+                      setSavedTagState({ cardId: card.cardId, tags })
+                      onTagsChange?.(tags)
+                    }}
                   />
-                </div>
-              </section>
+                </section>
+              )}
+
+              {readOnly ? null : (
+                <section aria-labelledby="namecard-detail-reactions">
+                  <h2
+                    id="namecard-detail-reactions"
+                    className="mb-1 font-medium"
+                  >
+                    全部反应
+                  </h2>
+                  <NamecardReactionRow
+                    reactions={reactions.reactions}
+                    busy={reactions.loading || busy}
+                    label="名片全部反应"
+                    chipDisabled={busy}
+                    onChipClick={(entry) => void react(entry[0])}
+                  >
+                    {!reactions.loading && entries.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        还没有反应
+                      </p>
+                    ) : null}
+                    <NamecardReactionPicker
+                      reactions={reactions.reactions}
+                      busy={busy}
+                      onReact={react}
+                    />
+                  </NamecardReactionRow>
+                </section>
+              )}
             </div>
 
             <div className="min-w-0">
@@ -623,82 +578,109 @@ export function NamecardDetailDialog({
           </div>
         </DialogBody>
         <DialogFooter className="flex-row flex-nowrap justify-end gap-1.5 overflow-x-auto border-t bg-transparent px-3 sm:gap-2 sm:px-4">
-          {card?.canEdit ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(FOOTER_BUTTON, "bg-background")}
-              onClick={() => {
-                onOpenChange(false)
-                void navigate(
-                  `/account/me/namecards?card=${encodeURIComponent(card.cardId)}`
-                )
-              }}
-            >
-              <SquarePenIcon aria-hidden="true" />
-              编辑
-            </Button>
-          ) : null}
-          {unclaimed ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(FOOTER_BUTTON, "bg-background")}
-              disabled={!canClaim || supplementBlocked}
-              title={
-                card?.claimStatus === "pending"
-                  ? "这张名片正在认领审核，认领优先于补充"
-                  : card?.supplementPending
-                    ? "这张名片已有一份补充在审核"
-                    : undefined
-              }
-              onClick={() => {
-                if (card) onSupplement(card)
-              }}
-            >
-              <PlusIcon aria-hidden="true" />
-              补充
-            </Button>
-          ) : null}
-          {unclaimed ? (
-            <Button
-              type="button"
-              className={FOOTER_BUTTON}
-              disabled={!canClaim || claimBlocked}
-              title={
-                card?.claimStatus === "pending"
-                  ? "这张名片已经有一份认领在审核"
-                  : undefined
-              }
-              onClick={() => {
-                if (card) onClaim(card)
-              }}
-            >
-              <ShieldCheckIcon aria-hidden="true" />
-              认领
-            </Button>
-          ) : null}
-          {unclaimed ? null : card?.canEdit ? (
-            // 拥有者看自己的名片时，这里给的是分享入口（暂不可用）。
-            <Button
-              type="button"
-              className={FOOTER_BUTTON}
-              disabled
-              title="暂未开放"
-            >
-              <ShareIcon aria-hidden="true" />
-              分享
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className={FOOTER_BUTTON}
-              disabled
-              title="暂未开放"
-            >
-              <ArrowLeftRightIcon aria-hidden="true" />
-              交换
-            </Button>
+          {readOnly ? null : (
+            <>
+              {card?.canEdit ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(FOOTER_BUTTON, "bg-background")}
+                  onClick={() => {
+                    onOpenChange(false)
+                    void navigate(
+                      `/account/me/namecards?card=${encodeURIComponent(card.cardId)}`
+                    )
+                  }}
+                >
+                  <SquarePenIcon aria-hidden="true" />
+                  编辑
+                </Button>
+              ) : null}
+              {unclaimed ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(FOOTER_BUTTON, "bg-background")}
+                  disabled={!canClaim || supplementBlocked}
+                  title={
+                    card?.claimStatus === "pending"
+                      ? "这张名片正在认领审核，认领优先于补充"
+                      : card?.supplementPending
+                        ? "这张名片已有一份补充在审核"
+                        : undefined
+                  }
+                  onClick={() => {
+                    if (card) onSupplement?.(card)
+                  }}
+                >
+                  <PlusIcon aria-hidden="true" />
+                  补充
+                </Button>
+              ) : null}
+              {unclaimed ? (
+                <Button
+                  type="button"
+                  className={FOOTER_BUTTON}
+                  disabled={!canClaim || claimBlocked}
+                  title={
+                    card?.claimStatus === "pending"
+                      ? "这张名片已经有一份认领在审核"
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (card) onClaim?.(card)
+                  }}
+                >
+                  <ShieldCheckIcon aria-hidden="true" />
+                  认领
+                </Button>
+              ) : null}
+              {unclaimed ? null : card?.canEdit ? (
+                // 拥有者看自己的名片时，这里给的是单卡分享入口（懒加载 slug 后开面板）。
+                <Button
+                  type="button"
+                  className={FOOTER_BUTTON}
+                  disabled={!card || share.busyCardNumber === card.cardNumber}
+                  onClick={() => {
+                    if (card) void share.requestShare(card.cardNumber)
+                  }}
+                >
+                  <ShareIcon aria-hidden="true" />
+                  分享
+                </Button>
+              ) : collection === null ? null : collection ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(FOOTER_BUTTON, "bg-background")}
+                  disabled={collection.busy}
+                  onClick={collection.onToggleHidden}
+                >
+                  {collection.hidden ? (
+                    <EyeIcon aria-hidden="true" />
+                  ) : (
+                    <EyeOffIcon aria-hidden="true" />
+                  )}
+                  {collection.hidden ? "取消隐藏" : "隐藏"}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className={FOOTER_BUTTON}
+                  aria-label="交换名片"
+                  disabled={!canExchange}
+                  title={canExchange ? undefined : exchangeBlockedTitle}
+                  onClick={() => {
+                    if (card && resolvedExchangeTarget) {
+                      onExchange?.(card, resolvedExchangeTarget)
+                    }
+                  }}
+                >
+                  <ArrowLeftRightIcon aria-hidden="true" />
+                  交换
+                </Button>
+              )}
+            </>
           )}
           {card ? (
             <NamecardFeedbackDialog
@@ -710,6 +692,13 @@ export function NamecardDetailDialog({
             />
           ) : null}
         </DialogFooter>
+        {!readOnly && share.target ? (
+          <CardShareDialog
+            target={share.target}
+            open={share.open}
+            onOpenChange={share.onOpenChange}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )

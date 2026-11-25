@@ -117,13 +117,15 @@ test.describe("namecard desktop reactions", () => {
       }
     })
     expect(geometry.pills).toHaveLength(2)
-    expect(geometry.add.width).toBeGreaterThanOrEqual(43.5)
-    expect(geometry.add.height).toBeGreaterThanOrEqual(43.5)
-    expect(geometry.circle.width).toBeCloseTo(32, 0)
-    expect(geometry.circle.height).toBeCloseTo(32, 0)
+    // 视觉与胶囊同为 20px；44px 触控热区由伪元素上下撑出，不占布局。
+    expect(geometry.add.width).toBeCloseTo(20, 0)
+    expect(geometry.add.height).toBeCloseTo(20, 0)
+    expect(geometry.circle.width).toBeCloseTo(20, 0)
+    expect(geometry.circle.height).toBeCloseTo(20, 0)
+    await expect(add.locator("span")).toHaveCSS("border-top-left-radius", "4.8px")
     await expect(add.locator("span")).toHaveCSS("border-top-style", "dashed")
     for (const pill of geometry.pills) {
-      expect(pill.height).toBeCloseTo(32, 0)
+      expect(pill.height).toBeCloseTo(20, 0)
       const overlaps =
         Math.min(pill.right, geometry.add.right) -
           Math.max(pill.x, geometry.add.x) >

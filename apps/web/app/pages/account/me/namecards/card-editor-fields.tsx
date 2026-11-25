@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { CharacterMultiSelect } from "~/components/community/character-multi-select"
 import { NamecardIdentityFields } from "~/components/community/namecard-identity-fields"
+import { NamecardTagEditor } from "~/components/community/namecard-tag-editor"
 import { SeriesMultiSelect } from "~/components/community/series-multi-select"
 import { Checkbox } from "~/components/ui/checkbox"
 import {
@@ -306,6 +307,20 @@ export function CardFields({
             他人可在名片墙和用户主页看到这张名片。
           </label>
         </Field>
+      </CardModule>
+
+      <CardModule mode={modes?.tags}>
+        <div data-card-field="tags">
+          <Field data-disabled={disabled || undefined}>
+            <FieldLabel>标签</FieldLabel>
+            <NamecardTagEditor
+              variant="form"
+              value={draft.tags ?? []}
+              disabled={disabled}
+              onChange={(tags) => patch({ tags })}
+            />
+          </Field>
+        </div>
       </CardModule>
     </FieldGroup>
   )

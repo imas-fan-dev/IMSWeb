@@ -123,6 +123,7 @@ test("adds platform accounts by pasting a link, then edits and removes them from
   })
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
     "/api/community/exchange/me/offices",
   ]) {
@@ -131,17 +132,6 @@ test("adds platform accounts by pasting a link, then edits and removes them from
       (route) => route.fulfill({ json: { items: [] } })
     )
   }
-  await api.mock(
-    {
-      method: "GET",
-      path: "/api/community/exchange/me/favorites",
-      times: { min: 0, max: 6 },
-    },
-    (route) =>
-      route.fulfill({
-        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
-      })
-  )
   api.expect({
     method: "PUT",
     path: "/api/platform/me/accounts/github",

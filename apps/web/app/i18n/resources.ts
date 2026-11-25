@@ -75,6 +75,13 @@ export const resources = {
         home: "首页",
         community: "社区",
         exchangeMap: "交换地图",
+        exchange: "交换",
+        exchangeMenu: "名片交换",
+        exchangeMenuOpen: "打开名片交换菜单",
+        exchangeMenuClose: "收起名片交换菜单",
+        exchangeQr: "二维码",
+        exchangeNfc: "碰一碰",
+        exchangeGroup: "多人交换",
         resources: "资料",
         account: "我的",
       },
@@ -109,6 +116,7 @@ export const resources = {
         login: "登录",
         register: "注册",
         myCards: "个人档案",
+        namecards: "名片管理",
         messages: "消息通知",
         messagesUnread: "{{count}} 条未读消息",
         logout: "退出帐号",
@@ -131,7 +139,7 @@ export const resources = {
           cityMissing: "未填写常驻城市",
           restrictedTitle: "帐号当前为只读",
           restrictedDescription:
-            "个人资料、名片、收藏夹、事务所和认领消息仍可查看，但不能修改。",
+            "个人资料、名片、名片册、事务所和认领消息仍可查看，但不能修改。",
           profileGroup: "我的资料",
           securityGroup: "帐号与安全",
           sessionGroup: "当前会话",
@@ -141,12 +149,12 @@ export const resources = {
               description: "头像、名称与简介",
             },
             namecards: {
-              label: "交换名片",
+              label: "名片管理",
               description: "名片与交换状态",
             },
-            favorites: {
-              label: "收藏夹",
-              description: "收藏的交换名片",
+            collection: {
+              label: "名片册",
+              description: "交换得来的名片",
             },
             offices: {
               label: "事务所与位置",
@@ -155,6 +163,10 @@ export const resources = {
             claims: {
               label: "消息",
               description: "审核通知与名片认领",
+            },
+            messages: {
+              label: "我的留言",
+              description: "管理自己发布的便签留言",
             },
           },
         },
@@ -658,6 +670,13 @@ export const resources = {
         home: "Home",
         community: "Community",
         exchangeMap: "Map",
+        exchange: "Exchange",
+        exchangeMenu: "Namecard exchange",
+        exchangeMenuOpen: "Open namecard exchange menu",
+        exchangeMenuClose: "Close namecard exchange menu",
+        exchangeQr: "QR code",
+        exchangeNfc: "Tap to exchange",
+        exchangeGroup: "Group exchange",
         resources: "Resources",
         account: "Me",
       },
@@ -692,6 +711,7 @@ export const resources = {
         login: "Sign in",
         register: "Register",
         myCards: "Profile",
+        namecards: "Namecard manager",
         messages: "Messages",
         messagesUnread: "{{count}} unread messages",
         logout: "Sign out",
@@ -716,7 +736,7 @@ export const resources = {
           cityMissing: "Home city not set",
           restrictedTitle: "Account is read-only",
           restrictedDescription:
-            "You can still view your profile, cards, favorites, offices, and claims, but you cannot make changes.",
+            "You can still view your profile, cards, namecard album, offices, and claims, but you cannot make changes.",
           profileGroup: "My profile",
           securityGroup: "Account and security",
           sessionGroup: "Current session",
@@ -726,12 +746,12 @@ export const resources = {
               description: "Avatar, display name, and bio",
             },
             namecards: {
-              label: "Exchange cards",
+              label: "Namecard manager",
               description: "Card media and exchange status",
             },
-            favorites: {
-              label: "Favorites",
-              description: "Saved exchange cards",
+            collection: {
+              label: "Namecard album",
+              description: "Cards you collected through exchanges",
             },
             offices: {
               label: "Offices and location",
@@ -740,6 +760,10 @@ export const resources = {
             claims: {
               label: "Messages",
               description: "Review notices and card claims",
+            },
+            messages: {
+              label: "My messages",
+              description: "Manage your wall messages",
             },
           },
         },

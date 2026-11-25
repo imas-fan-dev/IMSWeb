@@ -5,6 +5,7 @@ import type {
     FudabaOwnerCard,
     FudabaPendingCardContent
 } from '@imsweb/contracts/fudaba';
+import { NAMECARD_ACCENT_FALLBACK } from '@imsweb/contracts/fudaba/runtime';
 import type { FudabaCardRecord } from '@/ports/repositories';
 
 function badRequest(message: string): Error {
@@ -50,9 +51,11 @@ export function fudabaOwnerCardView(
         favoriteCharacters: card.favorite_characters.map(characterView),
         frontImageUrl: cardMediaUrl(card, 'front'),
         backImageUrl: livePageCount > 1 ? cardMediaUrl(card, 'back') : null,
-        accent: card.accent,
-        bio: card.bio,
-        tradeNote: card.trade_note,
+        // 旧行的 `accent` / `bio` / `trade_note` 允许是 NULL，所有者侧契约要求
+        // 非空（`accentSchema` + `ownerCardTextSchema`），在唯一的装配点回填。
+        accent: card.accent ?? NAMECARD_ACCENT_FALLBACK,
+        bio: card.bio ?? '',
+        tradeNote: card.trade_note ?? '',
         exchangeMode: card.exchange_mode,
         madeOn: card.made_on,
         groupName: card.group_name,
@@ -62,6 +65,7 @@ export function fudabaOwnerCardView(
         madeWithAi: card.made_with_ai,
         visible: card.visible,
         credits: card.credits,
+        tags: card.tags,
         publicationStatus: card.publication_status,
         reviewStatus: card.review_status,
         reviewReason: card.review_reason,

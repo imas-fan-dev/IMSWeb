@@ -18,6 +18,7 @@ export async function handleListNamecardNotifications(
             id: row.id,
             kind: row.kind as NamecardNotification['kind'],
             cardNumber: row.card_number === null ? null : Number(row.card_number),
+            exchangeId: row.exchange_id,
             title: row.title,
             body: row.body,
             readAt: row.read_at === null ? null : new Date(row.read_at).toISOString(),

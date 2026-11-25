@@ -10,7 +10,7 @@ import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installSeededPublicApis } from "./fixtures/public-content"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
-const cardsUrl = "/community/cards?page=2&size=12"
+const cardsUrl = "/community/cards?page=2&size=12&sort=created"
 const nav = (page: Page) => page.getByRole("navigation", { name: "主导航" })
 
 function resourcesDirectory(api: ApiDispatcher) {
@@ -210,7 +210,6 @@ test.describe("app navigation", () => {
     await expect(nav(page).getByRole("link")).toHaveText([
       "首页",
       "社区",
-      "交换地图",
       "资料",
       "我的",
     ])
@@ -257,7 +256,8 @@ test.describe("app navigation", () => {
     })
     installSeededPublicApis(api, [
       { path: "/api/community/content", times: 1 },
-      { path: "/api/community/exchange/series", times: 1 },
+      // 名片墙首屏与一次组件重挂都会各取一次系列清单，两次都属正常。
+      { path: "/api/community/exchange/series", times: { min: 1, max: 2 } },
     ])
     await page.goto(cardsUrl)
     await readCards(page)
@@ -438,6 +438,7 @@ test.describe("app navigation", () => {
     )
     for (const path of [
       "/api/community/exchange/me/series",
+      "/api/community/exchange/me/office-series",
       "/api/community/exchange/me/cards",
       "/api/community/exchange/me/offices",
     ]) {
@@ -453,20 +454,6 @@ test.describe("app navigation", () => {
       },
       (route) => route.fulfill({ json: makeCharacterCatalog() })
     )
-    api.mock(
-      {
-        method: "GET",
-        path: "/api/community/exchange/me/favorites",
-        times: { min: 0, max: 4 },
-      },
-      (route) =>
-        route.fulfill({
-          json: {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          },
-        })
-    )
   }
 
   async function setAccountSessionHint(page: Page) {
@@ -477,9 +464,9 @@ test.describe("app navigation", () => {
   }
 
   test(
-    "keeps the app viewport free of pinch and double-tap zoom",
-    { tag: "@app-webkit" },
-    async ({ page, api }) => {
+    "allows app viewport pinch zoom without double-tap zoom",
+    { tag: ["@app-webkit", "@app-android"] },
+    async ({ page, api, browserName }) => {
       // The root favicon and App background share one catalog read on a cold load.
       installEmptyWikiCatalogMock(api)
       const catalogResponse = page.waitForResponse(
@@ -494,16 +481,46 @@ test.describe("app navigation", () => {
         page.locator('main[data-account-state="anonymous"]')
       ).toBeVisible()
       const viewport = page.locator('meta[name="viewport"]')
-      await expect(viewport).toHaveAttribute("content", /maximum-scale=1/)
-      await expect(viewport).toHaveAttribute("content", /user-scalable=no/)
+      await expect(viewport).not.toHaveAttribute(
+        "content",
+        /maximum-scale|user-scalable/
+      )
       await expect(viewport).toHaveAttribute("content", /viewport-fit=cover/)
-      await expect
-        .poll(() =>
-          page.evaluate(
-            () => getComputedStyle(document.documentElement).touchAction
-          )
-        )
-        .toBe("pan-x pan-y")
+      await expect(page.locator("html")).toHaveCSS(
+        "touch-action",
+        "manipulation"
+      )
+
+      // Playwright's multi-touch input uses Chromium's DevTools protocol.
+      if (browserName !== "chromium") return
+      const session = await page.context().newCDPSession(page)
+      const scale = () => page.evaluate(() => window.visualViewport?.scale ?? 1)
+      const pinch = async (start: number, end: number) => {
+        const touchPoints = (radius: number) => [
+          { id: 0, x: 160 - radius, y: 280 },
+          { id: 1, x: 160 + radius, y: 280 },
+        ]
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: touchPoints(start),
+        })
+        for (let step = 1; step <= 10; step++) {
+          await session.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: touchPoints(start + ((end - start) * step) / 10),
+          })
+        }
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        })
+      }
+
+      await expect.poll(scale).toBeCloseTo(1)
+      await pinch(24, 100)
+      await expect.poll(scale).toBeGreaterThan(1.5)
+      await pinch(100, 14)
+      await expect.poll(scale).toBeCloseTo(1)
     }
   )
 
@@ -596,6 +613,11 @@ test.describe("app navigation", () => {
       await page.goto("/community")
       await page.locator('a[href="/community/cards"]').first().click()
       await expect(page).toHaveURL(/\/community\/cards/)
+      // 反应读取由名片挂载后的 effect 触发；等墙面渲染出来再离开，
+      // 否则冷启动的 shard 可能在请求发出前就切走了。
+      await expect(
+        page.getByRole("button", { name: /查看制作人名片/ }).first()
+      ).toBeVisible()
       const afterDetail = await page.evaluate(() => history.length)
       // Reselecting the active tab returns to the root that is already in this
       // tab instead of appending a second root above the detail page.

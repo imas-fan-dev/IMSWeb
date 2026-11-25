@@ -25,7 +25,7 @@ export async function installUnifiedSearchApis(
   const queries: string[] = []
   await installEmptyWikiCatalogMock(api, { min: 0, max: 8 })
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (r) => r.fulfill({ json: { items: [] } }),
     "GET",
     { min: 1, max: 8 }
@@ -42,12 +42,6 @@ export async function installUnifiedSearchApis(
     },
     "GET",
     { min: 1, max: 8 }
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    (r) => r.fulfill({ json: empty }),
-    "GET",
-    { min: 0, max: 8 }
   )
   await api.mockRoute(
     "/api/community/exchange/map/config",

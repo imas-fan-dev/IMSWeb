@@ -27,6 +27,7 @@ const activeSession = {
   success: true as const,
   account: { id: "platform-1", status: "active" as const },
   profile: {
+    uid: 7,
     displayName: "测试制作人",
     avatarUrl: "/avatar.webp",
     homeCity: "上海",
@@ -108,7 +109,9 @@ describe("AccountMePage", () => {
     expectAccountHeading()
     expect(main).toHaveAttribute("data-account-state", "loading")
     expect(main).toHaveAttribute("aria-busy", "true")
-    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(9)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(
+      10
+    )
   })
 
   it("keeps all anonymous account and preference destinations reachable", () => {
@@ -167,6 +170,11 @@ describe("AccountMePage", () => {
     )
     expect(screen.getByText("测试制作人")).toBeVisible()
     expect(screen.getByText("上海")).toBeVisible()
+    // 移动端身份区要能进自己的主页，与桌面侧栏一致。
+    expect(screen.getByText("测试制作人").closest("a")).toHaveAttribute(
+      "href",
+      "/user/7"
+    )
     expect(screen.getByText("已登录")).toBeVisible()
     expect(
       await screen.findByRole("img", { name: "测试制作人的头像" })
@@ -174,8 +182,8 @@ describe("AccountMePage", () => {
 
     const expectedSections = [
       ["个人资料", "/account/me/profile"],
-      ["交换名片", "/account/me/namecards"],
-      ["收藏夹", "/account/me/favorites"],
+      ["名片管理", "/account/me/namecards"],
+      ["名片册", "/account/me/collection"],
       ["事务所与位置", "/account/me/offices"],
       ["消息", "/account/me/claims"],
     ] as const

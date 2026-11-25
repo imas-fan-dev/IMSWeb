@@ -1,16 +1,67 @@
-import { test as base } from "@playwright/test"
+import { test as base, type BrowserContext } from "@playwright/test"
 import { fudabaSeriesListSchema } from "@imsweb/contracts/fudaba"
+import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import {
   namecardNotificationListResponseSchema,
   type NamecardNotification,
 } from "@imsweb/contracts/fudaba/card-claims"
 import {
   myPlatformAccountsSchema,
+  namecardCardLayoutSchema,
   wallInsightsSchema,
 } from "@imsweb/contracts/namecards"
-import { apiPath, exchangePath, platformApiPath } from "@imsweb/contracts/paths"
+import { NAMECARD_EXCHANGE_CARD_LIMIT } from "@imsweb/contracts/namecards/runtime"
+import {
+  apiPath,
+  exchangeMyCardsLayoutPath,
+  exchangePath,
+  platformApiPath,
+} from "@imsweb/contracts/paths"
 
 import { ApiDispatcher } from "./api-dispatcher"
+
+async function installInboxStreamProbe(
+  context: BrowserContext,
+  baseURL: string,
+  apiOrigins: string[]
+) {
+  const pageOrigin = new URL(baseURL).origin
+  const origins = new Set([pageOrigin, ...apiOrigins])
+  // SSE is not JSON. Keep unrelated specs quiet without invalidating their
+  // REST mocks: a heartbeat comment is not an inbox change.
+  await context.route(
+    (url) =>
+      origins.has(url.origin) &&
+      url.pathname === exchangePath("/me/notifications/stream"),
+    async (route) => {
+      const request = route.request()
+      const origin = await request.headerValue("origin")
+      if (origin && origin !== pageOrigin) return route.fallback()
+      const headers = { "Access-Control-Allow-Origin": pageOrigin }
+      if (
+        request.method() === "OPTIONS" &&
+        origin === pageOrigin &&
+        (await request.headerValue("access-control-request-method")) === "GET"
+      ) {
+        return route.fulfill({
+          status: 204,
+          headers: {
+            ...headers,
+            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Authorization, X-IMS-Auth-Mode",
+          },
+        })
+      }
+      if (request.method() !== "GET") return route.fallback()
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { ...headers, "Cache-Control": "no-store" },
+        body: ": heartbeat\n\n",
+      })
+    }
+  )
+}
 
 /**
  * The shell asks for the recipient's unread count on every navigation, so any
@@ -19,7 +70,7 @@ import { ApiDispatcher } from "./api-dispatcher"
  */
 function installInboxProbe(
   dispatcher: ApiDispatcher,
-  inbox: NamecardNotification[],
+  inbox: NamecardNotification[]
 ) {
   dispatcher.expect({
     method: "GET",
@@ -80,6 +131,20 @@ function installPlatformAccountsProbe(dispatcher: ApiDispatcher) {
  * The wall detail dialog resolves series names and colours for the cards it
  * shows, so any spec that opens it would otherwise fail on this request.
  */
+function installCharactersProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangePath("/characters"),
+    responses: { 200: namecardCharacterCatalogSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 200,
+      json: { agencies: [], categories: [], characters: [], units: [] },
+    }),
+  })
+}
+
 function installSeriesProbe(dispatcher: ApiDispatcher) {
   dispatcher.expect({
     method: "GET",
@@ -88,6 +153,30 @@ function installSeriesProbe(dispatcher: ApiDispatcher) {
     times: { min: 0, max: 1_000 },
     fallback: true,
     handle: () => ({ status: 200, json: { items: [] } }),
+  })
+}
+
+/**
+ * 属主名片管理器打开时会并发读布局，只关心卡片本身的 spec 不该为它单独登记，
+ * 所以给一个空布局兜底（所有卡片落在默认分组、顺序照旧）。需要分组的 spec
+ * 再登记同名端点，会替换掉这个兜底。
+ */
+function installCardLayoutProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: exchangeMyCardsLayoutPath(),
+    responses: { 200: namecardCardLayoutSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({
+      status: 200,
+      json: {
+        groups: [],
+        defaultCardNumbers: [],
+        quickCardNumbers: [],
+        limit: NAMECARD_EXCHANGE_CARD_LIMIT,
+      },
+    }),
   })
 }
 
@@ -135,10 +224,13 @@ export const test = base.extend<
         throw new Error("Playwright API dispatcher requires baseURL")
       const dispatcher = new ApiDispatcher(baseURL, apiOrigins)
       await dispatcher.install(context)
+      await installInboxStreamProbe(context, baseURL, apiOrigins)
       installInboxProbe(dispatcher, inboxNotifications)
       installSeriesProbe(dispatcher)
+      installCharactersProbe(dispatcher)
       installWallInsightsProbe(dispatcher)
       installPlatformAccountsProbe(dispatcher)
+      installCardLayoutProbe(dispatcher)
       if (activeApi) {
         await dispatcher.dispose()
         throw new Error(

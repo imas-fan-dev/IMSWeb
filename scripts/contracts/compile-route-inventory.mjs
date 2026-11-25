@@ -9,8 +9,10 @@ const ts = createRequire(new URL("../../packages/contracts/package.json", import
 const semanticPrinter = ts.createPrinter({ removeComments: true });
 const METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options", "all"]);
 const EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
-const BASELINE = { mountedMethodPaths: 289, carriers: 367, reject: 82, acceptAndProject: 184, passthrough: 17, nonObjectApplicable: 84 };
+const BASELINE = { mountedMethodPaths: 296, carriers: 375, reject: 88, acceptAndProject: 186, passthrough: 17, nonObjectApplicable: 84 };
 const EXPLICIT_QUERY_ADDITIONS = [
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagSuggestQuerySchema", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardCollectionOwnersQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "reject" },
@@ -20,6 +22,7 @@ const EXPLICIT_QUERY_ADDITIONS = [
 // New management capabilities are reconciled separately; the existing baseline,
 // including all public routes and their unknown-key policies, stays frozen.
 const EXPLICIT_ADMIN_ADDITIONS = [
+  { module: "@imsweb/contracts/fudaba", symbol: "adminFudabaGuestSubmissionSettingsRequestSchema", kind: "json", method: "PUT", path: "/api/admin/cards/guest-submission", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogStoryTargetRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/story-target", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogCreateCharacterRequestSchema", kind: "json", method: "POST", path: "/api/admin/catalog/characters", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogDefaultProfileRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/default-profile", carriers: 1, policy: "reject" },
@@ -27,6 +30,61 @@ const EXPLICIT_ADMIN_ADDITIONS = [
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogGroupKindRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/group-kind", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogBindingRequestSchema", kind: "json", method: "PUT", path: "/api/admin/catalog/wiki-bindings", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/catalog", symbol: "adminCatalogProfileImageParamsSchema", kind: "param", method: "GET", path: "/api/admin/catalog/profile-images/:kind/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagFreeQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/free", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPromoteRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/promote", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlockRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/free/block", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/presets/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagPresetMergeRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/presets/:id/merge", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistListQuerySchema", kind: "query", method: "GET", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistCreateRequestSchema", kind: "json", method: "POST", path: "/api/admin/namecard-tags/blocklist", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistUpdateRequestSchema", kind: "json", method: "PATCH", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "DELETE", path: "/api/admin/namecard-tags/blocklist/:id", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "adminNamecardTagBlocklistParamsSchema", kind: "param", method: "POST", path: "/api/admin/namecard-tags/blocklist/:id/remove-matches", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagValidateRequestSchema", kind: "json", method: "POST", path: "/api/cards/tags/validate", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project" },
+];
+// Fudaba office message board and progressive wall routes. They are new public and admin
+// routes that were added after the frozen baseline; each carrier is listed explicitly.
+const EXPLICIT_MESSAGE_WALL_ADDITIONS = [
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "DELETE", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/admin/community/exchange/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/me/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageOfficeParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaOfficeSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:officeSlug/wall", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:officeSlug/wall", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/mixed-wall", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/mixed-wall", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/wall-layout", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/wall-layout", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageSlugParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/offices/:slug/wall-scene", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMixedWallQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/offices/:slug/wall-scene", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageOfficeParamsSchema", kind: "param", method: "POST", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageCreateRequestSchema", kind: "json", method: "POST", path: "/api/community/exchange/offices/:officeId/messages", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/admin/community/exchange/messages/:messageId/moderation", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageModerationRequestSchema", kind: "json", method: "PUT", path: "/api/admin/community/exchange/messages/:messageId/moderation", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageEditRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId/office-moderation", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageModerationRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId/office-moderation", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/messages/:messageId/placement", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessagePlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/messages/:messageId/placement", carriers: 1, policy: "reject" },
+  { module: "@imsweb/contracts/fudaba", symbol: "fudabaCardOfficePlacementParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "non-object-applicable" },
+  { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWorldPlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "reject" },
+];
+const EXPLICIT_ROUTE_ADDITIONS = [
+  ...EXPLICIT_ADMIN_ADDITIONS,
+  ...EXPLICIT_MESSAGE_WALL_ADDITIONS,
+  { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/sessions/:token/stream", carriers: 1, policy: "accept-and-project" },
 ];
 const PATH_PREFIXES = {
   apiPath: "/api", adminApiPath: "/api/admin", platformApiPath: "/api/platform", platformAuthPath: "/api/platform/auth",
@@ -174,15 +232,43 @@ function importedSchema(root, node) {
 function contractSchemaInitializer(root, imported) {
   if (!imported?.module.startsWith("@imsweb/contracts")) return undefined;
   const suffix = imported.module === "@imsweb/contracts" ? "index" : imported.module.slice("@imsweb/contracts/".length);
-  const sourcePath = [`${suffix}.ts`, path.join(suffix, "index.ts")]
+  const entry = [`${suffix}.ts`, path.join(suffix, "index.ts")]
     .map((candidate) => path.join(root, "packages/contracts/src", candidate))
     .find((candidate) => fs.existsSync(candidate));
-  if (!sourcePath) return undefined;
+  if (!entry) return undefined;
+  // 契约模块可以再导出拆分文件（如 namecards.ts 导出 namecard-tags.ts），
+  // 直接读源文件时要把这条链路走完，否则声明只在 dist 里、拿不到初始值。
+  for (const sourcePath of contractModuleSources(entry)) {
+    const initializer = variableInitializerIn(sourcePath, imported.name);
+    if (initializer) return initializer;
+  }
+  return undefined;
+}
+function contractModuleSources(entry) {
+  const seen = new Set([entry]);
+  const queue = [entry];
+  while (queue.length) {
+    const sourcePath = queue.shift();
+    const source = ts.createSourceFile(sourcePath, fs.readFileSync(sourcePath, "utf8"), ts.ScriptTarget.ES2022, true);
+    for (const statement of source.statements) {
+      if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      if (!specifier.startsWith(".")) continue;
+      const resolved = path.resolve(path.dirname(sourcePath), specifier.replace(/\.js$/, ".ts"));
+      if (fs.existsSync(resolved) && !seen.has(resolved)) {
+        seen.add(resolved);
+        queue.push(resolved);
+      }
+    }
+  }
+  return seen;
+}
+function variableInitializerIn(sourcePath, name) {
   const source = ts.createSourceFile(sourcePath, fs.readFileSync(sourcePath, "utf8"), ts.ScriptTarget.ES2022, true);
   for (const statement of source.statements) {
     if (!ts.isVariableStatement(statement)) continue;
     for (const declarationNode of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declarationNode.name) && declarationNode.name.text === imported.name) return declarationNode.initializer;
+      if (ts.isIdentifier(declarationNode.name) && declarationNode.name.text === name) return declarationNode.initializer;
     }
   }
   return undefined;
@@ -586,7 +672,7 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
   const matchesAdminAddition = (carrier, addition) => carrier.schemaModule === addition.module &&
     carrier.schemaSymbol === addition.symbol && carrier.kind === addition.kind &&
     carrier.method === addition.method && carrier.path === addition.path;
-  const explicitAdminAdditions = (enforceBaseline ? EXPLICIT_ADMIN_ADDITIONS : []).map((addition) => {
+  const explicitAdminAdditions = (enforceBaseline ? EXPLICIT_ROUTE_ADDITIONS : []).map((addition) => {
     const matching = carriers.filter((carrier) => matchesAdminAddition(carrier, addition));
     if (matching.length !== addition.carriers || matching.some((carrier) => carrier.policy !== addition.policy)) {
       diagnostics.push(reconciliationIssue(
@@ -598,7 +684,7 @@ export function collectRouteInventory(root, { entry = "apps/api/src/app.ts", ent
   });
   const baselineCarriers = carriers.filter((carrier) =>
     !(carrier.kind === "query" && additionKeys.has(`${carrier.schemaModule}\0${carrier.schemaSymbol}`)) &&
-    !EXPLICIT_ADMIN_ADDITIONS.some((addition) => matchesAdminAddition(carrier, addition)));
+    !EXPLICIT_ROUTE_ADDITIONS.some((addition) => matchesAdminAddition(carrier, addition)));
   const baselineRouteCount = new Set(baselineCarriers.map((carrier) => `${carrier.method}\0${carrier.path}`)).size;
   const baselinePolicies = policyCounts(baselineCarriers);
   const baselineChecks = [

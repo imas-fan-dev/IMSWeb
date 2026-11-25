@@ -5,12 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import CommunityExchangePage from "~/pages/community/exchange/community-exchange-page"
 
 const apiMocks = vi.hoisted(() => ({
-  getFudabaSeries: vi.fn(),
+  getFudabaOfficeSeries: vi.fn(),
   getFudabaOfficePage: vi.fn(),
   getFudabaCardPage: vi.fn(),
   sendSeries: vi.fn(),
   sendOffices: vi.fn(),
-  sendCards: vi.fn(),
 }))
 
 vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
@@ -18,7 +17,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/api")>()
   return {
     ...actual,
-    getFudabaSeries: apiMocks.getFudabaSeries,
+    getFudabaOfficeSeries: apiMocks.getFudabaOfficeSeries,
     getFudabaOfficePage: apiMocks.getFudabaOfficePage,
     getFudabaCardPage: apiMocks.getFudabaCardPage,
   }
@@ -45,15 +44,10 @@ describe("CommunityExchangePage App filter memory", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.sessionStorage.clear()
-    apiMocks.getFudabaSeries.mockReturnValue({ send: apiMocks.sendSeries })
+    apiMocks.getFudabaOfficeSeries.mockReturnValue({ send: apiMocks.sendSeries })
     apiMocks.getFudabaOfficePage.mockReturnValue({ send: apiMocks.sendOffices })
-    apiMocks.getFudabaCardPage.mockReturnValue({ send: apiMocks.sendCards })
     apiMocks.sendSeries.mockResolvedValue({ items: [] })
     apiMocks.sendOffices.mockResolvedValue({
-      items: [],
-      pageInfo: { hasNextPage: false, nextCursor: null },
-    })
-    apiMocks.sendCards.mockResolvedValue({
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
@@ -75,7 +69,6 @@ describe("CommunityExchangePage App filter memory", () => {
     firstRoute.unmount()
 
     apiMocks.getFudabaOfficePage.mockClear()
-    apiMocks.getFudabaCardPage.mockClear()
     const restoredRoute = renderRoute("/community/exchange")
 
     await waitFor(() => {
@@ -85,11 +78,7 @@ describe("CommunityExchangePage App filter memory", () => {
         open: true,
         limit: 12,
       })
-      expect(apiMocks.getFudabaCardPage).toHaveBeenLastCalledWith({
-        series: ["765"],
-        available: true,
-        limit: 8,
-      })
+      expect(apiMocks.getFudabaCardPage).not.toHaveBeenCalled()
     })
     restoredRoute.unmount()
 

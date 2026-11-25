@@ -1,5 +1,7 @@
+import type { FudabaMessagesRepository } from '@/ports/repositories/fudaba-messages';
 import type { AuditLogInput } from "@/ports/repositories/admin";
 import type { WikiImageTransform } from "@/ports/repositories/wiki";
+import type { NamecardTagRecord } from "@/ports/repositories/namecard-tags";
 
 export type FudabaOfficeStatus = "active" | "hidden" | "archived";
 
@@ -237,6 +239,8 @@ export interface FudabaCardRecord {
     made_with_ai: boolean;
     visible: boolean;
     credits: FudabaCardCredit[];
+    /** 已保存标签（即时生效，不随待审内容变化）。 */
+    tags: NamecardTagRecord[];
     publication_status: FudabaCardPublicationStatus;
     review_status: FudabaCardReviewStatus | null;
     review_reason: string | null;
@@ -309,6 +313,10 @@ export interface CreateOwnedFudabaCardInput {
     createdAt: string;
     updatedAt: string;
 }
+
+export type CreateGuestFudabaCardInput = Omit<CreateOwnedFudabaCardInput, 'ownerAccountId'> & {
+    tags: string[];
+};
 
 export interface UpdateOwnedFudabaCardMetadataInput {
     cardId: string;
@@ -412,6 +420,7 @@ export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
 
 export interface FudabaAdminCardClaimRecord extends FudabaCardClaimRecord {
     claimant_display_name: string;
+    source_card_id: string | null;
     /** 老卡正面/背面的对象 key，认领审核通过时作为复制来源。 */
     legacy_front_key: string;
     legacy_back_key: string | null;
@@ -500,6 +509,7 @@ export interface FudabaCardSupplementRecord {
     card_id: string;
     card_number: number;
     card_producer_name: string | null;
+    card_producer_reading: string | null;
     card_page_count: number;
     /** Middle pages the card stores today. */
     card_middle_count: number;
@@ -818,9 +828,7 @@ export interface FudabaPublicCardRecord {
     credits: FudabaCardCredit[];
     created_at: string;
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaCardReactionRecord {
@@ -836,9 +844,7 @@ export interface FudabaCardReactionInput {
 
 export interface FudabaCardInteractionStateRecord {
     like_count: number;
-    favorite_count: number;
     viewer_liked: boolean;
-    viewer_favorited: boolean;
 }
 
 export interface FudabaPublicPlacedCardRecord extends FudabaPublicCardRecord {
@@ -893,13 +899,37 @@ export interface ListFudabaPublicCardsInput {
     /** True keeps cards offered for exchange, false keeps the closed ones. */
     exchangeable?: boolean;
     officeSlug?: string;
-    favoritedByAccountId?: string;
     viewerAccountId: string | null;
     limit: number;
     after?: FudabaPublicCardCursor;
 }
 
+export interface FudabaWallQuery {
+    limit: number;
+    scope: string;
+    bbox?: [number, number, number, number];
+    after?: { pinnedAt: string; id: string };
+    owned?: boolean;
+    cardId?: string;
+}
+
+export interface FudabaPublicWallRecord {
+    office: FudabaPublicOfficeDetailRecord;
+    cursorPosition: { pinnedAt: string; id: string } | null;
+    wall: {
+        layoutVersion: 1;
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+        maxZIndex: number;
+        total: number;
+    };
+}
+
 export interface FudabaRepository {
+    readonly messages: FudabaMessagesRepository;
+    findPublicWall(slug: string, viewerAccountId: string | null, query: FudabaWallQuery): Promise<FudabaPublicWallRecord | null>;
     listOfficeReviews(input: { reviewState?: FudabaLocationReviewState; limit: number }): Promise<FudabaOfficeReviewRecord[]>;
     findOfficeReview(officeId: string): Promise<FudabaOfficeReviewRecord | null>;
     beginOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<FudabaOfficeReviewResult>;
@@ -910,6 +940,7 @@ export interface FudabaRepository {
     }): Promise<FudabaOfficeReviewResult>;
     releaseOfficeReview(input: { officeId: string; expectedRevision: number; operationId: string; expectedReviewState?: 'pending' | 'published' }): Promise<boolean>;
     listPublicSeries(): Promise<FudabaPublicSeriesRecord[]>;
+    listOfficeSeries(): Promise<FudabaPublicSeriesRecord[]>;
     /**
      * Every taggable series, including ones without a wiki section: an owner
      * must be able to file a card that belongs to no published branch under
@@ -1069,6 +1100,9 @@ export interface FudabaRepository {
         cardId: string,
         ownerAccountId: string,
     ): Promise<FudabaCardRecord | null>;
+    getGuestSubmissionEnabled(): Promise<boolean>;
+    setGuestSubmissionEnabled(enabled: boolean): Promise<boolean>;
+    createGuestCard(input: CreateGuestFudabaCardInput): Promise<FudabaCardMutationResult>;
     createCardForOwner(
         input: CreateOwnedFudabaCardInput,
     ): Promise<FudabaCardMutationResult>;
@@ -1204,7 +1238,7 @@ export interface FudabaRepository {
         createdAt: string;
     }): Promise<boolean>;
     setCardInteraction(input: {
-        kind: "like" | "favorite";
+        kind: "like";
         cardId: string;
         accountId: string;
         active: boolean;

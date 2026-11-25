@@ -251,7 +251,7 @@ export function classifyChangedPaths(changedPaths) {
   return result;
 }
 
-export function parseNameStatusDiff(rawDiff) {
+function parseNameStatusRecords(rawDiff) {
   const buffer = Buffer.isBuffer(rawDiff) ? rawDiff : Buffer.from(rawDiff);
   if (buffer.length === 0) {
     return [];
@@ -270,7 +270,7 @@ export function parseNameStatusDiff(rawDiff) {
 
   const fields = decoded.split("\0");
   fields.pop();
-  const changedPaths = [];
+  const records = [];
 
   for (let index = 0; index < fields.length; ) {
     const status = fields[index++];
@@ -279,7 +279,7 @@ export function parseNameStatusDiff(rawDiff) {
       if (!changedPath) {
         throw new DiffFormatError(`status ${status} has no path`);
       }
-      changedPaths.push(changedPath);
+      records.push({ status, paths: [changedPath] });
       continue;
     }
 
@@ -290,14 +290,18 @@ export function parseNameStatusDiff(rawDiff) {
       if (!oldPath || !newPath) {
         throw new DiffFormatError(`status ${status} requires two paths`);
       }
-      changedPaths.push(oldPath, newPath);
+      records.push({ status, paths: [oldPath, newPath] });
       continue;
     }
 
     throw new DiffFormatError(`unknown status ${JSON.stringify(status)}`);
   }
 
-  return changedPaths;
+  return records;
+}
+
+export function parseNameStatusDiff(rawDiff) {
+  return parseNameStatusRecords(rawDiff).flatMap(({ paths }) => paths);
 }
 
 function defaultGitRunner(argumentsList) {
@@ -329,7 +333,7 @@ function isCommitSha(value) {
   return typeof value === "string" && COMMIT_SHA.test(value);
 }
 
-export function detectAffectedWorkspaces({
+function readChangedRecords({
   eventName,
   beforeSha,
   baseSha,
@@ -337,13 +341,13 @@ export function detectAffectedWorkspaces({
   runGit = defaultGitRunner,
 }) {
   if (!isCommitSha(headSha)) {
-    return everyProductJob();
+    return null;
   }
 
   let diffBase;
   if (eventName === "pull_request") {
     if (!isCommitSha(baseSha)) {
-      return everyProductJob();
+      return null;
     }
 
     const mergeBaseOutput = runGitSafely(runGit, [
@@ -352,21 +356,21 @@ export function detectAffectedWorkspaces({
       headSha,
     ]);
     if (mergeBaseOutput === null) {
-      return everyProductJob();
+      return null;
     }
 
     const mergeBase = Buffer.from(mergeBaseOutput).toString("utf8").trim();
     if (!isCommitSha(mergeBase)) {
-      return everyProductJob();
+      return null;
     }
     diffBase = mergeBase;
   } else if (eventName === "push") {
     if (!isCommitSha(beforeSha) || ZERO_SHA.test(beforeSha)) {
-      return everyProductJob();
+      return null;
     }
     diffBase = beforeSha;
   } else {
-    return everyProductJob();
+    return null;
   }
 
   const diffOutput = runGitSafely(runGit, [
@@ -378,17 +382,85 @@ export function detectAffectedWorkspaces({
     headSha,
   ]);
   if (diffOutput === null) {
-    return everyProductJob();
+    return null;
   }
 
   try {
-    return classifyChangedPaths(parseNameStatusDiff(diffOutput));
+    return parseNameStatusRecords(diffOutput);
   } catch (error) {
     if (error instanceof DiffFormatError) {
-      return everyProductJob();
+      return null;
     }
     throw error;
   }
+}
+
+function classifyChangedRecords(records) {
+  return records === null
+    ? everyProductJob()
+    : classifyChangedPaths(records.flatMap(({ paths }) => paths));
+}
+
+export function detectAffectedWorkspaces(options) {
+  return classifyChangedRecords(readChangedRecords(options));
+}
+
+// This is deliberately a filename-only preview, not Playwright discovery.
+// Core/extended tags and platform projects remain owned by their configs.
+function planPlaywrightSpecs(records) {
+  if (records === null) return { reason: "PR diff unavailable or invalid" };
+
+  const specs = { web: new Set(), app: new Set() };
+  for (const { status, paths: [changedPath] } of records) {
+    if (status !== "A" && status !== "M") {
+      return { reason: "diff includes changes other than additions or edits" };
+    }
+    const match =
+      /^apps\/web\/tests\/e2e\/([a-z0-9][a-z0-9.-]*\.spec\.ts)$/.exec(
+        changedPath,
+      );
+    if (!match || match[1] === "ui-capture.spec.ts") {
+      return { reason: "diff is not limited to eligible Playwright specs" };
+    }
+    const lane = match[1].startsWith("app-") ? "app" : "web";
+    specs[lane].add(changedPath);
+  }
+  return { specs };
+}
+
+function formatPlaywrightSummary(records, affected) {
+  const { specs, reason } = planPlaywrightSpecs(records);
+  const lines = [
+    "## Playwright spec selection (advisory only)",
+    "",
+    "This does not filter CI tests. Candidate files are not verified against Playwright discovery.",
+    "",
+  ];
+  for (const [lane, name] of [
+    ["web", "Web core"],
+    ["app", "App"],
+  ]) {
+    if (!affected[lane]) {
+      lines.push(`- **${name}:** lane not selected by existing workspace rules.`);
+      continue;
+    }
+    const candidates = specs ? [...specs[lane]].sort() : [];
+    if (!candidates.length) {
+      lines.push(
+        `- **${name}:** full suite (${reason ?? "no eligible spec for this lane"}).`,
+      );
+      continue;
+    }
+    lines.push(`- **${name}:** ${candidates.length} candidate spec file(s).`);
+    const displayLimit = 50;
+    for (const candidate of candidates.slice(0, displayLimit)) {
+      lines.push(`  - \`${candidate}\``);
+    }
+    if (candidates.length > displayLimit) {
+      lines.push(`  - … and ${candidates.length - displayLimit} more.`);
+    }
+  }
+  return lines.join("\n") + "\n";
 }
 
 export function formatGitHubOutputs(result) {
@@ -400,7 +472,7 @@ export function formatGitHubOutputs(result) {
 }
 
 function runCli() {
-  const result = detectAffectedWorkspaces({
+  const records = readChangedRecords({
     eventName: process.env.CI_EVENT_NAME,
     beforeSha: process.env.CI_BEFORE_SHA,
     baseSha: process.env.CI_BASE_SHA,
@@ -410,7 +482,26 @@ function runCli() {
   if (!outputPath) {
     throw new Error("GITHUB_OUTPUT is required");
   }
-  appendFileSync(outputPath, formatGitHubOutputs(result), "utf8");
+  const affected = classifyChangedRecords(records);
+  appendFileSync(outputPath, formatGitHubOutputs(affected), "utf8");
+
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (
+    process.env.CI_EVENT_NAME === "pull_request" &&
+    process.env.CI_PLAYWRIGHT_SHADOW === "true" &&
+    summaryPath
+  ) {
+    try {
+      appendFileSync(
+        summaryPath,
+        formatPlaywrightSummary(records, affected),
+        "utf8",
+      );
+    } catch {
+      // Diagnostics must never turn a successful lane selection into a failed check.
+      console.warn("Could not write the advisory Playwright spec summary.");
+    }
+  }
 }
 
 const isMain =

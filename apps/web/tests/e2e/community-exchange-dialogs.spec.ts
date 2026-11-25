@@ -8,6 +8,8 @@ import type {
 } from "@imsweb/contracts/fudaba"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
+import { installOfficePageDefaults } from "./fixtures/office-page-defaults"
+import { mockWallScene } from "./fixtures/wall-scene"
 import { settleToasts } from "./fixtures/toast"
 
 const office = {
@@ -34,8 +36,9 @@ async function installDialogApis(
   publicName = () => office.name
 ) {
   await installEmptyWikiCatalogMock(api, { min: 0, max: 8 })
+  installOfficePageDefaults(api, office.slug, office)
   await api.mockRoute(
-    "/api/community/exchange/series",
+    "/api/community/exchange/office-series",
     (route) => route.fulfill({ json: { items: [] } }),
     "GET",
     { min: 1, max: 4 }
@@ -57,12 +60,6 @@ async function installDialogApis(
           ],
         },
       }),
-    "GET",
-    { min: 1, max: 2 }
-  )
-  await api.mockRoute(
-    "**/api/community/exchange/cards?*",
-    (route) => route.fulfill({ json: emptyPage }),
     "GET",
     { min: 1, max: 2 }
   )
@@ -107,14 +104,33 @@ async function installDialogApis(
     "GET",
     { min: 1, max: 6 }
   )
-  await api.mockRoute(
-    "/api/community/exchange/offices/dialog-office",
+  await mockWallScene(
+    api,
+    "/api/community/exchange/offices/dialog-office/mixed-wall",
     (route) =>
       route.fulfill({
-        json: { office: { ...office, name: publicName(), cards } },
+        json: {
+          office: { ...office, name: publicName() },
+          wall: {
+            layoutVersion: 1,
+            left: 0,
+            top: 0,
+            right: 1600,
+            bottom: 900,
+            total: cards.length,
+            maxZIndex: cards.length,
+          },
+          items: cards.map((card) => ({ kind: "card", card, canMove: false })),
+          pageInfo: emptyPage.pageInfo,
+          capabilities: {
+            canCreateMessage: false,
+            canArrangeWall: false,
+            canManageMessages: false,
+          },
+        },
       }),
     "GET",
-    { min: 1, max: 2 }
+    { min: 1, max: 12 }
   )
 }
 
@@ -353,14 +369,12 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     viewerOwned: true,
     interactions: {
       likes: 0,
-      favorites: 0,
       viewerLiked: false,
-      viewerFavorited: false,
     },
     placement: {
       pinnedAt: ownedCard.createdAt,
-      x: 50,
-      y: 50,
+      x: 800,
+      y: 450,
       rotation: 0,
       zIndex: 1,
       revision: 1,
@@ -410,6 +424,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     ],
     ["/api/community/exchange/me/cards", { items: [ownedCard] }, 3],
     ["/api/community/exchange/me/series", { items: [] }, 2],
+    ["/api/community/exchange/me/office-series", { items: [] }, 2],
     ["/api/community/exchange/me/offices", { items: [ownedOffice] }, 2],
     // One explicit management opening loads owner detail; PUT returns the saved office.
     [
@@ -417,7 +432,6 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
       { office: ownedOffice },
       1,
     ],
-    ["/api/community/exchange/me/favorites", { ...emptyPage }, 2],
     [
       "/api/community/exchange/characters",
       makeCharacterCatalog(),
@@ -452,7 +466,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     await api.mock(
       {
         method,
-        path: `/api/community/exchange/cards/${ownedCard.id}/favorite`,
+        path: `/api/community/exchange/cards/${ownedCard.id}/like`,
         times: 1,
       },
       (route) =>
@@ -461,25 +475,21 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
             success: true,
             cardId: ownedCard.id,
             interactions: {
-              likes: 0,
-              favorites: method === "PUT" ? 1 : 0,
-              viewerLiked: false,
-              viewerFavorited: method === "PUT",
+              likes: method === "PUT" ? 1 : 0,
+              viewerLiked: method === "PUT",
             },
           },
         })
     )
   }
-  await api.mock(
-    {
-      method: "GET",
-      path: `/api/community/exchange/cards/${ownedCard.id}/reactions`,
-      times: 1,
-    },
+  await api.mockRoute(
+    `/api/community/exchange/cards/${ownedCard.id}/reactions`,
     (route) =>
       route.fulfill({
         json: { success: true, cardId: ownedCard.id, reactions: [] },
-      })
+      }),
+    "GET",
+    { min: 1, max: 2 }
   )
   let mapBoundsReads = 0
   page.on("request", (request) => {
@@ -551,25 +561,26 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
   await expect(
     detail.getByRole("heading", { name: "地图中更新的事务所", exact: true })
   ).toBeVisible()
-  await detail
-    .getByRole("button", {
-      name: `查看${cardLabel(ownedCard)}正面`,
-      exact: true,
-    })
-    .click()
+  const wallCard = detail.getByRole("button", {
+    name: `查看${cardLabel(ownedCard)}正面`,
+    exact: true,
+  })
+  await wallCard.click()
+  await expect(wallCard).toHaveAttribute("title", "查看大图")
+  await wallCard.click()
   const preview = page.getByRole("dialog", {
     name: `${cardLabel(ownedCard)}正面`,
     exact: true,
   })
-  await preview.getByRole("button", { name: "收藏（0）", exact: true }).click()
+  await preview.getByRole("button", { name: "点赞（0）", exact: true }).click()
   await expect(
-    preview.getByRole("button", { name: "取消收藏（1）", exact: true })
+    preview.getByRole("button", { name: "取消点赞（1）", exact: true })
   ).toBeEnabled()
   await page.keyboard.press("Escape")
   await expect(preview).toHaveCount(0)
   await detail.getByRole("tab", { name: "列表", exact: true }).click()
   await detail
-    .getByRole("button", { name: "取消收藏（1）", exact: true })
+    .getByRole("button", { name: "取消点赞（1）", exact: true })
     .click()
   await detail
     .getByRole("button", {
@@ -578,7 +589,7 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     })
     .click()
   await expect(
-    preview.getByRole("button", { name: "收藏（0）", exact: true })
+    preview.getByRole("button", { name: "点赞（0）", exact: true })
   ).toBeEnabled()
   await preview.getByRole("button", { name: "管理我的名片" }).click()
   const cardManagement = page.getByRole("dialog", {

@@ -1,4 +1,5 @@
 import type { Context, Env, MiddlewareHandler, ValidationTargets } from "hono";
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ErrorResponse } from '@imsweb/contracts/common';
 import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
@@ -19,6 +20,8 @@ export type ValidatedRequestContext<
 
 export interface RequestValidatorOptions {
     invalidMessage?: string;
+    /** 校验失败的 HTTP 状态；默认 400，公开读取用 404 隐藏「形状不对」与「不存在」的区别。 */
+    invalidStatus?: ContentfulStatusCode;
     malformedMessage?: string;
     errorBody?: (message: string) => Record<string, string | boolean>;
     acceptMislabeledJson?: boolean;
@@ -75,9 +78,10 @@ function validationError(
     message: string,
     options: RequestValidatorOptions,
 ): Response {
+    const status = options.invalidStatus ?? 400;
     const customBody = options.errorBody?.(message);
-    if (customBody) return context.json(customBody, 400);
-    return context.json({ error: message } satisfies ErrorResponse, 400);
+    if (customBody) return context.json(customBody, status);
+    return context.json({ error: message } satisfies ErrorResponse, status);
 }
 
 export function requestValidator<Target extends ValidationTarget, Output>(

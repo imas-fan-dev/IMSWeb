@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -27,9 +27,7 @@ const baseCard: FudabaPlacedCard = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 0,
-    favorites: 0,
     viewerLiked: false,
-    viewerFavorited: false,
   },
   viewerOwned: true,
   placement: {
@@ -44,7 +42,7 @@ const baseCard: FudabaPlacedCard = {
 }
 
 describe("PlacedCardWall", () => {
-  it("keeps valid boundary coordinates inside the visible wall", () => {
+  it("preserves fixed world coordinates beyond the initial wall boundary", () => {
     render(
       <PlacedCardWall
         cards={[
@@ -55,8 +53,8 @@ describe("PlacedCardWall", () => {
             producerName: "另一侧P",
             placement: {
               ...baseCard.placement,
-              x: 100,
-              y: 100,
+              x: 10000,
+              y: -1000,
               rotation: 12,
               zIndex: 2,
             },
@@ -72,18 +70,10 @@ describe("PlacedCardWall", () => {
       name: `查看${cardLabel({ producerName: "另一侧P" })}正面`,
     }).parentElement
 
-    expect(start?.style.left).toBe(
-      "clamp(var(--wall-x-inset), 0%, calc(100% - var(--wall-x-inset)))"
-    )
-    expect(start?.style.top).toBe(
-      "clamp(var(--wall-y-inset), 0%, calc(100% - var(--wall-y-inset)))"
-    )
-    expect(end?.style.left).toBe(
-      "clamp(var(--wall-x-inset), 100%, calc(100% - var(--wall-x-inset)))"
-    )
-    expect(end?.style.top).toBe(
-      "clamp(var(--wall-y-inset), 100%, calc(100% - var(--wall-y-inset)))"
-    )
+    expect(start?.style.left).toBe("0px")
+    expect(start?.style.top).toBe("0px")
+    expect(end?.style.left).toBe("10000px")
+    expect(end?.style.top).toBe("-1000px")
   })
 
   it("moves an owned card with the keyboard and commits its revision", async () => {
@@ -108,12 +98,12 @@ describe("PlacedCardWall", () => {
 
     expect(preview).toHaveBeenCalledWith(
       "card-start",
-      expect.objectContaining({ x: 51, y: 0 })
+      expect.objectContaining({ x: 66, y: 0 })
     )
     expect(commit).toHaveBeenCalledWith(
       "card-start",
       expect.objectContaining({ revision: 3, x: 50 }),
-      expect.objectContaining({ x: 51, y: 0 })
+      expect.objectContaining({ x: 66, y: 0 })
     )
   })
 
@@ -132,6 +122,42 @@ describe("PlacedCardWall", () => {
     expect(
       screen.getByRole("button", { name: `查看${cardLabel(baseCard)}背面` })
     ).toBeVisible()
+  })
+
+  it("selects another user's card without granting placement controls", async () => {
+    const user = userEvent.setup()
+    const commit = vi.fn()
+    const remove = vi.fn()
+    render(
+      <PlacedCardWall
+        cards={[
+          baseCard,
+          {
+            ...baseCard,
+            id: "other",
+            producerName: "他人名片",
+            viewerOwned: false,
+          },
+        ]}
+        editing
+        onPlacementCommit={commit}
+        onRemove={remove}
+      />
+    )
+    fireEvent.focus(screen.getByRole("region", { name: "名片墙放置区域" }))
+    const other = screen.getByRole("button", { name: "查看他人名片的名片正面" })
+    await user.click(other)
+    expect(other.closest("[data-card-id]")).toHaveClass("ring-2")
+    expect(screen.getByRole("button", { name: "向右旋转名片" })).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: "将名片移到最前" })
+    ).toBeDisabled()
+    expect(screen.getByRole("button", { name: "从名片墙移除" })).toBeDisabled()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    await user.click(other)
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(commit).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
   })
 
   it("rotates, brings forward, and confirms removal of the selected card", async () => {
@@ -175,7 +201,7 @@ describe("PlacedCardWall", () => {
     await user.click(screen.getByRole("button", { name: "将名片移到最前" }))
     expect(preview).toHaveBeenLastCalledWith(
       "card-start",
-      expect.objectContaining({ zIndex: 5 })
+      expect.objectContaining({ zIndex: 2_147_483_000 })
     )
 
     await user.click(screen.getByRole("button", { name: "从名片墙移除" }))
@@ -188,7 +214,7 @@ describe("PlacedCardWall", () => {
     })
   })
 
-  it("uses the successful write time to break ties at maximum z-index", async () => {
+  it("preserves legacy ties and brings a card above the former 999 stack limit", async () => {
     const user = userEvent.setup()
     const preview = vi.fn()
     const commit = vi.fn()
@@ -231,11 +257,14 @@ describe("PlacedCardWall", () => {
     expect(bringToFront).toBeEnabled()
     await user.click(bringToFront)
 
-    expect(preview).not.toHaveBeenCalled()
+    expect(preview).toHaveBeenCalledWith(
+      "card-start",
+      expect.objectContaining({ zIndex: 2_147_483_000 })
+    )
     expect(commit).toHaveBeenCalledWith(
       "card-start",
       expect.objectContaining({ revision: 3, zIndex: 999 }),
-      expect.objectContaining({ zIndex: 999 })
+      expect.objectContaining({ zIndex: 2_147_483_000 })
     )
 
     rerender(
@@ -246,6 +275,7 @@ describe("PlacedCardWall", () => {
             placement: {
               ...selectedCard.placement,
               revision: 4,
+              zIndex: 1000,
               updatedAt: "2026-08-02T11:00:00.000Z",
             },
           },

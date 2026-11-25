@@ -175,14 +175,12 @@ function hasSameJsonKeys(raw: unknown, parsed: unknown): boolean {
   if (isPlainObject(raw)) {
     if (!isPlainObject(parsed)) return false
     const rawKeys = Object.keys(raw)
-    const parsedKeys = Object.keys(parsed)
-    return (
-      rawKeys.length === parsedKeys.length &&
-      rawKeys.every(
-        (key) =>
-          Object.prototype.hasOwnProperty.call(parsed, key) &&
-          hasSameJsonKeys(raw[key], parsed[key])
-      )
+    // 契约允许给缺省参数补默认值（例如 queryBoolean 补 false、可重复参数补 []），
+    // 只要求原始键都被保留；被契约丢弃/改名的键仍然算违规。
+    return rawKeys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(parsed, key) &&
+        hasSameJsonKeys(raw[key], parsed[key])
     )
   }
   return !Array.isArray(parsed) && !isPlainObject(parsed)
@@ -289,7 +287,10 @@ export class ApiDispatcher {
       (item) =>
         item.method === expectation.method && item.path === expectation.path
     )
-    if (existing && isFallback(existing) && !expectation.fallback) {
+    // A shared default never overrides or duplicates a spec's own expectation,
+    // whichever of the two was registered first.
+    if (existing && expectation.fallback) return
+    if (existing && isFallback(existing)) {
       this.#registrations = this.#registrations.filter(
         (item) => item !== existing
       )

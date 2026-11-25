@@ -59,6 +59,8 @@ export function getNamecardNotifications() {
       errorSchema: fudabaCardClaimErrorSchema,
       businessErrorSchema: fudabaCardClaimErrorSchema,
       meta: withPlatformAuth(),
+      // The inbox deduplicates within a session, never across account switches.
+      shareRequest: false,
     })
   )
 }

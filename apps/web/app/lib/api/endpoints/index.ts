@@ -29,3 +29,5 @@ export * from "./site-packages"
 export * from "./wiki"
 
 export * from "./community-content"
+
+export * from "./fudaba/messages"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useRetainedValue } from "~/lib/use-retained-value"
 
 import { Badge } from "~/components/ui/badge"
 import {
@@ -115,7 +116,7 @@ export function claimRows(
  * 裁决按钮与列表行上的 √ / × 走同一套二次确认窗。
  */
 export function ClaimReviewDialog({
-  claim,
+  claim: incomingClaim,
   onOpenChange,
   onApprove,
   onReject,
@@ -128,6 +129,8 @@ export function ClaimReviewDialog({
   /** 二次确认窗打开时别再让点击穿透关掉这扇窗。 */
   dismissible?: boolean
 }) {
+  // 关闭时父组件先置空，弹层还要退场：保留最后一条认领记录。
+  const claim = useRetainedValue(incomingClaim)
   const labels = useReviewLabels()
   const [live, setLive] = useState<LiveSide | null>(null)
   // 绑定型认领会把游客投稿并进用户投稿，所以右侧是目标卡片的 live。
@@ -165,7 +168,7 @@ export function ClaimReviewDialog({
 
   return (
     <Dialog
-      open={claim !== null}
+      open={incomingClaim !== null}
       onOpenChange={onOpenChange}
       disablePointerDismissal={!dismissible}
     >

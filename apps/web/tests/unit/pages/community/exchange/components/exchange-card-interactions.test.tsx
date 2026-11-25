@@ -55,9 +55,7 @@ const card: FudabaCard = {
   createdAt: "2026-08-02T08:00:00.000Z",
   interactions: {
     likes: 2,
-    favorites: 1,
     viewerLiked: false,
-    viewerFavorited: false,
   },
 }
 
@@ -97,7 +95,6 @@ describe("CardInteractionBar", () => {
 
     expect(screen.queryByRole("button")).toBeNull()
     expect(screen.getByLabelText("2 次点赞")).toBeTruthy()
-    expect(screen.getByLabelText("1 次收藏")).toBeTruthy()
     expect(apiMocks.setFudabaCardInteraction).not.toHaveBeenCalled()
   })
 
@@ -106,9 +103,7 @@ describe("CardInteractionBar", () => {
     apiMocks.setFudabaCardInteraction.mockReturnValue(
       resolvedInteraction({
         likes: 3,
-        favorites: 1,
         viewerLiked: true,
-        viewerFavorited: false,
       })
     )
     const onChange = vi.fn()
@@ -126,9 +121,7 @@ describe("CardInteractionBar", () => {
     })
     expect(onChange).toHaveBeenCalledWith({
       likes: 3,
-      favorites: 1,
       viewerLiked: true,
-      viewerFavorited: false,
     })
   })
 
@@ -139,11 +132,11 @@ describe("CardInteractionBar", () => {
     })
     render(<CardInteractionBar card={card} />)
 
-    await userEvent.click(screen.getByRole("button", { name: "收藏（1）" }))
+    await userEvent.click(screen.getByRole("button", { name: "点赞（2）" }))
 
     await waitFor(() => {
       expect(toastMocks.error).toHaveBeenCalledWith("network down")
     })
-    expect(screen.getByRole("button", { name: "收藏（1）" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "点赞（2）" })).toBeTruthy()
   })
 })

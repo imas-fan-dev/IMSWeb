@@ -61,6 +61,31 @@ it("coalesces dist rebuilds, ignores unchanged bytes and detaches on close", asy
   expect(watcher.listenerCount("all")).toBe(0)
 })
 
+it("waits for a removed output directory and forces optimization when runtime files return", async () => {
+  vi.useFakeTimers()
+  const root = fixture()
+  const watcher = Object.assign(new EventEmitter(), { add: vi.fn() })
+  const restart = vi.fn(async () => {})
+  const onError = vi.fn()
+  const cleanup = watchContracts(root, watcher, restart, onError)
+  rmSync(root, { recursive: true, force: true })
+  watcher.emit("all", "unlink", join(root, "fudaba", "map-delivery.js"))
+  await vi.advanceTimersByTimeAsync(1500)
+  expect(restart).not.toHaveBeenCalled()
+  expect(onError).not.toHaveBeenCalled()
+  mkdirSync(root, { recursive: true })
+  for (const name of ["esm/index.js", "esm/paths.js", "cjs/index.js"]) {
+    mkdirSync(join(root, name, ".."), { recursive: true })
+    writeFileSync(join(root, name), "exports.ready = true")
+  }
+  writeFileSync(join(root, "index.mjs"), "export const version = 2")
+  watcher.emit("all", "add", join(root, "index.mjs"))
+  await vi.advanceTimersByTimeAsync(1500)
+  expect(restart).toHaveBeenCalledExactlyOnceWith(true)
+  expect(onError).not.toHaveBeenCalled()
+  cleanup()
+})
+
 it("never overlaps restarts and re-runs once after the settle interval", async () => {
   vi.useFakeTimers()
   const root = fixture()

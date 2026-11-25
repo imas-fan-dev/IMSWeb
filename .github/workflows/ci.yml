@@ -51,6 +51,8 @@ jobs:
           CI_BEFORE_SHA: ${{ github.event.before }}
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # Advisory only; the release promotion PR and all push/dispatch runs retain the existing checks.
+          CI_PLAYWRIGHT_SHADOW: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'release/v1.1' && github.base_ref == 'main') }}
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/release/v1.1" && "$CI_EVENT_NAME" == "push" ]]; then
             printf 'repo=true\napp=true\nweb=true\napi=true\nintegration=true\n' >> "$GITHUB_OUTPUT"
@@ -339,7 +341,17 @@ jobs:
     timeout-minutes: 45
     env:
       IMS_TEST_DATABASE_URL: postgresql://imsweb:imsweb-test-password@127.0.0.1:5432/postgres
+      IMS_TEST_MAIL_QUEUE_URL: redis://127.0.0.1:6380
     services:
+      mail-queue:
+        image: valkey/valkey:8.1.9-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
       postgres:
         image: postgres:18.4-alpine
         env:

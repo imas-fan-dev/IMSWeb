@@ -1,5 +1,4 @@
 import { expect, test } from "./fixtures/test"
-import { installBrowserIconMock } from "./fixtures/homepage"
 import { installMapGuideScene } from "./fixtures/map-guide"
 
 test.describe("exchange Web search geometry", () => {
@@ -25,27 +24,24 @@ test.describe("exchange Web search geometry", () => {
       await page.addInitScript(() =>
         localStorage.setItem("imsweb.language", "zh-CN")
       )
-      await installBrowserIconMock(api)
       await api.mockRoute(
-        "/api/community/exchange/series",
+        "/api/community/exchange/office-series",
         (route) => route.fulfill({ json: { items: [] } }),
         "GET",
         1
       )
-      for (const directory of ["offices", "cards"]) {
-        await api.mockRoute(
-          `**/api/community/exchange/${directory}?*`,
-          (route) =>
-            route.fulfill({
-              json: {
-                items: [],
-                pageInfo: { hasNextPage: false, nextCursor: null },
-              },
-            }),
-          "GET",
-          1
-        )
-      }
+      await api.mockRoute(
+        "**/api/community/exchange/offices?*",
+        (route) =>
+          route.fulfill({
+            json: {
+              items: [],
+              pageInfo: { hasNextPage: false, nextCursor: null },
+            },
+          }),
+        "GET",
+        1
+      )
       await api.mockRoute(
         "/api/community/exchange/map/config",
         (route) =>

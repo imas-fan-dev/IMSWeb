@@ -137,6 +137,7 @@ async function installAccountMocks(
   )
   for (const path of [
     "/api/community/exchange/me/series",
+    "/api/community/exchange/me/office-series",
     "/api/community/exchange/me/cards",
   ]) {
     await api.mock(
@@ -152,9 +153,7 @@ async function installAccountMocks(
     },
     (route) => route.fulfill({ json: makeCharacterCatalog() })
   )
-  for (const path of [
-    "/api/community/exchange/me/offices",
-  ]) {
+  for (const path of ["/api/community/exchange/me/offices"]) {
     await api.mock(
       { method: "GET", path, times: { min: 0, max: 12 } },
       (route) => fulfillJson(route, emptyItems, corsHeaders)
@@ -163,19 +162,11 @@ async function installAccountMocks(
   await api.mock(
     {
       method: "GET",
-      path: "/api/community/exchange/me/favorites",
+      path: "/api/community/exchange/me/collection",
       times: { min: 0, max: 12 },
     },
-    async (route) => {
-      await fulfillJson(
-        route,
-        {
-          ...emptyItems,
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-        corsHeaders
-      )
-    }
+    (route) =>
+      fulfillJson(route, { list: [], total: 0, totalPage: 0 }, corsHeaders)
   )
   await api.mock(
     {
@@ -361,8 +352,8 @@ test.describe("app account", () => {
 
       for (const [name, href] of [
         ["个人资料", "/account/me/profile"],
-        ["交换名片", "/account/me/namecards"],
-        ["收藏夹", "/account/me/favorites"],
+        ["名片管理", "/account/me/namecards"],
+        ["名片册", "/account/me/collection"],
         ["事务所与位置", "/account/me/offices"],
         ["消息", "/account/me/claims"],
       ] as const) {
@@ -389,6 +380,21 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await backButton.click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+    }
+  )
+
+  test(
+    "dismisses the cold-start mask after reloading the profile",
+    {
+      tag: ["@app-iphone", "@app-android", "@app-webkit"],
+    },
+    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
+      await openAccountPage(
+        { page, api, apiOrigins, baseURL },
+        { pathname: "/account/me/profile" }
+      )
       await page.reload()
       await expect(
         page.getByRole("heading", { name: "个人资料", exact: true })
@@ -401,8 +407,6 @@ test.describe("app account", () => {
       await page.screenshot({
         path: testInfo.outputPath("app-personal-profile.png"),
       })
-      await backButton.click()
-      await expect(page).toHaveURL(/\/account\/me$/)
     }
   )
 
@@ -660,8 +664,8 @@ test.describe("app account", () => {
 
         const sections = [
           ["profile", "个人资料"],
-          ["namecards", "交换名片"],
-          ["favorites", "收藏夹"],
+          ["namecards", "名片管理"],
+          ["collection", "名片册"],
           ["offices", "事务所与位置"],
           ["claims", "消息"],
         ] as const

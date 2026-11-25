@@ -40,6 +40,13 @@ async function mockOwnerWorkspace() {
     "GET"
   )
   await api.mockRoute(
+    "**/api/community/exchange/me/office-series",
+    async (route) => {
+      await route.fulfill({ json: { items: [] } })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/characters",
     async (route) => {
       await route.fulfill({ json: makeCharacterCatalog() })
@@ -52,17 +59,6 @@ async function mockOwnerWorkspace() {
     async (route) => {
       await route.fulfill({ json: { items: [] } })
     },
-    "GET"
-  )
-  await api.mockRoute(
-    "/api/community/exchange/me/favorites",
-    (route) =>
-      route.fulfill({
-        json: {
-          items: [],
-          pageInfo: { hasNextPage: false, nextCursor: null },
-        },
-      }),
     "GET"
   )
   await api.mockRoute(

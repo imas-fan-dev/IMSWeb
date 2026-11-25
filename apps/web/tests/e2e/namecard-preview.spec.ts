@@ -41,13 +41,14 @@ test.describe("namecard preview", () => {
     await page.goto("/community/cards")
     await expect(page).toHaveURL(/\/community\/cards\?page=1&size=12$/)
 
+    // 墙上轮播按公开卡号命名（这张是 #1）；详情窗/预览的可访问名仍用记录 id 42。
     const frontTrigger = page.getByRole("button", {
-      name: "查看制作人名片 42 正面",
+      name: "查看制作人名片 1 正面",
     })
     await expect(frontTrigger.locator("img")).toBeVisible()
     await frontTrigger.click()
 
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await expect(detail).toBeVisible()
     const previewTrigger = detail.getByRole("button", {
       name: "放大制作人名片 42 正面",
@@ -56,9 +57,11 @@ test.describe("namecard preview", () => {
     await expect(previewTrigger.locator("img")).toHaveAttribute("src", FRONT)
     await previewTrigger.click()
 
-    const preview = page.getByRole("dialog", {
-      name: /制作人名片 42 · (正面|背面)/,
-    })
+    const preview = page
+      .getByRole("dialog", {
+        name: /制作人名片 42 · (正面|背面)/,
+      })
+      .last()
     await expect(preview).toBeVisible()
     await expect(
       preview.getByRole("img", { name: "制作人名片 42 正面" })

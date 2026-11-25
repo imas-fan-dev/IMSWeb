@@ -1,8 +1,9 @@
 import {
-  BookmarkIcon,
+  LibraryIcon,
   Building2Icon,
   CreditCardIcon,
   MailIcon,
+  MessageSquareIcon,
   UserRoundIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -19,9 +20,10 @@ import { useNamecardUnread } from "~/lib/use-namecard-unread"
 export type ProfileWorkspaceSection =
   | "profile"
   | "namecards"
-  | "favorites"
+  | "collection"
   | "offices"
   | "claims"
+  | "messages"
 
 export const profileWorkspaceSections = [
   {
@@ -35,7 +37,7 @@ export const profileWorkspaceSections = [
   },
   {
     id: "namecards",
-    label: "交换名片",
+    label: "名片管理",
     labelKey: "platformAccount.app.sections.namecards.label",
     shortLabel: "名片",
     description: "名片素材与交换状态",
@@ -43,13 +45,13 @@ export const profileWorkspaceSections = [
     icon: CreditCardIcon,
   },
   {
-    id: "favorites",
-    label: "收藏夹",
-    labelKey: "platformAccount.app.sections.favorites.label",
-    shortLabel: "收藏",
-    description: "收藏的交换名片",
-    descriptionKey: "platformAccount.app.sections.favorites.description",
-    icon: BookmarkIcon,
+    id: "collection",
+    label: "名片册",
+    labelKey: "platformAccount.app.sections.collection.label",
+    shortLabel: "名片册",
+    description: "交换得来的名片",
+    descriptionKey: "platformAccount.app.sections.collection.description",
+    icon: LibraryIcon,
   },
   {
     id: "offices",
@@ -68,6 +70,15 @@ export const profileWorkspaceSections = [
     description: "审核通知与名片认领",
     descriptionKey: "platformAccount.app.sections.claims.description",
     icon: MailIcon,
+  },
+  {
+    id: "messages",
+    label: "我的留言",
+    labelKey: "platformAccount.app.sections.messages.label",
+    shortLabel: "留言",
+    description: "查看、编辑与销毁留言",
+    descriptionKey: "platformAccount.app.sections.messages.description",
+    icon: MessageSquareIcon,
   },
 ] as const satisfies ReadonlyArray<{
   id: ProfileWorkspaceSection
@@ -141,7 +152,7 @@ export function ProfileWorkspaceNavigation({
       </NavigationLink>
 
       <nav className="min-w-0 border-t" aria-label="个人档案菜单">
-        <ul className="grid grid-cols-5 lg:block">
+        <ul className="grid grid-cols-6 lg:block">
           {profileWorkspaceSections.map((section) => {
             const active = activeSection === section.id
             const Icon = section.icon
@@ -157,7 +168,9 @@ export function ProfileWorkspaceNavigation({
                       : "text-muted-foreground lg:border-l-transparent",
                     section.id === "claims" && "relative pr-9 lg:pr-12"
                   )}
-                  aria-label={t(section.labelKey)}
+                  aria-label={t(section.labelKey, {
+                    defaultValue: section.label,
+                  })}
                   aria-current={active ? "page" : undefined}
                   aria-controls={`profile-workspace-section-${section.id}`}
                 >
@@ -173,13 +186,15 @@ export function ProfileWorkspaceNavigation({
                       className="hidden font-medium text-current lg:block"
                       aria-hidden="true"
                     >
-                      {t(section.labelKey)}
+                      {t(section.labelKey, { defaultValue: section.label })}
                     </span>
                     <span
                       className="mt-0.5 hidden truncate text-xs text-muted-foreground lg:block"
                       aria-hidden="true"
                     >
-                      {t(section.descriptionKey)}
+                      {t(section.descriptionKey, {
+                        defaultValue: section.description,
+                      })}
                     </span>
                   </span>
 

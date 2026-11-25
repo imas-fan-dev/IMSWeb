@@ -1,12 +1,18 @@
 import type { AppEnvironment } from '@/app';
 import type {
     NamecardCollectionEntryParams,
+    NamecardCollectionOwnersQuery,
+    NamecardCollectionQuery,
     NamecardCollectionVisibilityRequest,
+    NamecardExchangeAccountParams,
     NamecardExchangeCardParams,
     NamecardExchangeCommitRequest,
+    NamecardExchangeGiftRequest,
     NamecardExchangeHandleParams,
+    NamecardExchangeHistoryQuery,
     NamecardExchangeIdParams,
     NamecardExchangeSlugParams,
+    NamecardQuickCandidatesQuery,
     NamecardQuickSelection,
     NamecardScanSessionRequest,
     NamecardScanTokenParams,
@@ -25,6 +31,8 @@ type WithParamsBody<P, B> = Context<
 >;
 
 export type NamecardShareContext = WithParams<NamecardExchangeSlugParams>;
+/** 属主侧单卡分享链接：路径上只有名片编号，不需要请求体。 */
+export type NamecardCardShareLinkContext = WithParams<NamecardExchangeCardParams>;
 export type NamecardShareCommitContext = WithParamsBody<
     NamecardExchangeSlugParams,
     NamecardExchangeCommitRequest
@@ -38,21 +46,32 @@ export type NamecardQuickCommitContext = WithParamsBody<
     NamecardExchangeHandleParams,
     NamecardExchangeCommitRequest
 >;
+/** 单向送礼：路径上是收件人的账号 id，请求体是要送出的名片。 */
+export type NamecardGiftContext = WithParamsBody<
+    NamecardExchangeAccountParams,
+    NamecardExchangeGiftRequest
+>;
 export type NamecardQuickSelectionContext = WithBody<NamecardQuickSelection>;
+/** 候选读取带一个可选目标（uid / 主页 slug / 账号 ID）。 */
+export type NamecardQuickSettingsContext = WithQuery<NamecardQuickCandidatesQuery>;
 export type NamecardScanSessionContext = WithBody<NamecardScanSessionRequest>;
 export type NamecardScanCommitContext = WithParamsBody<
     NamecardScanTokenParams,
     NamecardExchangeCommitRequest
 >;
-/** 名片册与交换记录共用一套页码参数。 */
-export interface NamecardCollectionQuery {
-    page?: number;
-    size?: number;
-}
-
+/** 出示方轮询二维码状态：路径上只有 token，没有请求体。 */
+export type NamecardScanStatusContext = WithParams<NamecardScanTokenParams>;
+/** 名片册的查询参数由契约校验（分页 / 排序 / 搜索 / 筛选 / 两个开关）。 */
 export type NamecardCollectionQueryContext = WithQuery<NamecardCollectionQuery>;
+/** 所属用户选择器：一条搜索词 + 上限。 */
+export type NamecardCollectionOwnersQueryContext =
+    WithQuery<NamecardCollectionOwnersQuery>;
+export type NamecardExchangeHistoryQueryContext =
+    WithQuery<NamecardExchangeHistoryQuery>;
 export type NamecardCollectionEntryContext = WithParamsBody<
     NamecardCollectionEntryParams,
     NamecardCollectionVisibilityRequest
 >;
 export type NamecardDecisionContext = WithParams<NamecardExchangeIdParams>;
+/** 交换详情窗口：路径上只有交换 id。 */
+export type NamecardExchangeDetailContext = WithParams<NamecardExchangeIdParams>;

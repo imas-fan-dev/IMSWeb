@@ -1,3 +1,4 @@
+import { saveFudabaTinyPreview } from '@/domains/community/fudaba/card-preview';
 import { NAMECARD_MIDDLE_IMAGE_LIMIT } from '@imsweb/contracts/fudaba/runtime';
 import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
@@ -413,6 +414,36 @@ export async function handleReplaceFudabaOwnedMedia(
                 : c.json({ success: false, code: 'FUDABA_CARD_NOT_FOUND' }, 404);
         }
         committed = true;
+        // Restore previews invalidated for retained live keys as well as uploads.
+        // Only saved live sides can be shown on the public wall.
+        const bodiesByKey = new Map(
+            uploadedKeys.map((key, index) => [key, uploadedBodies[index]!])
+        );
+        await Promise.all(
+            (['front', 'back'] as const).map(async (side) => {
+                const liveKeys = cardPageObjectKeys(cardId, 'live', result.card.pages);
+                const key = side === 'front'
+                    ? liveKeys[0]
+                    : liveKeys.length > 1 ? liveKeys.at(-1) : undefined;
+                if (!key) return;
+                try {
+                    const body = bodiesByKey.get(key)
+                        ?? (await runtime.storage!.get(key))?.body;
+                    if (!body) return;
+                    await saveFudabaTinyPreview(
+                        repository.messages,
+                        runtime.images!,
+                        key,
+                        body,
+                        { cardId, revision: result.card.revision, side }
+                    );
+                } catch {
+                    console.warn(
+                        '[fudaba] low-resolution preview storage failed; using the skeleton fallback'
+                    );
+                }
+            })
+        );
         // 只保留保存后的卡仍然指向的对象：线上与待审两套页面行都要收下，
         // 其余这次请求不再引用的对象才安排删除。
         const kept = new Set<string>([

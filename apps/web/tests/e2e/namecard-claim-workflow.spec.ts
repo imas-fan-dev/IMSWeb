@@ -1,4 +1,3 @@
-import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import { api, expect, test } from "./fixtures/test"
 import type { Locator, Page } from "@playwright/test"
 
@@ -6,6 +5,7 @@ import { makeCardPage } from "../../mocks/data/namecards"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -28,67 +28,23 @@ async function waitForNextPaint(page: Page) {
   )
 }
 
-const catalog = {
-  status: "success",
-  agencies: [
-    {
-      id: 1,
-      code: "765",
-      name: "765PRO",
-      color: "#f34e6c",
-      bannerTitle: "765PRO",
-      iconUrl: null,
-      idolCount: 1,
-      entryCount: 1,
-      imageTransform: {
-        fit: "cover",
-        focalX: 0.5,
-        focalY: 0.5,
-        zoom: 1,
-        rotation: 0,
-      },
+const seriesCatalog = {
+  items: [
+    { id: 1, code: "765", displayName: "765PRO", color: "#f34e6c" },
+    { id: 2, code: "cg", displayName: "灰姑娘女孩", color: "#2581c7" },
+  ].map((item, displayOrder) => ({
+    ...item,
+    displayOrder,
+    iconUrl: null,
+    imageTransform: {
+      fit: "cover",
+      focalX: 0.5,
+      focalY: 0.5,
+      zoom: 1,
+      rotation: 0,
     },
-    {
-      id: 2,
-      code: "cg",
-      name: "灰姑娘女孩",
-      color: "#2581c7",
-      bannerTitle: "CINDERELLA GIRLS",
-      iconUrl: null,
-      idolCount: 1,
-      entryCount: 1,
-      imageTransform: {
-        fit: "cover",
-        focalX: 0.5,
-        focalY: 0.5,
-        zoom: 1,
-        rotation: 0,
-      },
-    },
-  ],
-  searchEntries: [
-    {
-      id: 1,
-      name: "天海春香",
-      agencyId: 1,
-      agencyCode: "765",
-      agencyName: "765PRO",
-      agencyColor: "#f34e6c",
-      entryKind: "idol",
-      entrySubtype: null,
-    },
-    {
-      id: 2,
-      name: "涩谷凛",
-      agencyId: 2,
-      agencyCode: "cg",
-      agencyName: "灰姑娘女孩",
-      agencyColor: "#2581c7",
-      entryKind: "idol",
-      entrySubtype: null,
-    },
-  ],
-  selection: null,
+    activeOfficeCount: 0,
+  })),
 }
 
 const favoriteCharacter = { id: 1, name: "天海春香", seriesCode: "765" }
@@ -136,6 +92,80 @@ async function mockPlatformSession(page: Page) {
     "GET"
   )
 }
+
+test.describe("anonymous namecard submission", () => {
+  for (const enabled of [false, true]) {
+    test(`the wall create button ${enabled ? "opens the guest form" : "requires login"}`, async ({
+      page,
+      api,
+    }) => {
+      installEmptyWikiCatalogMock(api)
+      await mockAnonymousPlatformSession()
+      await api.mockRoute(
+        "**/api/cards**",
+        async (route) => {
+          await route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+        },
+        "GET"
+      )
+      await api.mockRoute(
+        "**/api/community/exchange/cards/guest-submission",
+        async (route) => {
+          await route.fulfill({ json: { success: true, enabled } })
+        },
+        "GET"
+      )
+      if (!enabled) {
+        installPlatformOAuthProvidersMock(api)
+        await page.goto("/community/cards")
+        await page.getByRole("button", { name: "新建名片" }).click()
+        await expect(page).toHaveURL(/\/account\/login$/)
+        return
+      }
+
+      await api.mockRoute(
+        "**/api/community/exchange/series",
+        async (route) => {
+          await route.fulfill({ json: seriesCatalog })
+        },
+        "GET",
+        { min: 1, max: 2 }
+      )
+      let submitted:
+        | { header: string | undefined; body: string | null }
+        | undefined
+      await api.mockRoute(
+        "**/api/community/exchange/cards",
+        async (route) => {
+          submitted = {
+            header: route.request().headers()["x-namecard-guest-submission"],
+            body: route.request().postData(),
+          }
+          await route.fulfill({ status: 201, json: { success: true } })
+        },
+        "POST"
+      )
+      await page.goto("/community/cards")
+      await page.getByRole("button", { name: "新建名片" }).click()
+      const dialog = page.getByRole("dialog", { name: "匿名投稿名片" })
+      await dialog
+        .getByRole("textbox", { name: "制作人名称", exact: true })
+        .fill("访客制作人")
+      await dialog.getByRole("checkbox", { name: "765PRO" }).click()
+      await dialog.locator("input[aria-label='选择名片图片']").setInputFiles({
+        name: "front.gif",
+        mimeType: "image/gif",
+        buffer: Buffer.from(FRONT_IMAGE.split(",")[1], "base64"),
+      })
+      await dialog.getByRole("button", { name: "提交审核" }).click()
+      await expect(dialog).not.toBeVisible()
+      expect(submitted?.header).toBe("1")
+      expect(submitted?.body).toContain('name="front"; filename="front.gif"')
+      expect(submitted?.body).toContain('name="producerName"')
+      expect(submitted?.body).toContain('name="seriesCodes"')
+    })
+  }
+})
 
 test.describe("namecard claim workflow", () => {
   test("anonymous visitors do not see the legacy-card claim action", async ({
@@ -207,6 +237,7 @@ test.describe("namecard claim workflow", () => {
     page,
   }, testInfo) => {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     const consoleErrors: string[] = []
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text())
@@ -214,9 +245,9 @@ test.describe("namecard claim workflow", () => {
     page.on("pageerror", (error) => consoleErrors.push(error.message))
 
     await api.mockRoute(
-      "**/api/wiki/catalog**",
+      "**/api/community/exchange/me/series",
       async (route) => {
-        await route.fulfill({ json: catalog })
+        await route.fulfill({ json: seriesCatalog })
       },
       "GET"
     )
@@ -323,7 +354,7 @@ test.describe("namecard claim workflow", () => {
 
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
@@ -400,7 +431,7 @@ test.describe("namecard claim workflow", () => {
       "POST"
     )
 
-    const dialog = await openClaimDialog(page)
+    const { dialog } = await openClaimDialog(page)
     // 企划 and 担当角色 are left alone: the server derives a series for the
     // claim record from the bound card, the idols, or the legacy card itself.
     await dialog.getByLabel("团体名称").fill("765PRO")
@@ -418,10 +449,11 @@ test.describe("namecard claim workflow", () => {
   // keeps both in place and scrolls only the body.
   async function mockClaimSurface(page: Page) {
     await mockPlatformSession(page)
+    installEmptyWikiCatalogMock(api)
     await api.mockRoute(
-      "**/api/wiki/catalog**",
+      "**/api/community/exchange/me/series",
       async (route) => {
-        await route.fulfill({ json: catalog })
+        await route.fulfill({ json: seriesCatalog })
       },
       "GET"
     )
@@ -495,12 +527,18 @@ test.describe("namecard claim workflow", () => {
   async function openClaimDialog(page: Page) {
     await page.goto("/community/cards")
     await page.getByRole("button", { name: "查看制作人名片 42 正面" }).click()
-    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ })
+    const detail = page.getByRole("dialog", { name: /制作人名片\s*\d+/ }).last()
+    await expect(detail).toBeVisible()
+    // 打开详情本身可能已经把页面滚到名片处；以认领弹窗打开前的位置为基准，
+    // 断言弹窗不会再次移动页面。
+    const pageScrollBefore = await page.evaluate(
+      () => document.scrollingElement?.scrollTop ?? 0
+    )
     await detail.getByRole("button", { name: "认领" }).click()
     const dialog = page.getByRole("dialog", { name: "认领名片 #42" })
     await expect(dialog).toBeVisible()
     await settleDialog(dialog)
-    return dialog
+    return { dialog, pageScrollBefore }
   }
 
   // The popup opens with a 100ms zoom-in, so measuring straight after `toBeVisible`
@@ -537,7 +575,7 @@ test.describe("namecard claim workflow", () => {
       page,
     }) => {
       await mockClaimSurface(page)
-      const dialog = await openClaimDialog(page)
+      const { dialog, pageScrollBefore } = await openClaimDialog(page)
 
       const viewport = await page.evaluate(() => ({
         width: window.visualViewport?.width ?? window.innerWidth,
@@ -559,9 +597,10 @@ test.describe("namecard claim workflow", () => {
       expect(submit!.y + submit!.height).toBeLessThanOrEqual(
         viewport.height + 1
       )
+      // 弹窗本身不能再滚动页面：与打开前的滚动位置保持一致。
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
 
       // Touch targets: the close button and every option row.
       const close = await dialog
@@ -583,7 +622,7 @@ test.describe("namecard claim workflow", () => {
     }) => {
       await page.setViewportSize({ width: 320, height: 568 })
       await mockClaimSurface(page)
-      const dialog = await openClaimDialog(page)
+      const { dialog } = await openClaimDialog(page)
 
       const body = dialog.locator('[data-slot="dialog-body"]')
       const footer = dialog.locator('[data-slot="dialog-footer"]')
@@ -596,6 +635,11 @@ test.describe("namecard claim workflow", () => {
       }))
       expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight)
 
+      // 打开弹窗本身可能让页面滚动到卡片所在位置；要断言的是「滚动弹窗 body 不会带动页面」，
+      // 因此以打开后的页面滚动位置为基准，而不是硬编码 0。
+      const pageScrollBefore = await page.evaluate(
+        () => document.scrollingElement?.scrollTop ?? 0
+      )
       const footerBefore = await footer.boundingBox()
       const closeBefore = await close.boundingBox()
       await body.evaluate((node) => {
@@ -608,7 +652,7 @@ test.describe("namecard claim workflow", () => {
       expectSameBox(closeBefore, await close.boundingBox())
       expect(
         await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)
-      ).toBe(0)
+      ).toBe(pageScrollBefore)
     })
   })
 
@@ -654,6 +698,7 @@ test.describe("namecard claim workflow", () => {
           id: "legacy-envelope-1",
           kind: "legacy-card-match",
           cardNumber: 42,
+          exchangeId: null,
           title: "这张旧名片是您的吗？",
           body: "名片墙上有一张无主名片 #42，制作人名称是「认领测试制作人」。",
           readAt: null,
@@ -693,6 +738,7 @@ test.describe("namecard claim workflow", () => {
       )
       for (const path of [
         "/api/community/exchange/me/series",
+        "/api/community/exchange/me/office-series",
         "/api/community/exchange/me/cards",
         "/api/community/exchange/me/offices",
       ]) {
@@ -712,17 +758,6 @@ test.describe("namecard claim workflow", () => {
         },
         "POST",
         { min: 0, max: 12 }
-      )
-      await api.mockRoute(
-        "**/api/community/exchange/me/favorites?**",
-        async (route) => {
-          const response = {
-            items: [],
-            pageInfo: { hasNextPage: false, nextCursor: null },
-          } satisfies FudabaCardPage
-          await route.fulfill({ status: 200, json: response })
-        },
-        "GET"
       )
       await api.mockRoute(
         "**/api/cards**",
@@ -784,7 +819,7 @@ test.describe("namecard claim workflow", () => {
       await page.waitForURL(/\/community\/cards\?card=42$/)
       // The deep link opens the detail dialog for that card on the wall.
       await expect(
-        page.getByRole("dialog", { name: /制作人名片/ })
+        page.getByRole("dialog", { name: /制作人名片/ }).last()
       ).toBeVisible()
     })
   })
@@ -793,7 +828,6 @@ test.describe("namecard claim workflow", () => {
     page,
     api,
   }, testInfo) => {
-    installEmptyWikiCatalogMock(api)
     await installAdminAuthMock(page, api, {
       csrfToken: "claim-admin-csrf",
       user: {
@@ -896,7 +930,36 @@ test.describe("namecard claim workflow", () => {
       "PUT"
     )
 
+    await api.mockRoute(
+      "/api/admin/cards/guest-submission",
+      async (route) => {
+        await route.fulfill({ json: { success: true, enabled: false } })
+      },
+      "GET"
+    )
+    const changes: boolean[] = []
+    await api.mockRoute(
+      "/api/admin/cards/guest-submission",
+      async (route) => {
+        const { enabled } = route.request().postDataJSON() as {
+          enabled: boolean
+        }
+        expect(route.request().headers()["x-csrftoken"]).toBe(
+          "claim-admin-csrf"
+        )
+        changes.push(enabled)
+        await route.fulfill({ json: { success: true, enabled } })
+      },
+      "PUT",
+      2
+    )
     await page.goto("/admin/cards")
+    await page.getByRole("button", { name: "允许匿名投稿" }).click()
+    await page.getByRole("button", { name: "关闭匿名投稿" }).click()
+    await expect(
+      page.getByRole("button", { name: "允许匿名投稿" })
+    ).toBeEnabled()
+    expect(changes).toEqual([true, false])
     await expect(page.getByRole("tab", { name: "投稿审核" })).toBeVisible()
     await expect(page.getByText("注册制作人")).toBeVisible()
 

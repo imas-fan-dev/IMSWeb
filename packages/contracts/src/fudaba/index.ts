@@ -23,6 +23,10 @@ import {
   NAMECARD_SERIES_LIMIT,
 } from "./namecard-runtime.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
+import {
+  namecardTagListSchema,
+  namecardTagNamesSchema,
+} from "../namecard-tags.js";
 
 import { wikiImageTransformSchema } from "../wiki.js";
 
@@ -141,13 +145,11 @@ export const fudabaCharacterSelectionSchema = z
 export const fudabaCardInteractionsSchema = z
   .object({
     likes: z.number().int().nonnegative(),
-    favorites: z.number().int().nonnegative(),
     viewerLiked: z.boolean(),
-    viewerFavorited: z.boolean(),
   })
   .strict();
 
-export const fudabaCardInteractionKindSchema = z.enum(["like", "favorite"]);
+export const fudabaCardInteractionKindSchema = z.enum(["like"]);
 
 export const namecardReactionEmojiSchema = z.enum(NAMECARD_REACTION_EMOJIS);
 
@@ -510,6 +512,8 @@ export const fudabaOwnerCardSchema = cardContentFieldsSchema
     reviewReason: z.string().nullable(),
     reviewSubmittedAt: timestampSchema.nullable(),
     pendingContent: fudabaPendingCardContentSchema.nullable(),
+    /** 已保存标签：即时生效，不随待审内容变化。 */
+    tags: namecardTagListSchema.optional(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -526,6 +530,21 @@ export const fudabaOwnerCardDetailSchema = z
     card: fudabaOwnerCardSchema,
   })
   .strict();
+
+export const fudabaGuestSubmissionSettingsResponseSchema = successEnvelope({
+  enabled: z.boolean(),
+}).strict();
+export const fudabaGuestSubmissionResponseSchema = successEnvelope({}).strict();
+export const adminFudabaGuestSubmissionSettingsRequestSchema = z.object({
+  enabled: z.boolean(),
+}).strict();
+export type AdminFudabaGuestSubmissionSettingsRequest = z.infer<
+  typeof adminFudabaGuestSubmissionSettingsRequestSchema
+>;
+export type FudabaGuestSubmissionSettingsResponse = z.infer<
+  typeof fudabaGuestSubmissionSettingsResponseSchema
+>;
+export type FudabaGuestSubmissionResponse = z.infer<typeof fudabaGuestSubmissionResponseSchema>;
 
 export const fudabaCardMutationResponseSchema = successEnvelope({
   card: fudabaOwnerCardSchema,
@@ -724,6 +743,10 @@ export const fudabaCardFieldsRequestSchema = cardContentFieldsSchema
       .array(z.number().int().positive())
       .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
       .refine((ids) => new Set(ids).size === ids.length),
+    /**
+     * 标签随保存一起提交，但即时生效、不进审核载荷；multipart 里是 JSON 字符串。
+     */
+    tags: namecardTagNamesSchema.optional(),
   })
   .strict();
 
@@ -902,3 +925,5 @@ export type NamecardCardFieldIssue = z.ZodIssue;
 export type FudabaOfficeFieldsRequest = z.infer<typeof fudabaOfficeFieldsRequestSchema>;
 export type FudabaOfficeUpdateRequest = z.infer<typeof fudabaOfficeUpdateRequestSchema>;
 export type FudabaOwnerLocationSaveRequest = z.infer<typeof fudabaOwnerLocationSaveRequestSchema>;
+
+export type FudabaErrorResponse = z.infer<typeof fudabaErrorResponseSchema>;

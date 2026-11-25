@@ -16,6 +16,14 @@ export async function handleCommitCardShare(
             404,
         );
     }
+    // R10：分享页也只接受 `auto` / `manual` 的目标卡；`none` 明确拒绝，
+    // 而不是提交一次必然被跳过的空交换。
+    if (card.exchange_mode === 'none') {
+        return c.json(
+            { error: '这张名片不接受交换' } satisfies NamecardErrorResponse,
+            409,
+        );
+    }
     return commitNamecardExchange(c, {
         clientExchangeId,
         source: 'card-share',
