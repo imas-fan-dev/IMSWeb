@@ -78,7 +78,7 @@
         "pinyin-pro": "^3.29.5",
         "postcss": "8.5.26",
         "redis": "6.2.1",
-        "sanitize-html": "^2.17.7",
+        "sanitize-html": "^2.18.1",
         "sharp": "^0.35.3",
         "yauzl": "^3.4.0"
     },
