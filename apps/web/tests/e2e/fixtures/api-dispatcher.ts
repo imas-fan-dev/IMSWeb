@@ -194,7 +194,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null
 }
 
-function schemaError(result: z.SafeParseError<unknown>) {
+function schemaError(result: z.ZodSafeParseError<unknown>) {
   return result.error.issues
     .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
     .join("; ")
@@ -611,7 +611,7 @@ export class ApiDispatcher {
     if (!exact) {
       const errors = results
         .filter(
-          (result): result is z.SafeParseError<unknown> => !result.success
+          (result): result is z.ZodSafeParseError<unknown> => !result.success
         )
         .map(schemaError)
         .join(" | ")

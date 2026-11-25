@@ -777,7 +777,7 @@ export default function CommunityExchangePage() {
                   directoryOpener.current
                 )
               }}
-              className="exchange-map-page-dialog h-[min(48rem,var(--overlay-safe-height))] gap-0 rounded-lg p-0 motion-reduce:animate-none sm:max-w-5xl"
+              className="exchange-map-page-dialog h-[min(48rem,var(--overlay-safe-height))] gap-0 rounded-lg p-0 motion-reduce:animate-none! sm:max-w-5xl"
             >
               <DialogHeader className="flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left sm:px-6">
                 <div className="flex min-w-0 items-center gap-2">

@@ -308,7 +308,7 @@ function schemaPolicy(root, checker, node, seen = new Set()) {
   }
   if (!ts.isCallExpression(node)) return undefined;
   const name = calledName(node);
-  if (name === "strictRequestObject") return "reject";
+  if (name === "strictRequestObject" || name === "strictObject") return "reject";
   if (name === "legacyStripRequestObject") return "accept-and-project";
   if (name === "legacyPassthroughRequestObject") return "passthrough";
   if (["exactJsonResponse", "exactJsonError"].includes(name)) return "reject";

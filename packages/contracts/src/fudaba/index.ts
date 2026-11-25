@@ -211,7 +211,7 @@ export const namecardProductionDateSchema = z
  * because rows written before the strict (http/https) parser existed are still
  * out there and must keep reading back.
  */
-const namecardCreditRowFields = (url: z.ZodType<string | null>) => ({
+const namecardCreditRowFields = <T extends z.ZodType<string | null>>(url: T) => ({
   /** Site member the credit points at, when it points at one. */
   accountId: z
     .string()
@@ -819,7 +819,7 @@ export const fudabaPlaceSearchQuerySchema = legacyStripRequestObject({
 });
 const reverseCoordinateQuery = (minimum: number, maximum: number) =>
   z.union([z.number(), z.string().trim().min(1)])
-    .pipe(z.coerce.number().finite().min(minimum).max(maximum));
+    .pipe(z.coerce.number<string | number>().finite().min(minimum).max(maximum));
 export const fudabaPlaceReverseQuerySchema = strictRequestObject({
   longitude: reverseCoordinateQuery(-180, 180),
   latitude: reverseCoordinateQuery(-90, 90),

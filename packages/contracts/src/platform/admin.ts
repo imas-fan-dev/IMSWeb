@@ -39,8 +39,8 @@ const platformOAuthOptionalTextRequestSchema = (maximum: number) =>
     .string()
     .transform((value) => value.trim())
     .pipe(z.string().max(maximum))
-    .optional()
-    .transform((value) => value || undefined);
+    .transform((value) => value || undefined)
+    .optional();
 
 const platformOAuthNullableProfilePathRequestSchema = z
   .string()

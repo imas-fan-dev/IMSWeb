@@ -17,6 +17,8 @@ const webMode =
   process.env.VITE_IMS_APP_TARGET === "web"
 
 test.beforeAll(async () => {
+  // Cold CI workers compile the API fixture before it can report readiness.
+  test.setTimeout(45_000)
   const apiRoot = path.resolve(process.cwd(), "../api")
   server = spawn(
     process.execPath,
@@ -46,8 +48,11 @@ test.beforeAll(async () => {
           resolve(JSON.parse(line).origin as string)
       }
     })
-    server.on("exit", () =>
-      reject(new Error(errors || "Owner media server exited"))
+    server.once("error", reject)
+    server.once("exit", (code, signal) =>
+      reject(
+        new Error(`Owner media server exited (${signal ?? code}): ${errors}`)
+      )
     )
   })
   const fixture = await (await fetch(`${runtimeOrigin}/fixture`)).json()
