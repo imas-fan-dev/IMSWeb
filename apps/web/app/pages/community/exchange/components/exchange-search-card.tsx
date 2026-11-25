@@ -647,7 +647,11 @@ export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
         )
       }
       if (!expanded && box.width && box.height) {
-        const controlsBottom = Math.max(12, hostBox.bottom - box.top + 12)
+        // The card can still be at its previous bottom until React commits.
+        const cardTopOffset = IS_APP_TARGET
+          ? nextBottom + box.height
+          : hostBox.bottom - box.top
+        const controlsBottom = Math.max(12, cardTopOffset + 12)
         host.style.setProperty(
           "--exchange-map-controls-bottom",
           `${controlsBottom}px`

@@ -7,23 +7,7 @@
  * the factory's conformance test rather than let the fixture drift.
  */
 
-const ZOD_OBJECT_TYPE_NAME = "ZodObject"
-
-type ZodShapeEntry = { isOptional?: () => boolean }
-
-type ZodObjectLike = {
-  _def: { typeName?: string }
-  shape: Record<string, ZodShapeEntry>
-}
-
-function asZodObject(schema: unknown): ZodObjectLike | null {
-  if (typeof schema !== "object" || schema === null) return null
-  const candidate = schema as Partial<ZodObjectLike>
-  if (candidate._def?.typeName !== ZOD_OBJECT_TYPE_NAME) return null
-  const { shape } = candidate
-  if (typeof shape !== "object" || shape === null) return null
-  return candidate as ZodObjectLike
-}
+import { z } from "@imsweb/contracts/z"
 
 /**
  * Lists the keys a `ZodObject` requires, or `null` when the schema has no
@@ -34,10 +18,9 @@ function asZodObject(schema: unknown): ZodObjectLike | null {
  * set, so callers skip the coverage assertion instead of inventing one.
  */
 export function requiredKeysOf(schema: unknown): string[] | null {
-  const object = asZodObject(schema)
-  if (!object) return null
-  return Object.keys(object.shape)
-    .filter((key) => object.shape[key]?.isOptional?.() !== true)
+  if (!(schema instanceof z.ZodObject)) return null
+  return Object.keys(schema.shape)
+    .filter((key) => !schema.shape[key]?.isOptional())
     .sort()
 }
 

@@ -132,9 +132,7 @@ export const platformPasswordResetSubmissionSchema = z
   .strict();
 
 const platformProfileTimestampRequestSchema = z
-  .number({ invalid_type_error: "expectedUpdatedAt 必须是非负整数" })
-  .int("expectedUpdatedAt 必须是非负整数")
-  .safe("expectedUpdatedAt 必须是非负整数")
+  .int({ error: (issue) => issue.input === undefined ? undefined : "expectedUpdatedAt 必须是非负整数" })
   .nonnegative("expectedUpdatedAt 必须是非负整数");
 
 const platformProfileTextRequestSchema = (
@@ -143,7 +141,7 @@ const platformProfileTextRequestSchema = (
   required = false,
 ) =>
   z
-    .string({ invalid_type_error: `${field} 必须是字符串` })
+    .string({ error: (issue) => issue.input === undefined ? undefined : `${field} 必须是字符串` })
     .transform((value) => value.trim())
     .superRefine((value, context) => {
       if ((required && !value) || value.length > maximum) {
@@ -154,8 +152,13 @@ const platformProfileTextRequestSchema = (
       }
     });
 
+const platformProfileRequestError: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code === "unrecognized_keys") return "请求体包含未知字段";
+  if (issue.code === "invalid_type" && issue.input !== undefined) return "请求体必须是对象";
+};
+
 export const platformProfileUpdateRequestSchema = z
-  .object({
+  .strictObject({
     bio: platformProfileTextRequestSchema("bio", 2000),
     displayName: platformProfileTextRequestSchema("displayName", 80, true),
     expectedUpdatedAt: platformProfileTimestampRequestSchema,
@@ -170,15 +173,12 @@ export const platformProfileUpdateRequestSchema = z
       .refine((value) => !/^[0-9]+$/u.test(value), "主页地址不能是纯数字")
       .nullable()
       .optional(),
-  }, { invalid_type_error: "请求体必须是对象" })
-  .strict("请求体包含未知字段");
+  }, { error: platformProfileRequestError });
 
-export const platformAvatarRemovalRequestSchema = z
-  .object(
-    { expectedUpdatedAt: platformProfileTimestampRequestSchema },
-    { invalid_type_error: "请求体必须是对象" },
-  )
-  .strict("请求体包含未知字段");
+export const platformAvatarRemovalRequestSchema = z.strictObject(
+  { expectedUpdatedAt: platformProfileTimestampRequestSchema },
+  { error: platformProfileRequestError },
+);
 
 export const platformProfileAvatarQuerySchema = z
   .object({ v: z.string().optional() })

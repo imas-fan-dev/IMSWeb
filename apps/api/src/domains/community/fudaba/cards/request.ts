@@ -203,7 +203,7 @@ function cardFieldsMessage(issues: readonly NamecardCardFieldIssue[]): string {
     if (typeof field !== 'string') return '请求体字段无效';
     if (
         (issue.code === 'too_big' || issue.code === 'too_small') &&
-        issue.type === 'string'
+        issue.origin === 'string'
     ) {
         return `${field} 长度或内容无效`;
     }

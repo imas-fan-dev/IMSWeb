@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css"
 import { LoaderCircleIcon, LocateFixedIcon } from "lucide-react"
 import {
   addProtocol,
+  type ErrorEvent,
   GeoJSONSource,
   Map as MapLibreMap,
   type MapSourceDataEvent,
@@ -12,7 +13,7 @@ import {
   setWorkerUrl,
   type StyleSpecification,
 } from "maplibre-gl"
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url"
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"
 import { Protocol } from "pmtiles"
 import {
   useCallback,
@@ -999,8 +1000,7 @@ export function ExchangeOfficeMap({
       queryViewport()
       scheduleMarkerRefresh()
     }
-    const handleError = (event: { error: Error }) =>
-      reportFatalError(event.error)
+    const handleError = (event: ErrorEvent) => reportFatalError(event.error)
     const handlePick = (event: MapMouseEvent) => {
       const picker = pointPickerRef.current
       if (
