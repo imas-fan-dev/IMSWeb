@@ -140,6 +140,13 @@ Web 浏览器默认使用 core：Chromium desktop 的功能与精选可用性场
 `playwright.config.ts` 的 `resolveWebUiProjects` 拥有选择规则，core 与 extended 的并集
 必须等于保留的完整项目清单，交集为空。App 全部现有项目保持必需验证。
 
+普通 PR 的 CI Summary 会显示 **Playwright spec selection (advisory only)**。它复用工作区
+检测的 PR merge-base 到 PR head 差异：只有改动全部是新增或修改的 E2E spec 时，才按
+Web core 和 App 列出候选文件；如果还改了业务代码、共享 fixture 或配置，或遇到删除、
+重命名、无法读取差异等情况，已选中的浏览器验证仍建议跑完整套。候选只按文件路径判断，
+不代表 Playwright 实际发现的用例。摘要不会改变测试命令、浏览器项目或发布门禁。
+`release/v1.1 → main` 的发布 PR、push 和手动运行不生成这份摘要。
+
 手动执行扩展 UI：
 
 ```sh

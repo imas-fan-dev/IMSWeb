@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "vitest";
 
 const detectorUrl = pathToFileURL(
@@ -209,9 +209,8 @@ test.describe('affected workspace classification', () => {
     return { status: 0, stdout: Buffer.from(stdout), stderr: Buffer.alloc(0) };
   }
 
-  test("selects shared preview consumers from real PR merge-base and main-push additions, deletions and renames", async () => {
-    const { detectAffectedWorkspaces } = await detector;
-    const directory = mkdtempSync(path.join(os.tmpdir(), "ims-preview-affected-"));
+  function withGitHistory(run) {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "ims-ci-affected-"));
     const git = (args, input) => {
       const result = spawnSync("git", args, {
         cwd: directory,
@@ -234,7 +233,7 @@ test.describe('affected workspace classification', () => {
       for (const name of files) {
         const filename = path.join(directory, name);
         mkdirSync(path.dirname(filename), { recursive: true });
-        writeFileSync(filename, "shared preview consumer fixture\n");
+        writeFileSync(filename, "diff fixture\n");
         const blob = git(["hash-object", "-w", filename]).stdout.toString().trim();
         git(["update-index", "--add", "--cacheinfo", `100644,${blob},${name}`]);
       }
@@ -244,6 +243,15 @@ test.describe('affected workspace classification', () => {
     };
     try {
       git(["init", "--quiet"]);
+      run({ directory, git, revision });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+
+  test("selects shared preview consumers from real PR merge-base and main-push additions, deletions and renames", async () => {
+    const { detectAffectedWorkspaces } = await detector;
+    withGitHistory(({ git, revision }) => {
       const empty = revision([]);
       for (const [name, expected] of singlePathCases.filter(([name]) => [
         "apps/web/scripts/preview-app.js",
@@ -279,9 +287,91 @@ test.describe('affected workspace classification', () => {
           }
         }
       }
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
+    });
+  });
+
+  test("reports advisory Playwright candidates from the PR diff without changing lane outputs", () => {
+    withGitHistory(({ directory, revision }) => {
+      const e2e = "apps/web/tests/e2e/";
+      const web = e2e + "home.smoke.spec.ts";
+      const app = e2e + "app-shell.spec.ts";
+      const empty = revision([]);
+      const baseSha = revision(["base-only-input.xyz"], empty);
+      const headSha = revision([web, app], empty);
+      const outputPath = path.join(directory, "outputs");
+      const summaryPath = path.join(directory, "summary");
+      const report = (overrides = {}) => {
+        writeFileSync(outputPath, "");
+        writeFileSync(summaryPath, "");
+        const result = spawnSync(process.execPath, [fileURLToPath(detectorUrl)], {
+          cwd: directory,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            CI_EVENT_NAME: "pull_request",
+            CI_BASE_SHA: baseSha,
+            CI_HEAD_SHA: headSha,
+            CI_PLAYWRIGHT_SHADOW: "true",
+            GITHUB_OUTPUT: outputPath,
+            GITHUB_STEP_SUMMARY: summaryPath,
+            ...overrides,
+          },
+        });
+        assert.equal(result.status, 0, result.stderr);
+        return {
+          outputs: readFileSync(outputPath, "utf8"),
+          summary: readFileSync(summaryPath, "utf8"),
+          stderr: result.stderr,
+        };
+      };
+
+      const selected = report();
+      assert.equal(
+        selected.outputs,
+        "repo=true\napp=true\nweb=true\napi=false\nintegration=false\n",
+      );
+      assert.match(selected.summary, /advisory only/);
+      for (const [lane, spec] of [["Web core", web], ["App", app]]) {
+        assert.ok(selected.summary.includes(
+          `**${lane}:** 1 candidate spec file(s).\n  - \`${spec}\``
+        ));
+      }
+
+      const webOnly = report({ CI_HEAD_SHA: revision([web], empty) });
+      assert.match(webOnly.summary, /\*\*App:\*\* lane not selected/);
+
+      for (const otherFile of [
+        e2e + "fixtures/test.ts",
+        e2e + "ui-capture.spec.ts",
+        "apps/web/app/routes.ts",
+        "apps/web/playwright.config.ts",
+        "pnpm-lock.yaml",
+        "unclassified/input.xyz",
+      ]) {
+        const mixed = report({ CI_HEAD_SHA: revision([web, otherFile], empty) });
+        assert.match(mixed.summary, /full suite \(diff is not limited to eligible Playwright specs\)/, otherFile);
+        assert.doesNotMatch(mixed.summary, /candidate spec file\(s\)/, otherFile);
+      }
+
+      const deleted = report({ CI_BASE_SHA: headSha, CI_HEAD_SHA: revision([web], headSha) });
+      assert.match(deleted.summary, /full suite \(diff includes changes other than additions or edits\)/);
+      const renamed = report({ CI_BASE_SHA: headSha, CI_HEAD_SHA: revision([web, e2e + "app-other.spec.ts"], headSha) });
+      assert.match(renamed.summary, /full suite \(diff includes changes other than additions or edits\)/);
+      const missing = report({ CI_BASE_SHA: "f".repeat(40) });
+      assert.equal(missing.outputs, "repo=true\napp=true\nweb=true\napi=true\nintegration=true\n");
+      assert.match(missing.summary, /full suite \(PR diff unavailable or invalid\)/);
+
+      for (const disabled of [
+        { CI_PLAYWRIGHT_SHADOW: "false" },
+        { CI_EVENT_NAME: "push", CI_BEFORE_SHA: empty },
+        { CI_EVENT_NAME: "workflow_dispatch" },
+      ]) {
+        assert.equal(report(disabled).summary, "");
+      }
+      const unwritable = report({ GITHUB_STEP_SUMMARY: directory });
+      assert.equal(unwritable.outputs, selected.outputs);
+      assert.match(unwritable.stderr, /Could not write the advisory Playwright spec summary/);
+    });
   });
 
   test("detects additions, deletions, and rename ownership from a push diff", async () => {

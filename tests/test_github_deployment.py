@@ -259,6 +259,13 @@ class GitHubWorkflowContractTests(unittest.TestCase):
                 changes,
             )
 
+        self.assertIn(
+            "CI_PLAYWRIGHT_SHADOW: ${{ github.event_name == 'pull_request' && "
+            "!(github.head_ref == 'release/v1.1' && github.base_ref == 'main') }}",
+            changes,
+        )
+        self.assertEqual(ci.count("CI_PLAYWRIGHT_SHADOW"), 1)
+
         lane_outputs = {
             "repository": "repo",
             "app": "app",
@@ -297,7 +304,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "run build:app",
             "VITE_IMS_API_ORIGIN: http://127.0.0.1:1420",
             "VITE_IMS_PUBLIC_SITE_ORIGIN: http://localhost:1420",
-            "run test:e2e:app",
+            "run test:e2e:app\n",
             "name: Upload App browser failure evidence",
             "if: failure()",
             UPLOAD_ARTIFACT_ACTION,
@@ -314,7 +321,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         browser = jobs["web-browser"]
         self.assertIn("needs: [changes, web-build]", browser)
         self.assertNotIn("needs: [changes, web, web-build]", browser)
-        self.assertIn("web browser --artifact=.ci-artifacts/web.json", browser)
+        self.assertIn("web browser --artifact=.ci-artifacts/web.json\n", browser)
         self.assertIn("node scripts/ci/build-artifact.mjs verify web", browser)
         self.assertIn("web-candidate-${{ github.run_id }}-${{ github.run_attempt }}", browser)
         self.assertIn("node scripts/ci/build-artifact.mjs record web", jobs["web-build"])
