@@ -12,7 +12,6 @@ vi.mock("~/lib/api/endpoints/platform", () => ({
 
 afterEach(() => {
   session.mockReset()
-  vi.unstubAllGlobals()
 })
 
 it("reads split frames without treating heartbeat comments as inbox changes", async () => {
