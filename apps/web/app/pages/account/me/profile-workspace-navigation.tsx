@@ -22,7 +22,7 @@ export type ProfileWorkspaceSection =
   | "namecards"
   | "collection"
   | "offices"
-  | "claims"
+  | "inbox"
   | "messages"
 
 export const profileWorkspaceSections = [
@@ -63,12 +63,12 @@ export const profileWorkspaceSections = [
     icon: Building2Icon,
   },
   {
-    id: "claims",
+    id: "inbox",
     label: "消息",
-    labelKey: "platformAccount.app.sections.claims.label",
+    labelKey: "platformAccount.app.sections.inbox.label",
     shortLabel: "消息",
     description: "审核通知与名片认领",
-    descriptionKey: "platformAccount.app.sections.claims.description",
+    descriptionKey: "platformAccount.app.sections.inbox.description",
     icon: MailIcon,
   },
   {
@@ -166,7 +166,7 @@ export function ProfileWorkspaceNavigation({
                     active
                       ? "border-primary bg-accent/60 text-foreground lg:border-l-primary"
                       : "text-muted-foreground lg:border-l-transparent",
-                    section.id === "claims" && "relative pr-9 lg:pr-12"
+                    section.id === "inbox" && "relative pr-9 lg:pr-12"
                   )}
                   aria-label={t(section.labelKey, {
                     defaultValue: section.label,
@@ -198,7 +198,7 @@ export function ProfileWorkspaceNavigation({
                     </span>
                   </span>
 
-                  {section.id === "claims" && unread > 0 ? (
+                  {section.id === "inbox" && unread > 0 ? (
                     <span
                       className="absolute top-1/2 right-2 grid size-4 -translate-y-1/2 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground lg:right-3"
                       aria-label={`${unread} 条未读消息`}

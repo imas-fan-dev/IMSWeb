@@ -347,7 +347,7 @@ export function AccountMePage({
                       {t(section.descriptionKey)}
                     </span>
                   </span>
-                  {section.id === "claims" && unread > 0 ? (
+                  {section.id === "inbox" && unread > 0 ? (
                     <span
                       className="grid size-5 shrink-0 place-items-center rounded-full bg-destructive text-[10px] leading-none font-medium text-destructive-foreground"
                       aria-label={`${unread} 条未读消息`}

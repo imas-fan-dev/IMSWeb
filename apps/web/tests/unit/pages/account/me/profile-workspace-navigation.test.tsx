@@ -86,7 +86,7 @@ describe("ProfileWorkspaceNavigation", () => {
         "namecards",
         "collection",
         "offices",
-        "claims",
+        "inbox",
         "messages",
       ].every(isProfileWorkspaceSection)
     ).toBe(true)

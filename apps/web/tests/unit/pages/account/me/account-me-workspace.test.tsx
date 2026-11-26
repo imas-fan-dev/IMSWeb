@@ -1262,7 +1262,7 @@ describe("AccountMeWorkspace", () => {
     ).toBeDisabled()
   })
 
-  it.each(["namecards", "collection", "offices", "claims"])(
+  it.each(["namecards", "collection", "offices", "inbox"])(
     "renders the %s App section while the other panels stay hidden",
     async (section) => {
       renderAccountSection(section)
@@ -1277,7 +1277,7 @@ describe("AccountMeWorkspace", () => {
         "namecards",
         "collection",
         "offices",
-        "claims",
+        "inbox",
       ]) {
         if (other === section) continue
         expect(

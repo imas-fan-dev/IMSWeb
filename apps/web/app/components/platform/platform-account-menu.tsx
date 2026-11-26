@@ -77,7 +77,8 @@ export function PlatformAccountMenu() {
                 />
               ) : null}
               <AvatarFallback>
-                {displayName.trim().slice(0, 1) || t("platformAccount.fallback")}
+                {displayName.trim().slice(0, 1) ||
+                  t("platformAccount.fallback")}
               </AvatarFallback>
             </Avatar>
             {unread > 0 ? (
@@ -207,7 +208,7 @@ export function PlatformAccountMenu() {
               {t("platformAccount.namecards")}
             </NavigationLink>
             <NavigationLink
-              to="/account/me/claims"
+              to="/account/me/inbox"
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",

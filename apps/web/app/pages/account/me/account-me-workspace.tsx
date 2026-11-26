@@ -46,7 +46,7 @@ import {
 import { cn } from "~/lib/utils"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./namecards/card-workspace"
-import { NamecardInboxPanel } from "./claims/namecard-inbox-panel"
+import { NamecardInboxPanel } from "./inbox/namecard-inbox-panel"
 import { PlatformAccountsEditor } from "./platform-accounts-editor"
 import { NamecardCollection } from "./collection/namecard-collection"
 import { apiMessage, isFeatureClosed } from "./account-me-model"
@@ -540,7 +540,7 @@ function ProfileWorkspace({
   const restricted =
     platform.status === "restricted" || state.accountStatus === "restricted"
   // Profile fields are platform identity and only a restricted account freezes
-  // them. Cards, offices, and claims are Fudaba content and also wait on the
+  // them. Cards, offices, and inbox are Fudaba content and also wait on the
   // exchange rollout switch, so the two surfaces need separate verdicts.
   const restrictedReason = "帐号当前受限，资料和名片保持可查看，但不能修改。"
   const profileReadOnly = restricted
@@ -701,7 +701,7 @@ function ProfileWorkspace({
               className={
                 IS_APP_TARGET
                   ? // 滚动条不在页面边缘，露出来很难看：直接隐藏（滚动能力不变）。
-                    "overflow-y-auto overscroll-contain [overflow-anchor:none] scrollbar-none [&::-webkit-scrollbar]:hidden"
+                    "scrollbar-none overflow-y-auto overscroll-contain [overflow-anchor:none] [&::-webkit-scrollbar]:hidden"
                   : undefined
               }
             >
@@ -818,9 +818,9 @@ function ProfileWorkspace({
           </div>
 
           <div
-            id="profile-workspace-section-claims"
+            id="profile-workspace-section-inbox"
             className={sectionReadOnlyReason ? "mt-6" : undefined}
-            hidden={activeSection !== "claims"}
+            hidden={activeSection !== "inbox"}
           >
             <NamecardInboxPanel readOnly={exchangeReadOnly} />
           </div>

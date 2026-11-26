@@ -185,7 +185,7 @@ describe("AccountMePage", () => {
       ["名片管理", "/account/me/namecards"],
       ["名片册", "/account/me/collection"],
       ["事务所与位置", "/account/me/offices"],
-      ["消息", "/account/me/claims"],
+      ["消息", "/account/me/inbox"],
     ] as const
     const links = screen.getAllByRole("link")
     for (const [name, href] of expectedSections) {
