@@ -19,7 +19,7 @@
 | 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                                     |
 | 用户查看名片册与交换记录  | [名片册](me/collection/)、[交换记录](../../components/community/exchange/exchange-history-dialog.tsx)、[离线队列](../../lib/namecards/scan-exchange-queue.ts)             | 筛选与显示设置、服务端历史与本机待重放扫码交换合并展示；pending 复用交换详情窗          |
 | 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗                       |
-| 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
+| 用户处理认领信封          | [inbox](me/inbox/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
 | 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                                         |
 
 ## 协作边界
