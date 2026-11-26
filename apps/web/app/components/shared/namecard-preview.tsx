@@ -1,11 +1,12 @@
-import { RotateCcwIcon, XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
 import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+  RotateCcwIcon,
+  RotateCwIcon,
+  ScanIcon,
+  XIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
+} from "lucide-react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { CardImage } from "~/components/shared/card-image"
 import { useRetainedValue } from "~/lib/use-retained-value"
@@ -33,13 +34,19 @@ const BACKDROP_CLICK_THRESHOLD = 8
 export type NamecardSide = "front" | "back"
 
 type Point = { x: number; y: number }
-type ViewState = { scale: number; offset: Point }
+type ViewState = { scale: number; offset: Point; rotation: number }
 type PointerState = {
   pointerId: number
   start: Point
   origin: Point
   startedOnBackdrop: boolean
   moved: boolean
+}
+type PinchState = {
+  startDistance: number
+  startScale: number
+  startMid: Point
+  startOffset: Point
 }
 
 function clampScale(value: number) {
@@ -66,7 +73,8 @@ export function NamecardPreview({
   const card = useRetainedValue(incomingCard)
   // 关闭时父组件把 pages 也清空；直接从保留的卡片重建，避免再存一份数组。
   const pages = useMemo(
-    () => (incomingPages.length ? incomingPages : card ? namecardPages(card) : []),
+    () =>
+      incomingPages.length ? incomingPages : card ? namecardPages(card) : [],
     [incomingPages, card]
   )
   const [lastIndex, setLastIndex] = useState(incomingIndex)
@@ -75,14 +83,18 @@ export function NamecardPreview({
   const [view, setView] = useState<ViewState>({
     scale: 1,
     offset: { x: 0, y: 0 },
+    rotation: 0,
   })
   const [dragging, setDragging] = useState(false)
   const [imageState, setImageState] = useState<"loading" | "ready" | "error">(
     "loading"
   )
+  const viewportRef = useRef<HTMLDivElement>(null)
   const pointerRef = useRef<PointerState | null>(null)
+  const pointersRef = useRef(new Map<number, Point>())
+  const pinchRef = useRef<PinchState | null>(null)
   const [retry, setRetry] = useState(0)
-  const { scale, offset } = view
+  const { scale, offset, rotation } = view
   const position = Math.min(Math.max(index, 0), Math.max(pages.length - 1, 0))
   const page = pages[position] ?? null
   const src = page?.url ?? ""
@@ -91,18 +103,22 @@ export function NamecardPreview({
   const [displayedIdentity, setDisplayedIdentity] = useState(identity)
   if (displayedIdentity !== identity) {
     setDisplayedIdentity(identity)
-    setView({ scale: 1, offset: { x: 0, y: 0 } })
+    setView({ scale: 1, offset: { x: 0, y: 0 }, rotation: 0 })
     setDragging(false)
     setImageState("loading")
     setRetry(0)
   }
   useLayoutEffect(() => {
     pointerRef.current = null
+    pointersRef.current.clear()
+    pinchRef.current = null
   }, [identity])
 
   function resetView() {
-    setView({ scale: 1, offset: { x: 0, y: 0 } })
+    setView({ scale: 1, offset: { x: 0, y: 0 }, rotation: 0 })
     pointerRef.current = null
+    pointersRef.current.clear()
+    pinchRef.current = null
     setDragging(false)
   }
 
@@ -122,8 +138,48 @@ export function NamecardPreview({
       return {
         scale: nextScale,
         offset: nextScale <= 1 ? { x: 0, y: 0 } : current.offset,
+        rotation: current.rotation,
       }
     })
+  }
+
+  /** 保持指针下的内容点不动：offset 按缩放比例反解。 */
+  function zoomAt(
+    point: Point,
+    getNextScale: (currentScale: number) => number
+  ) {
+    const rect = viewportRef.current?.getBoundingClientRect()
+    setView((current) => {
+      const nextScale = clampScale(getNextScale(current.scale))
+      if (nextScale <= 1) {
+        return {
+          scale: nextScale,
+          offset: { x: 0, y: 0 },
+          rotation: current.rotation,
+        }
+      }
+      if (!rect || nextScale === current.scale) {
+        return { ...current, scale: nextScale }
+      }
+      const ratio = nextScale / current.scale
+      const dx = point.x - (rect.left + rect.width / 2)
+      const dy = point.y - (rect.top + rect.height / 2)
+      return {
+        scale: nextScale,
+        rotation: current.rotation,
+        offset: {
+          x: dx - ratio * (dx - current.offset.x),
+          y: dy - ratio * (dy - current.offset.y),
+        },
+      }
+    })
+  }
+
+  function rotateView(delta: number) {
+    setView((current) => ({
+      ...current,
+      rotation: (current.rotation + delta + 360) % 360,
+    }))
   }
 
   function selectPage(next: number) {
@@ -143,9 +199,26 @@ export function NamecardPreview({
     if (event.target instanceof Element && event.target.closest("button"))
       return
     event.currentTarget.setPointerCapture?.(event.pointerId)
+    const point = { x: event.clientX, y: event.clientY }
+    pointersRef.current.set(event.pointerId, point)
+    if (pointersRef.current.size >= 2) {
+      const [first, second] = [...pointersRef.current.values()]
+      pinchRef.current = {
+        startDistance: Math.hypot(second.x - first.x, second.y - first.y),
+        startScale: view.scale,
+        startMid: {
+          x: (first.x + second.x) / 2,
+          y: (first.y + second.y) / 2,
+        },
+        startOffset: view.offset,
+      }
+      pointerRef.current = null
+      setDragging(true)
+      return
+    }
     pointerRef.current = {
       pointerId: event.pointerId,
-      start: { x: event.clientX, y: event.clientY },
+      start: point,
       origin: offset,
       startedOnBackdrop: event.target === event.currentTarget,
       moved: false,
@@ -154,6 +227,53 @@ export function NamecardPreview({
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (pointersRef.current.has(event.pointerId)) {
+      pointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      })
+    }
+    const pinch = pinchRef.current
+    if (pinch && pointersRef.current.size >= 2) {
+      const [first, second] = [...pointersRef.current.values()]
+      const distance = Math.hypot(second.x - first.x, second.y - first.y)
+      const mid = {
+        x: (first.x + second.x) / 2,
+        y: (first.y + second.y) / 2,
+      }
+      const rect = viewportRef.current?.getBoundingClientRect()
+      const centerX = rect ? rect.left + rect.width / 2 : 0
+      const centerY = rect ? rect.top + rect.height / 2 : 0
+      setView((current) => {
+        const nextScale = clampScale(
+          pinch.startScale *
+            (pinch.startDistance > 0 ? distance / pinch.startDistance : 1)
+        )
+        if (nextScale <= 1) {
+          return {
+            scale: nextScale,
+            offset: { x: 0, y: 0 },
+            rotation: current.rotation,
+          }
+        }
+        const ratio = nextScale / pinch.startScale
+        return {
+          scale: nextScale,
+          rotation: current.rotation,
+          offset: {
+            x:
+              mid.x -
+              centerX -
+              ratio * (pinch.startMid.x - centerX - pinch.startOffset.x),
+            y:
+              mid.y -
+              centerY -
+              ratio * (pinch.startMid.y - centerY - pinch.startOffset.y),
+          },
+        }
+      })
+      return
+    }
     const pointer = pointerRef.current
     if (!pointer || pointer.pointerId !== event.pointerId) return
     if (
@@ -174,6 +294,11 @@ export function NamecardPreview({
   }
 
   function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    pointersRef.current.delete(event.pointerId)
+    if (pinchRef.current && pointersRef.current.size < 2) {
+      pinchRef.current = null
+    }
+    if (pointersRef.current.size === 0) setDragging(false)
     const pointer = pointerRef.current
     if (!pointer || pointer.pointerId !== event.pointerId) return
     const moved = Math.hypot(
@@ -277,6 +402,7 @@ export function NamecardPreview({
         </header>
 
         <div
+          ref={viewportRef}
           className={cn(
             "relative flex min-h-0 touch-none items-center justify-center overflow-hidden pr-[calc(0.75rem+var(--safe-area-right))] pl-[calc(0.75rem+var(--safe-area-left))]",
             scale > 1 ? (dragging ? "cursor-grabbing" : "cursor-grab") : ""
@@ -294,19 +420,24 @@ export function NamecardPreview({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
-          onPointerCancel={() => {
+          onPointerCancel={(event) => {
+            pointersRef.current.delete(event.pointerId)
+            if (pointersRef.current.size < 2) pinchRef.current = null
             pointerRef.current = null
             setDragging(false)
           }}
-          onLostPointerCapture={() => {
+          onLostPointerCapture={(event) => {
+            pointersRef.current.delete(event.pointerId)
+            if (pointersRef.current.size < 2) pinchRef.current = null
             pointerRef.current = null
             setDragging(false)
           }}
           onWheel={(event) => {
             event.preventDefault()
-            updateScale(
-              (current) =>
-                current + (event.deltaY < 0 ? SCALE_STEP : -SCALE_STEP)
+            zoomAt({ x: event.clientX, y: event.clientY }, (current) =>
+              event.ctrlKey
+                ? current * Math.max(0.5, 1 - event.deltaY * 0.01)
+                : current + (event.deltaY < 0 ? SCALE_STEP : -SCALE_STEP)
             )
           }}
         >
@@ -350,7 +481,9 @@ export function NamecardPreview({
                 imageState === "error" ? "invisible" : ""
               )}
               style={{
-                transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`,
+                transform: `translate3d(${offset.x}px, ${offset.y}px, 0) ${
+                  rotation ? `rotate(${rotation}deg) ` : ""
+                }scale(${scale})`,
               }}
               onLoad={() => setImageState("ready")}
               onError={() => setImageState("error")}
@@ -394,6 +527,17 @@ export function NamecardPreview({
                 variant="ghost"
                 size="icon"
                 className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
+                aria-label="向左旋转名片"
+                title="向左旋转"
+                onClick={() => rotateView(-90)}
+              >
+                <RotateCcwIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
                 aria-label="缩小名片"
                 title="缩小"
                 disabled={scale <= MIN_SCALE}
@@ -423,13 +567,29 @@ export function NamecardPreview({
                 type="button"
                 variant="ghost"
                 size="icon"
+                className="min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
+                aria-label="向右旋转名片"
+                title="向右旋转"
+                onClick={() => rotateView(90)}
+              >
+                <RotateCwIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
                 className="ml-1 min-h-11 min-w-11 text-foreground hover:bg-background/55 hover:text-foreground"
                 aria-label="复位名片"
                 title="复位"
-                disabled={scale === 1 && offset.x === 0 && offset.y === 0}
+                disabled={
+                  scale === 1 &&
+                  offset.x === 0 &&
+                  offset.y === 0 &&
+                  rotation === 0
+                }
                 onClick={resetView}
               >
-                <RotateCcwIcon />
+                <ScanIcon />
               </Button>
             </div>
           </div>
