@@ -1,4 +1,7 @@
-import type { AdminCatalog } from "~/lib/api"
+import {
+  NAMECARD_CHARACTER_CATEGORIES,
+  type AdminCatalog,
+} from "~/lib/api"
 
 export function characterWorkspaceAddress(search: string, hash = "") {
   const params = new URLSearchParams(search)
@@ -26,6 +29,17 @@ export function catalogWorkspaceList(
   const owners =
     (kind === "character" ? catalog?.characters : catalog?.groups) ?? []
   const query = options.query.trim().toLocaleLowerCase()
+  const categoryRank = (owner: (typeof owners)[number]) => {
+    const category = owner.profiles.find(
+      (p) => p.projectId === projectId
+    )?.category
+    const rank = category
+      ? NAMECARD_CHARACTER_CATEGORIES.indexOf(
+          category as (typeof NAMECARD_CHARACTER_CATEGORIES)[number]
+        )
+      : -1
+    return rank < 0 ? NAMECARD_CHARACTER_CATEGORIES.length : rank
+  }
   const candidates = owners
     .filter(
       (owner) =>
@@ -48,10 +62,12 @@ export function catalogWorkspaceList(
     )
     .sort((a, b) =>
       kind === "character"
-        ? (a.profiles.find((p) => p.projectId === projectId)?.displayOrder ??
+        ? categoryRank(a) - categoryRank(b) ||
+          (a.profiles.find((p) => p.projectId === projectId)?.displayOrder ??
             0) -
             (b.profiles.find((p) => p.projectId === projectId)?.displayOrder ??
-              0) || a.id - b.id
+              0) ||
+          a.id - b.id
         : 0
     )
   const totalPages = Math.max(1, Math.ceil(candidates.length / 20))
