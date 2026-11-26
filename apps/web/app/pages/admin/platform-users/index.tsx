@@ -6,7 +6,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
-import { useOutletContext, useSearchParams } from "react-router"
+import { Link, useOutletContext, useSearchParams } from "react-router"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
@@ -538,7 +538,12 @@ export default function AdminPlatformUsersPage() {
                   >
                     <TableCell className="min-w-40 whitespace-normal">
                       <p className="font-medium">
-                        {user.displayName}{" "}
+                        <Link
+                          to={`/user/${user.uid}`}
+                          className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          {user.displayName}
+                        </Link>{" "}
                         <span className="font-mono text-xs font-normal text-muted-foreground">
                           UID: {user.uid}
                         </span>

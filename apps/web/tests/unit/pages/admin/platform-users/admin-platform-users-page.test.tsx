@@ -185,6 +185,14 @@ describe("AdminPlatformUsersPage", () => {
     })
   })
 
+  it("links each display name to its public profile", async () => {
+    installFetchMock(async () => Response.json(listBody([user()])))
+    renderPage()
+
+    const link = await screen.findByRole("link", { name: "Producer One" })
+    expect(link).toHaveAttribute("href", "/user/1")
+  })
+
   it("disables pagination at the edges and requests the next page", async () => {
     setCsrfCookie("backoffice", "users-csrf")
     const fetchMock = installFetchMock(async (input) => {
