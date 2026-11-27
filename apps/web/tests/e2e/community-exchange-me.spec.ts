@@ -109,8 +109,9 @@ const office: FudabaOwnerOffice = {
 }
 
 test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
-  // Mobile visits three standalone sections; desktop keeps one workspace mounted.
-  const workspaceReads = isMobile ? 3 : 1
+  // Both layouts load the office deep link as a new document. Mobile also
+  // mounts a standalone workspace when switching from profile to namecards.
+  const workspaceReads = isMobile ? 3 : 2
   let currentProfile: PlatformProfile = { ...profile }
   let currentOffice = { ...office }
   let resolvedOfficePoint: { latitude: number; longitude: number } | null = null
@@ -146,7 +147,8 @@ test.beforeEach(async ({ context, page, baseURL, isMobile }) => {
         },
       })
     },
-    "GET"
+    "GET",
+    2
   )
   await api.mockRoute(
     "**/api/platform/me",
@@ -744,9 +746,8 @@ test.describe("account personal workspace", () => {
     ).toBeVisible()
 
     await page.keyboard.press("Escape")
-    if (isMobile)
-      await page.getByRole("link", { name: "返回我的", exact: true }).click()
-    await page.getByRole("link", { name: /^事务所与位置/ }).click()
+    // Office editing still works through a direct URL while its menu entry is hidden.
+    await page.goto("/account/me/offices")
     await expect(page).toHaveURL(/\/account\/me\/offices(?:[?#]|$)/)
     await expect(
       page.getByRole("heading", { name: "事务所与地图位置" })
