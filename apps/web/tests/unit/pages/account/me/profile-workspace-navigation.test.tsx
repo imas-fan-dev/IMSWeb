@@ -45,13 +45,16 @@ describe("ProfileWorkspaceNavigation", () => {
     renderNavigation()
 
     const menu = screen.getByRole("navigation", { name: "个人档案菜单" })
-    expect(screen.getByRole("link", { name: "我的留言" })).toHaveAttribute(
+    for (const name of ["事务所与位置", "我的留言"]) {
+      expect(within(menu).queryByRole("link", { name })).not.toBeInTheDocument()
+    }
+    expect(within(menu).getByRole("link", { name: "消息" })).toHaveAttribute(
       "href",
-      "/account/me/messages"
+      "/account/me/inbox"
     )
     expect(within(menu).getAllByRole("list")).toHaveLength(1)
-    expect(within(menu).getAllByRole("listitem")).toHaveLength(6)
-    expect(within(menu).getAllByRole("link")).toHaveLength(6)
+    expect(within(menu).getAllByRole("listitem")).toHaveLength(4)
+    expect(within(menu).getAllByRole("link")).toHaveLength(4)
     expect(
       within(menu).getByRole("link", { name: "个人资料" })
     ).toHaveAttribute("aria-current", "page")

@@ -90,6 +90,11 @@ export const profileWorkspaceSections = [
   icon: typeof UserRoundIcon
 }>
 
+// Keep these routes available for existing links, but hide their menu entries until launch approval.
+export const visibleProfileWorkspaceSections = profileWorkspaceSections.filter(
+  (section) => section.id !== "offices" && section.id !== "messages"
+)
+
 export function isProfileWorkspaceSection(
   value: string | null
 ): value is ProfileWorkspaceSection {
@@ -152,8 +157,8 @@ export function ProfileWorkspaceNavigation({
       </NavigationLink>
 
       <nav className="min-w-0 border-t" aria-label="个人档案菜单">
-        <ul className="grid grid-cols-6 lg:block">
-          {profileWorkspaceSections.map((section) => {
+        <ul className="grid auto-cols-fr grid-flow-col lg:block">
+          {visibleProfileWorkspaceSections.map((section) => {
             const active = activeSection === section.id
             const Icon = section.icon
             const href = `${sectionBasePath ?? "/account/me"}/${section.id}`

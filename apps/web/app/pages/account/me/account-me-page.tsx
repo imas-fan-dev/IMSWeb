@@ -28,7 +28,7 @@ import { IS_APP_TARGET } from "~/lib/app-target"
 import { accountAuthPath } from "../account-auth-return"
 import {
   type ProfileWorkspaceSection,
-  profileWorkspaceSections,
+  visibleProfileWorkspaceSections,
 } from "~/pages/account/me/profile-workspace-navigation"
 
 type LogoutFeedback = "idle" | "pending" | "success" | "error"
@@ -148,7 +148,7 @@ export function AccountMePage({
             </div>
           </div>
           <div className="space-y-3 pt-2">
-            {profileWorkspaceSections.map((section) => (
+            {visibleProfileWorkspaceSections.map((section) => (
               <Skeleton key={section.id} className="h-14 w-full" />
             ))}
           </div>
@@ -327,7 +327,7 @@ export function AccountMePage({
           {t("platformAccount.app.profileGroup")}
         </h2>
         <ul className="mt-3 divide-y border-y">
-          {profileWorkspaceSections.map((section) => {
+          {visibleProfileWorkspaceSections.map((section) => {
             const Icon = section.icon
             return (
               <li key={section.id}>

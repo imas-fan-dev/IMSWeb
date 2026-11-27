@@ -354,11 +354,16 @@ test.describe("app account", () => {
         ["个人资料", "/account/me/profile"],
         ["名片管理", "/account/me/namecards"],
         ["名片册", "/account/me/collection"],
-        ["事务所与位置", "/account/me/offices"],
         ["消息", "/account/me/inbox"],
       ] as const) {
         const link = page.locator(`a[href="${href}"]`)
         await expect(link).toContainText(name)
+      }
+
+      for (const section of ["offices", "messages"]) {
+        await expect(
+          page.locator(`a[href="/account/me/${section}"]`)
+        ).toHaveCount(0)
       }
 
       await expect(
@@ -654,7 +659,7 @@ test.describe("app account", () => {
     test.use({ viewport: { width: 320, height: 568 } })
 
     test(
-      "switches all five sections at a 320px viewport without horizontal overflow",
+      "switches the four visible sections at a 320px viewport without horizontal overflow",
       {
         tag: ["@app-iphone", "@app-android", "@app-webkit"],
       },
@@ -666,7 +671,6 @@ test.describe("app account", () => {
           ["profile", "个人资料"],
           ["namecards", "名片管理"],
           ["collection", "名片册"],
-          ["offices", "事务所与位置"],
           ["inbox", "消息"],
         ] as const
         const panelIds = sections.map(([id]) => id)

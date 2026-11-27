@@ -70,15 +70,19 @@ describe("AccountMeSectionPage", () => {
     vi.clearAllMocks()
   })
 
-  it.each(["profile", "namecards", "collection", "offices", "inbox"])(
-    "accepts the %s account section",
-    (section) => {
-      render(<TestRoutes initialEntry={`/account/me/${section}`} />)
+  it.each([
+    "profile",
+    "namecards",
+    "collection",
+    "offices",
+    "inbox",
+    "messages",
+  ])("accepts the %s account section", (section) => {
+    render(<TestRoutes initialEntry={`/account/me/${section}`} />)
 
-      expect(screen.getByText(`当前分区：${section}`)).toBeVisible()
-      expect(screen.getByText("路径前缀：/account/me")).toBeVisible()
-    }
-  )
+    expect(screen.getByText(`当前分区：${section}`)).toBeVisible()
+    expect(screen.getByText("路径前缀：/account/me")).toBeVisible()
+  })
 
   it.each(["security", "cards"])(
     "redirects unsupported %s to the account home",

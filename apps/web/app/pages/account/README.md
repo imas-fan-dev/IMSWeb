@@ -28,6 +28,7 @@
   Web 与 App 的承载差异见 [public 布局](../../layouts/public-layout.tsx) 和
   [App 布局](../../layouts/app-layout.tsx)。不能套用后台布局的身份边界。
 - 桌面 Web 的匿名个人页入口直接进入桌面登录页；[认证回跳](account-auth-return.ts) 在登录、注册、找回密码之间保留个人工作区的路径、查询与锚点。登录、注册或 Web OAuth 成功后返回原分区；找回密码完成后先回到携带原目标的登录页。回跳仅接受站内个人工作区或安全中心地址，未指定时仍进入个人资料；App 的账号首页与 OAuth 回跳由原有 App 流程负责。
+- 上线初期暂不在 Web 和 App 的「我的」菜单展示「事务所」和「留言」。保留分区直达与地图内原有流程，「消息」入口不受影响。
 - [account-me-workspace](me/account-me-workspace.tsx) 分别判断资料修改与交换写入：
   用户限制状态会影响编辑，交换写入还受返回的能力开关约束。登录不代表拥有全部编辑能力。
 - Platform 会话归 [platform 组件](../../components/platform/) 与
