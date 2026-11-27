@@ -1,5 +1,6 @@
 import { publicUploadsPath } from '@imsweb/contracts/paths';
 import type { ImsHonoApp } from '@/app';
+import { handleServeLegacyNamecardUpload } from '@/domains/delivery/media/handlers/serve-legacy-namecard-upload';
 import { handleServePublicUpload } from '@/domains/delivery/media/handlers/serve-public-upload';
 
 export function registerMediaRoutes(app: ImsHonoApp): void {
@@ -17,5 +18,12 @@ export function registerMediaRoutes(app: ImsHonoApp): void {
     ]) {
         app.get(route, handleServePublicUpload);
         app.on('HEAD', route, handleServePublicUpload);
+    }
+    for (const route of [
+        publicUploadsPath('/namecard/original/:filename'),
+        publicUploadsPath('/namecard/thumbnail/:filename')
+    ]) {
+        app.get(route, handleServeLegacyNamecardUpload);
+        app.on('HEAD', route, handleServeLegacyNamecardUpload);
     }
 }

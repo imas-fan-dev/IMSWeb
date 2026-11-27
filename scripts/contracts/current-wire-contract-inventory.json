@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "cb8016663c45c1a3e4e657eecf2fe17b3603acf840dc11351b0b967b4dbfa4f5",
+    "semanticDigest": "1ae549d9f0c32d8e643b5cb0fe4eaa9fca543432957277403fc86157a89c3c9e",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,15 +16,15 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 448,
-    "mountedMethodPaths": 345,
+    "mountedRegistrations": 452,
+    "mountedMethodPaths": 349,
     "noInputRoutes": 103,
-    "requestCarriers": 458,
+    "requestCarriers": 462,
     "policies": {
       "reject": 123,
       "accept-and-project": 221,
       "passthrough": 17,
-      "non-object-applicable": 97
+      "non-object-applicable": 101
     },
     "responses": {
       "total": 890,
@@ -687,6 +687,46 @@
         "carriers": 1,
         "policy": "accept-and-project",
         "actualCarriers": 1
+      },
+      {
+        "module": null,
+        "symbol": null,
+        "kind": "param",
+        "method": "GET",
+        "path": "/uploads/namecard/original/:filename",
+        "carriers": 1,
+        "policy": "non-object-applicable",
+        "actualCarriers": 1
+      },
+      {
+        "module": null,
+        "symbol": null,
+        "kind": "param",
+        "method": "HEAD",
+        "path": "/uploads/namecard/original/:filename",
+        "carriers": 1,
+        "policy": "non-object-applicable",
+        "actualCarriers": 1
+      },
+      {
+        "module": null,
+        "symbol": null,
+        "kind": "param",
+        "method": "GET",
+        "path": "/uploads/namecard/thumbnail/:filename",
+        "carriers": 1,
+        "policy": "non-object-applicable",
+        "actualCarriers": 1
+      },
+      {
+        "module": null,
+        "symbol": null,
+        "kind": "param",
+        "method": "HEAD",
+        "path": "/uploads/namecard/thumbnail/:filename",
+        "carriers": 1,
+        "policy": "non-object-applicable",
+        "actualCarriers": 1
       }
     ],
     "routeGroups": {
@@ -736,6 +776,7 @@
       "/uploads/community-content": 2,
       "/uploads/event": 2,
       "/uploads/information": 4,
+      "/uploads/namecard": 4,
       "/uploads/news": 4,
       "/uploads/producer-map": 2
     }
@@ -8988,6 +9029,52 @@
     },
     {
       "method": "GET",
+      "path": "/uploads/namecard/original/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "GET",
       "path": "/uploads/news/original/:filename",
       "registration": {
         "file": "apps/api/src/domains/delivery/media/routes.ts"
@@ -10088,6 +10175,52 @@
           "source": "raw-param",
           "location": {
             "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/namecard/original/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable",
+          "syntaxPolicy": null
+        }
+      ],
+      "responses": []
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "registration": {
+        "file": "apps/api/src/domains/delivery/media/routes.ts"
+      },
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "carriers": [
+        {
+          "kind": "param",
+          "source": "raw-param",
+          "location": {
+            "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
           },
           "schemaSymbol": null,
           "schemaModule": null,
@@ -21340,6 +21473,36 @@
     },
     {
       "method": "GET",
+      "path": "/uploads/namecard/original/:filename",
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "GET",
       "path": "/uploads/news/original/:filename",
       "handlerSymbol": "handleServePublicUpload",
       "kind": "param",
@@ -21885,6 +22048,36 @@
       "source": "raw-param",
       "location": {
         "file": "apps/api/src/domains/delivery/media/handlers/serve-public-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/namecard/original/:filename",
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
+      },
+      "schemaSymbol": null,
+      "schemaModule": null,
+      "schemaLocation": null,
+      "policy": "non-object-applicable",
+      "syntaxPolicy": null
+    },
+    {
+      "method": "HEAD",
+      "path": "/uploads/namecard/thumbnail/:filename",
+      "handlerSymbol": "handleServeLegacyNamecardUpload",
+      "kind": "param",
+      "source": "raw-param",
+      "location": {
+        "file": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts"
       },
       "schemaSymbol": null,
       "schemaModule": null,

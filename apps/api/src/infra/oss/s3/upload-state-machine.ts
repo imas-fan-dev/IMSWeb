@@ -189,6 +189,16 @@ export class S3UploadStateMachine {
         };
     }
 
+    async exactReadyPublicVersion(logicalKey: string, objectId: string): Promise<S3ObjectVersion | null> {
+        const row = await this.database.prepare(
+            `SELECT version.* FROM s3_object_index idx
+               JOIN s3_object_versions version ON version.object_id=idx.object_id
+              WHERE idx.logical_key=? AND idx.object_id=? AND idx.state='ready'
+                AND version.storage_scope='public'`
+        ).bind(logicalKey, objectId).first<ObjectVersionRow>();
+        return row ? version(row) : null;
+    }
+
     async readable(logicalKey: string): Promise<S3ObjectVersion | null> {
         let current = await this.index(logicalKey);
         const visited = new Set<string>();

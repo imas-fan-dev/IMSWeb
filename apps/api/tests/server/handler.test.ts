@@ -135,7 +135,7 @@ import { test } from 'vitest';
             'handleUploadArticleAsset'
         ],
         'live-schedule': ['handleListLiveSchedule'],
-        media: ['handleServePublicUpload'],
+        media: ['handleServeLegacyNamecardUpload', 'handleServePublicUpload'],
         namecards: [
             'createHandleAddReaction',
             'createHandleDeleteReaction',
@@ -531,7 +531,7 @@ import { test } from 'vitest';
                 .sort(([left], [right]) => left.localeCompare(right))
                 .map(([domain, handlers]) => [domain, [...handlers].sort()]));
             assert.deepEqual(actual, expected);
-            assert.equal(Object.values(actual).flat().length, 184);
+            assert.equal(Object.values(actual).flat().length, 185);
         });
 
 
@@ -800,6 +800,9 @@ import { test } from 'vitest';
                 return null;
             },
             async findPublishedCardPageKey() {
+                return null;
+            },
+            async findPublishedLegacyUpload() {
                 return null;
             },
             async beginCardApproval(id) {

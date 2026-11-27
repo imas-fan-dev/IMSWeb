@@ -7,11 +7,12 @@ import type {
 // Catalog/profile maintenance requires the canonical catalog and Wiki bindings.
 // Fail at startup if deployment has not yet applied the additive migration.
 export const REQUIRED_POSTGRESQL_SCHEMA_VERSION =
-    '20261125120000_namecard_guest_submission_settings';
+    '20261126120000_namecard_legacy_public_uploads';
 // Parallel branches can introduce an earlier timestamp after the newest catalog
 // migration has already run. Checking only that newest row would miss this gap.
 const REQUIRED_POSTGRESQL_SCHEMA_VERSIONS = [
     REQUIRED_POSTGRESQL_SCHEMA_VERSION,
+    '20261125120000_namecard_guest_submission_settings',
     '20261123120000_namecard_notification_events',
     '20261121120000_namecard_project_visibility',
     '20261105190000_character_profile_authority',

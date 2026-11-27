@@ -792,6 +792,8 @@ export interface NamecardRepository {
         cardNumber: number,
         pageId: string
     ): Promise<string | null>;
+    /** Historical artwork allowlisted for the currently published page. */
+    findPublishedLegacyUpload(path: string): Promise<{ key: string; objectId: string } | null>;
     listAdminCards(
         limit: number,
         offset: number,

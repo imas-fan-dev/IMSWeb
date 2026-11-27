@@ -1053,8 +1053,8 @@ import { ZipFile } from 'yazl';
                 }
             }));
 
-            // The legacy namecard upload routes retired, so every shape falls
-            // through to the application 404.
+            // Malformed or unlisted legacy namecard uploads stay unavailable,
+            // even to authenticated editors and moderators.
             for (const namecardMediaRequest of [
                 app.request('http://main.test/uploads/namecard/original/invalid%5Cname.png'),
                 app.request('http://main.test/uploads/namecard/original/missing.png'),

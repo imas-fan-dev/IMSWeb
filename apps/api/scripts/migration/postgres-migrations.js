@@ -10,6 +10,11 @@ const DEFAULT_MIGRATIONS = path.join(packageRoot, 'migrations/postgresql');
 const MIGRATION_NAME = /^(?:(\d{4})|(\d{14}))_([a-z0-9_]+)\.sql$/;
 const LAST_SEQUENTIAL_MIGRATION = 27;
 const PHASE_LINE = /^-- ims:migration-phase: (pre-data|post-data)$/m;
+const NAMECARD_MEDIA_CUTOVER = [
+    '20261107180000_fudaba_card_pages',
+    '20261112120000_namecard_media_retire',
+    '20261112140000_namecard_retire_card_key_columns'
+];
 
 function sha256(value) {
     return crypto.createHash('sha256').update(value).digest('hex');
@@ -134,11 +139,33 @@ function validateAppliedMigrations(migrations, applied) {
     }
 }
 
+async function requireProductionCutover(client, applied) {
+    if (NAMECARD_MEDIA_CUTOVER.every((version) => applied.has(version))) return;
+    if (applied.size === 0) {
+        const { rows: [row] } = await client.query(`
+            SELECT NOT EXISTS (
+                SELECT FROM pg_catalog.pg_class AS c
+                JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'f', 'v', 'm', 'S')
+                    AND c.relname <> 'ims_schema_migrations'
+            ) AS empty_schema
+        `);
+        if (row?.empty_schema === true) return;
+    }
+    // The old key columns must survive until a separate, staged data migration
+    // has verified the replacement pages. A deployment cannot do that itself.
+    throw new Error(
+        'Production PostgreSQL upgrade requires the staged namecard media cutover; ' +
+        'no pending migrations were applied. See docs/operations/github-actions-deployment.md.'
+    );
+}
+
 async function applyMigrations(client, options = {}) {
     const migrations = options.migrations || readMigrations(options.directory);
     await ensureMigrationTable(client);
     const applied = await appliedMigrations(client);
     validateAppliedMigrations(migrations, applied);
+    if (options.requireProductionCutover) await requireProductionCutover(client, applied);
     const selected = options.phase
         ? migrations.filter((migration) => migration.phase === options.phase)
         : migrations;
@@ -201,7 +228,12 @@ function parseArguments(argv, environment = process.env) {
     }
     return command === 'list'
         ? { command, migrationsPath }
-        : { command, connectionString: databaseUrl(environment), migrationsPath };
+        : {
+            command,
+            connectionString: databaseUrl(environment),
+            migrationsPath,
+            ...(environment.NODE_ENV === 'production' && { requireProductionCutover: true })
+        };
 }
 
 async function migratePostgres(options) {
@@ -219,7 +251,10 @@ async function migratePostgres(options) {
     try {
         await client.query('BEGIN');
         await client.query("SELECT pg_advisory_xact_lock(hashtext('imsweb-schema-migration'))");
-        const result = await applyMigrations(client, { directory: options.migrationsPath });
+        const result = await applyMigrations(client, {
+            directory: options.migrationsPath,
+            requireProductionCutover: options.requireProductionCutover
+        });
         const version = await client.query('SHOW server_version');
         await client.query('COMMIT');
         return {

@@ -95,6 +95,23 @@
       }
     },
     {
+      "id": "DELIVERY-MEDIA-03",
+      "sourceFile": "apps/api/src/domains/delivery/media/handlers/serve-legacy-namecard-upload.ts",
+      "symbol": "handleServeLegacyNamecardUpload",
+      "responseKind": "binary",
+      "reason": "Allowlisted legacy namecard uploads return the original tracked public image bytes without signing or redirecting.",
+      "compatibilityTextError": {
+        "body": "Not Found",
+        "status": 404,
+        "contentType": "text/plain; charset=UTF-8",
+        "justification": "C5 preserves the existing plain-text 404 for unknown, stale, and inaccessible legacy files."
+      },
+      "test": {
+        "file": "apps/api/tests/server/legacy-namecard-media.test.ts",
+        "symbol": "serves allowlisted legacy namecard image bytes for GET and HEAD"
+      }
+    },
+    {
       "id": "DELIVERY-BRAND-ASSET-01",
       "sourceFile": "apps/api/src/domains/content/brand-assets/handlers/serve-brand-asset.ts",
       "symbol": "handleServeBrandAsset",

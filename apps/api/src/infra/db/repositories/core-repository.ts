@@ -1674,6 +1674,18 @@ export class SqlCoreRepository implements NamecardRepository {
         );
     }
 
+    async findPublishedLegacyUpload(path: string): Promise<{ key: string; objectId: string } | null> {
+        return queryOne<{ key: string; objectId: string }>(this.database,
+            `SELECT alias.logical_key AS key, alias.object_id AS "objectId"
+               FROM namecard_legacy_public_uploads alias
+               JOIN fudaba_cards card ON card.id=alias.card_id
+               JOIN fudaba_card_pages page ON page.card_id=card.id AND page.queue='live'
+                AND page.page_id=alias.page_id AND page.object_version=alias.page_version
+              WHERE alias.path=? AND card.deleted_at IS NULL
+                AND card.publication_status='published'`,
+            [path]);
+    }
+
     private async cardMediaKey(
         cardNumber: number,
         side: string,

@@ -141,15 +141,15 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 448,
-      mountedMethodPaths: 345,
+      mountedRegistrations: 452,
+      mountedMethodPaths: 349,
       noInputRoutes: 103,
-      requestCarriers: 458,
+      requestCarriers: 462,
       policies: {
         reject: 123,
         "accept-and-project": 221,
         passthrough: 17,
-        "non-object-applicable": 97,
+        "non-object-applicable": 101,
       },
       responses: { total: 890, json: 820, nonJson: 70 },
       unresolved: 0,
@@ -218,6 +218,10 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/fudaba", symbol: "fudabaCardOfficePlacementParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/wall", symbol: "fudabaWorldPlacementRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/offices/:officeId/cards/:cardId/world-placement", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/sessions/:token/stream", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: null, symbol: null, kind: "param", method: "GET", path: "/uploads/namecard/original/:filename", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
+      { module: null, symbol: null, kind: "param", method: "HEAD", path: "/uploads/namecard/original/:filename", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
+      { module: null, symbol: null, kind: "param", method: "GET", path: "/uploads/namecard/thumbnail/:filename", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
+      { module: null, symbol: null, kind: "param", method: "HEAD", path: "/uploads/namecard/thumbnail/:filename", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
     ]);
     assert.deepEqual(current, artifact);
   });

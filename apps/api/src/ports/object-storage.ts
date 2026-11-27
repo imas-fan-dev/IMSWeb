@@ -36,6 +36,8 @@ export interface ObjectReadTarget {
 
 export interface ObjectStorage {
     get(key: string): Promise<StoredObject | null>;
+    /** Read only the exact current public object; never fall back to an older version. */
+    getPublicVersion?(key: string, objectId: string): Promise<StoredObject | null>;
     createPublicReadUrl?(
         key: string,
         options?: PublicObjectReadUrlOptions,

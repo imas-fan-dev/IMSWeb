@@ -209,6 +209,17 @@ export class S3ObjectStorage implements ObjectStorage {
         return resolved ? this.getResolved(resolved) : null;
     }
 
+    async getPublicVersion(key: string, objectId: string): Promise<StoredObject | null> {
+        const version = await this.state.exactReadyPublicVersion(normalizeKey(key), objectId);
+        if (!version?.physicalKey || version.physicalKey.split('/').includes(PROTECTED_PHYSICAL_KEY_SEGMENT)) {
+            return null;
+        }
+        const object = await this.getResolved({ physicalKey: version.physicalKey, storageScope: 'public', version });
+        if (!object || object.size !== Number(version.size) || sha256(object.body) !== version.sha256 ||
+            object.contentType !== version.contentType) return null;
+        return object;
+    }
+
     async createPublicReadUrl(key: string): Promise<string | null> {
         const resolved = await this.resolve(key);
         if (

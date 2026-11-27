@@ -1,5 +1,6 @@
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
 } from '../integration/postgres-harness.ts';
+import { createMigrationCatalogBefore } from '../integration/migration-catalog.ts';
 import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
 
 // The shared test allocator used to be closed by a module-level hook inside the
@@ -184,7 +186,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261120120000_namecard_tags', phase: 'pre-data' },
                 { version: '20261121120000_namecard_project_visibility', phase: 'post-data' },
                 { version: '20261123120000_namecard_notification_events', phase: 'post-data' },
-                { version: '20261125120000_namecard_guest_submission_settings', phase: 'post-data' }
+                { version: '20261125120000_namecard_guest_submission_settings', phase: 'post-data' },
+                { version: '20261126120000_namecard_legacy_public_uploads', phase: 'post-data' }
             ]
         );
         for (const migration of migrations) assert.match(migration.checksum, /^[a-f0-9]{64}$/);
@@ -737,17 +740,23 @@ test.describe('PostgreSQL migration', () => {
             command: 'list',
             migrationsPath: path.resolve(__dirname, '../../migrations/postgresql')
         });
+        const production = {
+            NODE_ENV: 'production',
+            DATABASE_URL: 'postgresql://imsweb:secret@localhost:5432/imsweb'
+        };
+        assert.equal(parseArguments([], production).requireProductionCutover, true);
+        assert.equal(parseArguments([], { ...production, NODE_ENV: 'development' }).requireProductionCutover, undefined);
         assert.throws(() => databaseUrl({}), /DATABASE_URL is required/);
         assert.throws(() => databaseUrl({ DATABASE_URL: 'mysql://localhost/ims' }), /PostgreSQL URL/);
     });
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 117);
+        assert.equal(catalog.count, 118);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261125120000_namecard_guest_submission_settings'
+            '20261126120000_namecard_legacy_public_uploads'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -996,7 +1005,7 @@ test.describe('PostgreSQL migration', () => {
         );
     });
 
-    function migrationClient(initialRows = []) {
+    function migrationClient(initialRows = [], { emptySchema = false } = {}) {
         const rows = initialRows.map(({ version, filename, phase, checksum }) => ({
             version,
             filename,
@@ -1005,7 +1014,10 @@ test.describe('PostgreSQL migration', () => {
         }));
         return {
             rows,
+            statements: [],
             async query(sql, values = []) {
+                this.statements.push(sql);
+                if (/AS empty_schema/.test(sql)) return { rows: [{ empty_schema: emptySchema }] };
                 if (/SELECT version, filename, phase, checksum/.test(sql)) {
                     return { rows: rows.map((row) => ({ ...row })) };
                 }
@@ -1023,6 +1035,68 @@ test.describe('PostgreSQL migration', () => {
     }
 
     test.describe('runner', () => {
+        test('production CLI refuses to apply pending SQL to an existing database before the media cutover', async () => {
+            const migrations = readMigrations();
+            const options = { migrations, requireProductionCutover: true };
+            const retirementIndex = migrations.findIndex(({ version }) => version === '20261112140000_namecard_retire_card_key_columns');
+            for (const baseline of [0, 26, 102, retirementIndex]) {
+                const client = migrationClient(migrations.slice(0, baseline));
+                await assert.rejects(applyMigrations(client, options), /requires the staged namecard media cutover/);
+                assert.equal(client.rows.length, baseline);
+                assert.ok(!client.statements.some((statement) => migrations.some((migration) => migration.sql === statement)));
+            }
+        });
+
+        test('production CLI leaves legacy namecard columns and the ledger unchanged on refusal', {
+            skip: !postgresIntegrationEnabled()
+        }, async () => {
+            const migrationsPath = await createMigrationCatalogBefore(
+                onTestFinished,
+                '20261112120000_namecard_media_retire.sql'
+            );
+            const harness = await createPostgresTestHarness({
+                label: 'production_media_cutover',
+                migrationsPath,
+                seedCanonicalAgencies: false
+            });
+            onTestFinished(() => harness.close());
+            const snapshot = async () => ({
+                ledger: (await harness.connection.prepare(
+                    'SELECT version, checksum FROM public.ims_schema_migrations ORDER BY version'
+                ).all()).results,
+                legacy: (await harness.connection.prepare(`
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name='fudaba_cards'
+                        AND column_name IN ('front_object_key', 'back_object_key')
+                    ORDER BY column_name
+                `).all()).results
+            });
+            const baseline = await snapshot();
+            assert.deepEqual(baseline.legacy.map(({ column_name }) => column_name), ['back_object_key', 'front_object_key']);
+            const result = spawnSync(process.execPath, [path.resolve(
+                __dirname, '../../scripts/migration/postgres-migrations.js'
+            )], {
+                encoding: 'utf8',
+                env: { ...process.env, NODE_ENV: 'production', DATABASE_URL: harness.databaseUrl },
+                timeout: 10_000
+            });
+            assert.ifError(result.error);
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /requires the staged namecard media cutover/);
+            assert.deepEqual(await snapshot(), baseline);
+        });
+
+        test('production CLI allows a clean install and deployment after the media cutover', async () => {
+            const migrations = readMigrations();
+            const options = { migrations, requireProductionCutover: true };
+            const fresh = migrationClient([], { emptySchema: true });
+            assert.deepEqual((await applyMigrations(fresh, options)).executed, migrations.map(({ version }) => version));
+
+            const prefix = migrations.findIndex(({ version }) => version === '20261112140000_namecard_retire_card_key_columns') + 1;
+            const cutOver = migrationClient(migrations.slice(0, prefix));
+            assert.deepEqual((await applyMigrations(cutOver, options)).executed, migrations.slice(prefix).map(({ version }) => version));
+        });
+
         test('is repeatable and rejects checksum drift', async () => {
             const client = migrationClient();
             const migrations = readMigrations();
@@ -1144,7 +1218,8 @@ test.describe('PostgreSQL migration', () => {
             '20261120120000_namecard_tags',
             '20261121120000_namecard_project_visibility',
             '20261123120000_namecard_notification_events',
-            '20261125120000_namecard_guest_submission_settings'
+                '20261125120000_namecard_guest_submission_settings',
+                '20261126120000_namecard_legacy_public_uploads'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);
