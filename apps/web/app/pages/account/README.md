@@ -19,7 +19,7 @@
 | 用户维护名片与自有媒体    | [namecards](me/namecards/)                                                                                                                                               | 名片列表、编辑、删除与自有图片读取                                                     |
 | 用户查看名片册与交换记录  | [名片册](me/collection/)、[交换记录](../../components/community/exchange/exchange-history-dialog.tsx)、[离线队列](../../lib/namecards/scan-exchange-queue.ts)             | 筛选与显示设置、服务端历史与本机待重放扫码交换合并展示；pending 复用交换详情窗          |
 | 用户维护事务所与精确位置  | [offices](me/offices/)、[选点与地址解析](me/offices/configured-office-picker.tsx)、[共享弹窗](../../components/community/office-editor-dialog.tsx)                       | 资料编辑、选点与地址绑定、保存后整体审核；后台复用相同表单与弹窗                       |
-| 用户处理认领信封          | [claims](me/claims/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
+| 用户处理认领信封          | [inbox](me/inbox/)                                                                                                                                                     | 查看状态、确认本人名片或拒绝匹配；操作受交换写入能力与帐号限制约束                     |
 | 个人页模型与分区导航      | [account-me-model](me/account-me-model.ts)、[导航](me/profile-workspace-navigation.tsx)                                                                                  | 纯状态辅助、错误文案与分区选择                                                         |
 
 ## 协作边界
@@ -28,6 +28,7 @@
   Web 与 App 的承载差异见 [public 布局](../../layouts/public-layout.tsx) 和
   [App 布局](../../layouts/app-layout.tsx)。不能套用后台布局的身份边界。
 - 桌面 Web 的匿名个人页入口直接进入桌面登录页；[认证回跳](account-auth-return.ts) 在登录、注册、找回密码之间保留个人工作区的路径、查询与锚点。登录、注册或 Web OAuth 成功后返回原分区；找回密码完成后先回到携带原目标的登录页。回跳仅接受站内个人工作区或安全中心地址，未指定时仍进入个人资料；App 的账号首页与 OAuth 回跳由原有 App 流程负责。
+- 上线初期暂不在 Web 和 App 的「我的」菜单展示「事务所」和「留言」。保留分区直达与地图内原有流程，「消息」入口不受影响。
 - [account-me-workspace](me/account-me-workspace.tsx) 分别判断资料修改与交换写入：
   用户限制状态会影响编辑，交换写入还受返回的能力开关约束。登录不代表拥有全部编辑能力。
 - Platform 会话归 [platform 组件](../../components/platform/) 与

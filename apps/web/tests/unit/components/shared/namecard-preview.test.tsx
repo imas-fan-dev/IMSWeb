@@ -267,4 +267,69 @@ describe("NamecardPreview", () => {
       screen.queryByRole("button", { name: "下一张名片" })
     ).not.toBeInTheDocument()
   })
+
+  it("zooms around the wheel pointer instead of the viewport center", () => {
+    render(<PreviewHarness />)
+    const viewport = screen.getByLabelText("名片查看区域")
+    vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue({
+      left: -100,
+      top: 0,
+      right: 100,
+      bottom: 200,
+      width: 200,
+      height: 200,
+      x: -100,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 50, clientY: 100 })
+
+    expect(screen.getByRole("img")).toHaveStyle({
+      transform: "translate3d(-12.5px, 0px, 0) scale(1.25)",
+    })
+  })
+
+  it("pinch-zooms around the midpoint of two pointers", () => {
+    render(<PreviewHarness />)
+    const viewport = screen.getByLabelText("名片查看区域")
+    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: -100, clientY: 0 })
+    fireEvent.pointerDown(viewport, { pointerId: 2, clientX: 100, clientY: 0 })
+    fireEvent.pointerMove(viewport, { pointerId: 2, clientX: 200, clientY: 0 })
+
+    expect(screen.getByRole("img")).toHaveStyle({
+      transform: "translate3d(50px, 0px, 0) scale(1.5)",
+    })
+    fireEvent.pointerUp(viewport, { pointerId: 2, clientX: 200, clientY: 0 })
+    fireEvent.pointerUp(viewport, { pointerId: 1, clientX: -100, clientY: 0 })
+  })
+
+  it("rotates the page and clears rotation from reset", async () => {
+    const user = userEvent.setup()
+    render(<PreviewHarness />)
+    const image = screen.getByRole("img")
+    const reset = screen.getByRole("button", { name: "复位名片" })
+    expect(reset).toBeDisabled()
+
+    await user.click(screen.getByRole("button", { name: "向右旋转名片" }))
+    expect(image).toHaveStyle({
+      transform: "translate3d(0px, 0px, 0) rotate(90deg) scale(1)",
+    })
+    await user.click(screen.getByRole("button", { name: "向左旋转名片" }))
+    expect(image).toHaveStyle({
+      transform: "translate3d(0px, 0px, 0) scale(1)",
+    })
+
+    await user.click(screen.getByRole("button", { name: "向右旋转名片" }))
+    await user.click(screen.getByRole("button", { name: "向右旋转名片" }))
+    expect(image).toHaveStyle({
+      transform: "translate3d(0px, 0px, 0) rotate(180deg) scale(1)",
+    })
+    expect(reset).toBeEnabled()
+    await user.click(reset)
+    expect(image).toHaveStyle({
+      transform: "translate3d(0px, 0px, 0) scale(1)",
+    })
+    expect(reset).toBeDisabled()
+  })
 })

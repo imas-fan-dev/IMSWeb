@@ -139,7 +139,7 @@ export const resources = {
           cityMissing: "未填写常驻城市",
           restrictedTitle: "帐号当前为只读",
           restrictedDescription:
-            "个人资料、名片、名片册、事务所和认领消息仍可查看，但不能修改。",
+            "个人资料、名片、名片册、事务所和消息仍可查看，但不能修改。",
           profileGroup: "我的资料",
           securityGroup: "帐号与安全",
           sessionGroup: "当前会话",
@@ -160,7 +160,7 @@ export const resources = {
               label: "事务所与位置",
               description: "事务所资料与地图公开",
             },
-            claims: {
+            inbox: {
               label: "消息",
               description: "审核通知与名片认领",
             },
@@ -736,7 +736,7 @@ export const resources = {
           cityMissing: "Home city not set",
           restrictedTitle: "Account is read-only",
           restrictedDescription:
-            "You can still view your profile, cards, namecard album, offices, and claims, but you cannot make changes.",
+            "You can still view your profile, cards, namecard album, offices, and inbox, but you cannot make changes.",
           profileGroup: "My profile",
           securityGroup: "Account and security",
           sessionGroup: "Current session",
@@ -757,7 +757,7 @@ export const resources = {
               label: "Offices and location",
               description: "Office details and map visibility",
             },
-            claims: {
+            inbox: {
               label: "Messages",
               description: "Review notices and card claims",
             },

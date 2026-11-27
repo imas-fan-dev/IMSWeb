@@ -27,7 +27,7 @@ function renderShell() {
   return renderPage(
     <>
       <Badge />
-      <Link to="/account/me/claims">open inbox</Link>
+      <Link to="/account/me/inbox">open inbox</Link>
     </>
   )
 }

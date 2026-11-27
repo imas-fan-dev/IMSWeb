@@ -811,7 +811,7 @@ test.describe("namecard claim workflow", () => {
         "GET"
       )
 
-      await page.goto("/account/me/claims")
+      await page.goto("/account/me/inbox")
       await expect(page.getByRole("heading", { name: /^消息/ })).toBeVisible()
       await expect(page.getByText("这张旧名片是您的吗？")).toBeVisible()
 

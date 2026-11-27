@@ -16,6 +16,7 @@ import {
   AdminPanel,
   adminControlClass,
 } from "~/components/admin/admin-ui"
+import { NavigationLink } from "~/components/navigation/navigation-link"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -538,7 +539,12 @@ export default function AdminPlatformUsersPage() {
                   >
                     <TableCell className="min-w-40 whitespace-normal">
                       <p className="font-medium">
-                        {user.displayName}{" "}
+                        <NavigationLink
+                          to={`/user/${user.uid}`}
+                          className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          {user.displayName}
+                        </NavigationLink>{" "}
                         <span className="font-mono text-xs font-normal text-muted-foreground">
                           UID: {user.uid}
                         </span>

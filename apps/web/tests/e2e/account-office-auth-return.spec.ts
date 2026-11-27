@@ -194,10 +194,12 @@ test("desktop map creation uses desktop login and returns to the original office
   )
   const navigation = page.locator('nav[aria-label="个人档案菜单"]')
   await expect(navigation).toBeVisible()
-  await expect(navigation.locator('a[aria-current="page"]')).toContainText(
-    "事务所与位置"
+  await expect(navigation.locator('a[href="/account/me/offices"]')).toHaveCount(
+    0
   )
+  await expect(navigation.locator('a[aria-current="page"]')).toHaveCount(0)
   const content = page.locator("#profile-workspace-section-offices")
+  await expect(content).toBeVisible()
   expect((await content.boundingBox())!.x).toBeGreaterThan(
     (await navigation.boundingBox())!.x
   )

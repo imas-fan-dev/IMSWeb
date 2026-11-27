@@ -82,16 +82,21 @@ const INTEGRATION_ONLY_FILES = new Set([
   "apps/api/tests/assets/static-preview.contract.test.ts",
 ]);
 
+// Both browser targets use the API fixture and its static delivery modules.
+const SHARED_PREVIEW_FILES = new Set([
+  "apps/api/tests/fixtures/app-static-preview-server.ts",
+  "apps/api/src/infra/http/filesystem/static-assets.ts",
+  "apps/api/src/middleware/static-path-policy.ts",
+]);
+
 const API_INTEGRATION_FILES = new Set([
   "apps/api/package.json",
   "apps/api/scripts/build/build-server.js",
   "apps/api/src/app.ts",
-  "apps/api/src/infra/http/filesystem/static-assets.ts",
   "apps/api/src/middleware/hono-context.ts",
   "apps/api/src/middleware/json-body-limit.ts",
   "apps/api/src/middleware/rate-limit.ts",
   "apps/api/src/middleware/request-observability.ts",
-  "apps/api/src/middleware/static-path-policy.ts",
   "apps/api/src/routing/frontend-route-delivery.ts",
   "apps/api/src/routing/frontend-route-policy.ts",
   "apps/api/src/utils/http/content-type.ts",
@@ -152,8 +157,13 @@ function classifyPath(changedPath) {
     return ownedJobs(...PRODUCT_KEYS);
   }
 
-  if (changedPath === "apps/api/tests/fixtures/app-static-preview-server.ts") {
-    return ownedJobs("app", "api", "web", "integration");
+  if (SHARED_PREVIEW_FILES.has(changedPath)) {
+    return ownedJobs(...PRODUCT_KEYS);
+  }
+
+  // The API catalog-facts migration suite reads this Web data file directly.
+  if (changedPath === "apps/web/app/pages/home/idol-birthdays.json") {
+    return ownedJobs(...PRODUCT_KEYS);
   }
 
   if (changedPath === "apps/web/scripts/preview-app.js") {

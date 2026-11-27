@@ -176,7 +176,13 @@ export function WallInsightsPanel({
       className="mb-6 overflow-hidden rounded-xl border bg-card/90 sm:mb-8"
     >
       <Collapsible open={!collapsed} onOpenChange={changeOpen}>
-        <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+        <CollapsibleTrigger
+          nativeButton={false}
+          aria-label={collapsed ? "展开" : "收起"}
+          render={
+            <div className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:px-6" />
+          }
+        >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <IdCardIcon className="size-4" aria-hidden="true" />
           </span>
@@ -188,8 +194,9 @@ export function WallInsightsPanel({
               一起让每张名片的信息更完整
             </p>
           </div>
-          <CollapsibleTrigger
-            render={<Button variant="ghost" size="sm" className="ml-auto" />}
+          <span
+            className="ml-auto inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-sm font-medium text-foreground/80"
+            aria-hidden="true"
           >
             <ChevronRightIcon
               data-icon="inline-start"
@@ -201,8 +208,8 @@ export function WallInsightsPanel({
               )}
             />
             {collapsed ? "展开" : "收起"}
-          </CollapsibleTrigger>
-        </div>
+          </span>
+        </CollapsibleTrigger>
 
         <CollapsibleContent
           id="wall-insights-content"

@@ -9,7 +9,7 @@ import {
   invalidateNamecardInbox,
   useNamecardUnread,
 } from "~/lib/use-namecard-unread"
-import { NamecardInboxPanel } from "~/pages/account/me/claims/namecard-inbox-panel"
+import { NamecardInboxPanel } from "~/pages/account/me/inbox/namecard-inbox-panel"
 import { makeNamecard } from "@/mocks/data/namecards"
 
 const apiMocks = vi.hoisted(() => ({

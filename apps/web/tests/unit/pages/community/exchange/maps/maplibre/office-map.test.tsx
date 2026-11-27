@@ -136,7 +136,7 @@ vi.mock("~/pages/community/exchange/maps/maplibre/boundary-compliance", () => ({
   CHINA_DASH_SOURCE_URL: "/maps/china-boundary-dashes.json",
   TAIWAN_PROVINCE_LABEL_LAYER_ID: "taiwan-label",
 }))
-vi.mock("maplibre-gl/dist/maplibre-gl-csp-worker.js?url", () => ({
+vi.mock("maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url", () => ({
   default: "/maplibre-worker.js",
 }))
 vi.mock("pmtiles", () => ({

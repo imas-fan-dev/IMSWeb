@@ -46,6 +46,9 @@ const singlePathCases = [
     { ...REPOSITORY_ONLY, app: true, web: true, integration: true },
   ],
   ["apps/api/tests/fixtures/app-static-preview-server.ts", ALL_JOBS],
+  ["apps/api/src/infra/http/filesystem/static-assets.ts", ALL_JOBS],
+  ["apps/api/src/middleware/static-path-policy.ts", ALL_JOBS],
+  ["apps/web/app/pages/home/idol-birthdays.json", ALL_JOBS],
   [
     "apps/api/tests/assets/static-preview.contract.test.ts",
     { ...REPOSITORY_ONLY, integration: true },
@@ -249,7 +252,7 @@ test.describe('affected workspace classification', () => {
     }
   }
 
-  test("selects shared preview consumers from real PR merge-base and main-push additions, deletions and renames", async () => {
+  test("selects cross-workspace consumers from real PR merge-base and main-push additions, deletions and renames", async () => {
     const { detectAffectedWorkspaces } = await detector;
     withGitHistory(({ git, revision }) => {
       const empty = revision([]);
@@ -257,6 +260,9 @@ test.describe('affected workspace classification', () => {
         "apps/web/scripts/preview-app.js",
         "apps/api/tests/fixtures/app-static-preview-server.ts",
         "apps/api/tests/assets/static-preview.contract.test.ts",
+        "apps/api/src/infra/http/filesystem/static-assets.ts",
+        "apps/api/src/middleware/static-path-policy.ts",
+        "apps/web/app/pages/home/idol-birthdays.json",
       ].includes(name))) {
         const present = revision([name], empty);
         const removed = revision([], present);

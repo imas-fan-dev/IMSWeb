@@ -110,7 +110,7 @@ describe("AccountMePage", () => {
     expect(main).toHaveAttribute("data-account-state", "loading")
     expect(main).toHaveAttribute("aria-busy", "true")
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(
-      10
+      8
     )
   })
 
@@ -184,13 +184,17 @@ describe("AccountMePage", () => {
       ["个人资料", "/account/me/profile"],
       ["名片管理", "/account/me/namecards"],
       ["名片册", "/account/me/collection"],
-      ["事务所与位置", "/account/me/offices"],
-      ["消息", "/account/me/claims"],
+      ["消息", "/account/me/inbox"],
     ] as const
     const links = screen.getAllByRole("link")
     for (const [name, href] of expectedSections) {
       const link = links.find((item) => item.getAttribute("href") === href)
       expect(link).toHaveTextContent(name)
+    }
+    for (const href of ["/account/me/offices", "/account/me/messages"]) {
+      expect(links.some((link) => link.getAttribute("href") === href)).toBe(
+        false
+      )
     }
 
     await user.click(screen.getByRole("button", { name: "退出帐号" }))

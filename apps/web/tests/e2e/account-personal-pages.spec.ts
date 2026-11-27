@@ -31,9 +31,9 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       bio: "",
     },
   }
-  // Desktop: root, profile, reload, root, claims, back, direct claims, security return.
-  // Mobile: five sections, offices reload, claims link, direct claims.
-  const workspaceLoads = 8
+  // The hidden office section now starts with a fresh document load. Unlike
+  // the old desktop sidebar transition, it cannot reuse the loaded workspace.
+  const workspaceLoads = isMobile ? 8 : 9
   async function expectAccountRootReady() {
     await expect(page).toHaveURL(/\/account\/me$/)
     if (isMobile) {
@@ -107,8 +107,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       path: "/api/community/exchange/me/collection",
       times: { min: 0, max: 12 },
     },
-    (route) =>
-      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+    (route) => route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
   )
   await page.goto("/account/me")
   for (const [path, json] of [
@@ -128,13 +127,18 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
         .locator("section[aria-labelledby='account-business-title']")
         .getByRole("link")
     : page.getByRole("navigation", { name: "个人档案菜单" }).getByRole("link")
-  await expect(links).toHaveCount(6)
+  await expect(links).toHaveCount(4)
+  for (const section of ["offices", "messages"]) {
+    await expect(page.locator(`a[href="/account/me/${section}"]`)).toHaveCount(
+      0
+    )
+  }
   if (!isMobile) {
     await expect(
       page
         .getByRole("navigation", { name: "个人档案菜单" })
         .getByRole("listitem")
-    ).toHaveCount(6)
+    ).toHaveCount(4)
   }
   if (!isMobile) {
     await expect(
@@ -206,8 +210,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     ["profile", "个人资料"],
     ["namecards", "名片管理"],
     ["collection", "名片册"],
-    ["offices", "事务所与位置"],
-    ["claims", "消息"],
+    ["inbox", "消息"],
   ]) {
     await page.getByRole("link", { name: new RegExp(`^${label}`) }).click()
     await expect(page).toHaveURL(new RegExp(`/account/me/${section}$`))
@@ -232,25 +235,6 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       await page.keyboard.press("Escape")
       await expect(page.getByRole("dialog")).toHaveCount(0)
     }
-    if (section === "offices") {
-      await page.reload()
-      await expect(
-        page.locator("#profile-workspace-section-offices")
-      ).toBeVisible()
-      await page.screenshot({
-        path: testInfo.outputPath("personal-offices.png"),
-        fullPage: true,
-      })
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth
-        )
-      ).toBe(true)
-      const accessibility = await new AxeBuilder({ page })
-        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-        .analyze()
-      expect(accessibility.violations).toEqual([])
-    }
     if (isMobile) {
       await page.getByRole("link", { name: "返回我的", exact: true }).click()
       await expect(page).toHaveURL(/\/account\/me$/)
@@ -269,7 +253,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   await expectAccountRootReady()
   // Exercise client-side history without depending on document BFCache behavior.
   await page.getByRole("link", { name: /^消息/ }).click()
-  await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
+  await expect(page.locator("#profile-workspace-section-inbox")).toBeVisible()
   await page.goBack()
   await expectAccountRootReady()
   if (!isMobile) {
@@ -279,9 +263,32 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
         .getByRole("link", { name: "个人资料", exact: true })
     ).toHaveAttribute("aria-current", "page")
   }
+  // The hidden office section still works via an existing direct link.
+  await page.goto("/account/me/offices")
+  await expect(page.locator("#profile-workspace-section-offices")).toBeVisible()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
+  await expect(page).toHaveTitle("事务所与位置 | IMSWeb")
+  await expect(page.getByRole("main")).toHaveCount(1)
+  await page.reload()
+  await expect(page.locator("#profile-workspace-section-offices")).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath("personal-offices.png"),
+    fullPage: true,
+  })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth
+    )
+  ).toBe(true)
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze()
+  expect(accessibility.violations).toEqual([])
+
   // A direct URL must work independently of navigation state, including after reload.
-  await page.goto("/account/me/claims")
-  await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
+  await page.goto("/account/me/inbox")
+  await expect(page.locator("#profile-workspace-section-inbox")).toBeVisible()
   if (!isMobile) {
     for (const [width, height, theme] of [
       [1440, 900, "light"],
@@ -301,7 +308,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       await expect(root).toHaveCSS("color-scheme", theme)
       for (const [section, label] of [
         ["namecards", /^名片管理/],
-        ["claims", /^消息/],
+        ["inbox", /^消息/],
       ] as const) {
         await page
           .getByRole("navigation", { name: "个人档案菜单" })
@@ -417,8 +424,7 @@ test("desktop root and section preserve pending, failed, retry and successful lo
       path: "/api/community/exchange/me/collection",
       times: { min: 0, max: 12 },
     },
-    (route) =>
-      route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
+    (route) => route.fulfill({ json: { list: [], total: 0, totalPage: 0 } })
   )
   const releases: Array<() => void> = []
   const gates = Array.from(
