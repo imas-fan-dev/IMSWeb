@@ -313,9 +313,17 @@ migration 套件会运行非数据库测试，PostgreSQL 集成用例只在本�
 | `node scripts/testing/run-test-owner.mjs contracts` | mounted inventory 总数、前端路由元数据、non-JSON 边界清单 |
 | `pnpm --filter @imsweb/api run test:migration` | 迁移有序清单、`catalog.count` 与已发布迁移校验和 |
 | `pnpm --filter @imsweb/web run test:unit routes.test.ts` | 类型化 Web 路由清单长度与 prerender 数量 |
+| `pnpm --filter @imsweb/web run test:unit tests/unit/i18n` | 每个 locale 的资源键集合必须与默认语言一致 |
+| `pnpm --filter @imsweb/web run test:unit tests/unit/e2e` | API 客户端调用的每个 `/api` 端点都必须能被 e2e contract catalog 解析 |
 
-这三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
+前三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
 pre-commit 阶段被拒绝，而不是等到 CI 或部署。
+
+i18n 与 e2e 两条守护覆盖的是两类只在 CI 才暴露的历史反工：新增界面文案只写进一个 locale，以及新增
+端点后忘记 `apps/web/tests/e2e/fixtures/api-contract-catalog.ts` 登记，让浏览器 lane 在页面加载后才
+报 `unregistered request`。catalog 覆盖守护只约束字面量路径；已有未登记端点记在
+`apps/web/tests/unit/e2e/api-contract-catalog-coverage.gaps.json`，新增条目会被拒绝，登记完成后必须删除
+基线条目（否则守护本身失败）。模板字符串路径不在静态范围内，仍由 dispatcher 运行时兜底。
 
 `check:pre-commit` 不覆盖 governance owner、API/Web owner 的完整套件和浏览器
 lane；CI 强制运行这些检查，本地可显式执行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前可运行
