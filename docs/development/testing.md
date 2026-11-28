@@ -313,20 +313,22 @@ migration 套件会运行非数据库测试，PostgreSQL 集成用例只在本�
 | `node scripts/testing/run-test-owner.mjs contracts` | mounted inventory 总数、前端路由元数据、non-JSON 边界清单 |
 | `pnpm --filter @imsweb/api run test:migration` | 迁移有序清单、`catalog.count` 与已发布迁移校验和 |
 | `pnpm --filter @imsweb/web run test:unit routes.test.ts` | 类型化 Web 路由清单长度与 prerender 数量 |
-| `pnpm --filter @imsweb/web run test:unit tests/unit/i18n` | 每个 locale 的资源键集合必须与默认语言一致 |
-| `pnpm --filter @imsweb/web run test:unit tests/unit/e2e` | API 客户端调用的每个 `/api` 端点都必须能被 e2e contract catalog 解析 |
+| `node scripts/checks/check-web-i18n-keys.mjs` | 每个 locale 的字段集合必须与参照 locale `zh-CN` 一致 |
+| `node scripts/checks/check-web-endpoint-catalog.mjs` | `app/lib/api` 中每个字面量 `/api` 路径都必须能被 e2e contract catalog 解析 |
 
 前三个测试把仓库级计数写成期望值；新增路由、迁移或页面时必须同步更新，否则提交会在
 pre-commit 阶段被拒绝，而不是等到 CI 或部署。
 
-i18n 与 e2e 两条守护覆盖的是两类只在 CI 才暴露的历史反工：新增界面文案只写进一个 locale，以及新增
-端点后忘记 `apps/web/tests/e2e/fixtures/api-contract-catalog.ts` 登记，让浏览器 lane 在页面加载后才
-报 `unregistered request`。catalog 覆盖守护只约束字面量路径；已有未登记端点记在
-`apps/web/tests/unit/e2e/api-contract-catalog-coverage.gaps.json`，新增条目会被拒绝，登记完成后必须删除
-基线条目（否则守护本身失败）。模板字符串路径不在静态范围内，仍由 dispatcher 运行时兜底。
+后两个是纯静态字段检查（Node + TypeScript AST，合计约 1 秒），放在 `check:root` 中，因此 pre-commit 与
+CI 的 Validate repository 都执行它们。它们对应两类曾经只在 CI 才暴露、需要二次返工的问题：新增界面文案
+只写进一个 locale，以及新增端点后忘记在 `apps/web/tests/e2e/fixtures/api-contract-catalog.ts` 登记，让
+浏览器 lane 在页面加载后才报 `unregistered request`。catalog 检查直接复用 fixtures 的
+`resolveApiContract`，不另写一套匹配规则；历史未登记端点记在
+`scripts/checks/web-endpoint-catalog-baseline.json`，新增条目立即失败，而能解析的基线条目必须删除，
+所以该清单只能缩短。模板字符串路径（`apiPath(`/cards/${id}`)`）是运行时值，仍由 dispatcher 的运行时断言兜底。
 
-`check:pre-commit` 不覆盖 governance owner、API/Web owner 的完整套件和浏览器
-lane；CI 强制运行这些检查，本地可显式执行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前可运行
+`check:pre-commit` 只运行上述静态字段检查与仓库级期望值守护，不运行 API/Web 完整测试集，也不跑浏览器
+lane；这些由 CI 强制，本地按需自行执行。所以本地 pre-commit 全绿不等于 CI 全绿，提交前可运行
 `pnpm run test:infra`，并按需执行对应的 Web/App E2E 命令。
 
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
