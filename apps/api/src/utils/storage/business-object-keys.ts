@@ -67,6 +67,7 @@ export function articleAssetObjectKey(articleId: number, filename: string): stri
 
 export const INFORMATION_INDEX_OBJECT_KEY = 'editorial/information/index.json';
 export const ABOUT_PAGE_OBJECT_KEY = 'editorial/about/config.json';
+export const PRIVACY_POLICY_OBJECT_KEY = 'editorial/privacy-policy/config.json';
 export const COMMUNITY_CONTENT_OBJECT_KEY = 'community/landing/config.json';
 
 export const PRODUCER_MAP_OBJECT_KEY = 'community/producer-map/config.json';

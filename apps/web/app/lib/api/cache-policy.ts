@@ -22,6 +22,7 @@ export const PUBLIC_CACHE_INVALIDATION_SOURCE = {
   homepageLinks: "public-cache-mutation:homepage-links",
   information: "public-cache-mutation:information",
   producerMap: "public-cache-mutation:producer-map",
+  privacyPolicy: "public-cache-mutation:privacy-policy",
   recommendations: "public-cache-mutation:recommendations",
   sitePackages: "public-cache-mutation:site-packages",
   wiki: "public-cache-mutation:wiki",

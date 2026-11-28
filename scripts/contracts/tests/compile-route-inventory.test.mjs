@@ -141,17 +141,17 @@ test.describe('route inventory compiler', () => {
     ));
 
     assert.deepEqual(current.counts, {
-      mountedRegistrations: 448,
-      mountedMethodPaths: 345,
-      noInputRoutes: 103,
-      requestCarriers: 458,
+      mountedRegistrations: 451,
+      mountedMethodPaths: 346,
+      noInputRoutes: 105,
+      requestCarriers: 459,
       policies: {
-        reject: 123,
+        reject: 124,
         "accept-and-project": 221,
         passthrough: 17,
         "non-object-applicable": 97,
       },
-      responses: { total: 890, json: 820, nonJson: 70 },
+      responses: { total: 894, json: 824, nonJson: 70 },
       unresolved: 0,
     });
     assert.deepEqual(current.baseline, {
@@ -191,6 +191,7 @@ test.describe('route inventory compiler', () => {
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagCardParamsSchema", kind: "param", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardTagSetRequestSchema", kind: "json", method: "PUT", path: "/api/community/exchange/cards/:cardId/tags", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/namecards", symbol: "namecardScanTokenParamsSchema", kind: "param", method: "GET", path: "/api/community/exchange/scan/:token", carriers: 1, policy: "accept-and-project", actualCarriers: 1 },
+      { module: "@imsweb/contracts/privacy-policy", symbol: "adminPrivacyPolicyUpdateRequestSchema", kind: "json", method: "PUT", path: "/api/admin/privacy-policy", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageIdParamsSchema", kind: "param", method: "DELETE", path: "/api/community/exchange/messages/:messageId", carriers: 1, policy: "non-object-applicable", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/admin/community/exchange/messages", carriers: 1, policy: "reject", actualCarriers: 1 },
       { module: "@imsweb/contracts/fudaba/messages", symbol: "fudabaMessageListQuerySchema", kind: "query", method: "GET", path: "/api/community/exchange/me/messages", carriers: 1, policy: "reject", actualCarriers: 1 },

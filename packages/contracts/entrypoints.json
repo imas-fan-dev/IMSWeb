@@ -32,6 +32,7 @@
     { "subpath": "./information", "source": "src/information.ts", "namespace": "information", "runtime": "schema" },
     { "subpath": "./chronicle", "source": "src/chronicle.ts", "namespace": "chronicle", "runtime": "schema" },
     { "subpath": "./about", "source": "src/about.ts", "namespace": "about", "runtime": "schema" },
+    { "subpath": "./privacy-policy", "source": "src/privacy-policy.ts", "namespace": "privacyPolicy", "runtime": "schema" },
     { "subpath": "./community-content", "source": "src/community-content.ts", "namespace": "communityContent", "runtime": "schema" },
     { "subpath": "./producer-map", "source": "src/producer-map.ts", "namespace": "producerMap", "runtime": "schema" },
     { "subpath": "./homepage-links", "source": "src/homepage-links.ts", "namespace": "homepageLinks", "runtime": "schema" },

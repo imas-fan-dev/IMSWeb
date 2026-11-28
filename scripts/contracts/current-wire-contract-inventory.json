@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "cb8016663c45c1a3e4e657eecf2fe17b3603acf840dc11351b0b967b4dbfa4f5",
+    "semanticDigest": "94c518d1090c94c3458a6cfe566196389faf67db1d629bce78d2829539ddb2f5",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -16,19 +16,19 @@
     "nonObjectApplicable": 84
   },
   "counts": {
-    "mountedRegistrations": 448,
-    "mountedMethodPaths": 345,
-    "noInputRoutes": 103,
-    "requestCarriers": 458,
+    "mountedRegistrations": 451,
+    "mountedMethodPaths": 346,
+    "noInputRoutes": 105,
+    "requestCarriers": 459,
     "policies": {
-      "reject": 123,
+      "reject": 124,
       "accept-and-project": 221,
       "passthrough": 17,
       "non-object-applicable": 97
     },
     "responses": {
-      "total": 890,
-      "json": 820,
+      "total": 894,
+      "json": 824,
       "nonJson": 70
     },
     "unresolved": 0
@@ -419,6 +419,16 @@
         "actualCarriers": 1
       },
       {
+        "module": "@imsweb/contracts/privacy-policy",
+        "symbol": "adminPrivacyPolicyUpdateRequestSchema",
+        "kind": "json",
+        "method": "PUT",
+        "path": "/api/admin/privacy-policy",
+        "carriers": 1,
+        "policy": "reject",
+        "actualCarriers": 1
+      },
+      {
         "module": "@imsweb/contracts/fudaba/messages",
         "symbol": "fudabaMessageIdParamsSchema",
         "kind": "param",
@@ -691,7 +701,7 @@
     ],
     "routeGroups": {
       "/api/about": 1,
-      "/api/admin": 196,
+      "/api/admin": 198,
       "/api/birthdays": 1,
       "/api/cards": 8,
       "/api/check": 1,
@@ -708,6 +718,7 @@
       "/api/logout": 1,
       "/api/news": 1,
       "/api/platform": 34,
+      "/api/privacy-policy": 1,
       "/api/producer-map": 1,
       "/api/reactions": 3,
       "/api/refresh": 1,
@@ -4453,6 +4464,34 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/privacy-policy",
+      "registration": {
+        "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+      },
+      "handlerSymbol": "handleGetAdminPrivacyPolicy",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/privacy-policy/handlers/get-admin-privacy-policy.ts",
+          "kind": "json",
+          "expression": "{ content : content ?? { ... defaultPrivacyPolicyDraft ( ) , updatedAt : null } , revision } satisfies AdminPrivacyPolicySnapshot"
+        }
+      ]
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/producer-map",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -7581,6 +7620,34 @@
           "file": "apps/api/src/domains/identity/platform-account-security/sessions/handlers/list-sessions.ts",
           "kind": "json",
           "expression": "payload"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/privacy-policy",
+      "registration": {
+        "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+      },
+      "handlerSymbol": "handleGetPrivacyPolicy",
+      "carriers": [
+        {
+          "kind": "no-input",
+          "source": "handler-analysis",
+          "location": {
+            "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+          },
+          "schemaSymbol": null,
+          "schemaModule": null,
+          "schemaLocation": null,
+          "policy": "non-object-applicable"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/privacy-policy/handlers/get-privacy-policy.ts",
+          "kind": "json",
+          "expression": "{ policy } satisfies PrivacyPolicyPublicContentResponse"
         }
       ]
     },
@@ -16825,6 +16892,42 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/privacy-policy",
+      "registration": {
+        "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+      },
+      "handlerSymbol": "handleUpdateAdminPrivacyPolicy",
+      "carriers": [
+        {
+          "kind": "json",
+          "source": "validated",
+          "location": {
+            "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+          },
+          "schemaSymbol": "adminPrivacyPolicyUpdateRequestSchema",
+          "schemaModule": "@imsweb/contracts/privacy-policy",
+          "schemaLocation": {
+            "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+          },
+          "policy": "reject",
+          "syntaxPolicy": "reject"
+        }
+      ],
+      "responses": [
+        {
+          "file": "apps/api/src/domains/content/privacy-policy/handlers/update-admin-privacy-policy.ts",
+          "kind": "json",
+          "expression": "{ success : true , ... result } satisfies PrivacyPolicyUpdateSuccessResponse"
+        },
+        {
+          "file": "apps/api/src/domains/content/privacy-policy/handlers/update-admin-privacy-policy.ts",
+          "kind": "json",
+          "expression": "{ error : status > = 500 ? \"\\u9690\\u79C1\\u6761\\u6B3E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies PrivacyPolicyErrorResponse"
+        }
+      ]
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/producer-map",
       "registration": {
         "file": "apps/api/src/domains/content/producer-map/routes.ts"
@@ -25099,6 +25202,23 @@
     },
     {
       "method": "PUT",
+      "path": "/api/admin/privacy-policy",
+      "handlerSymbol": "handleUpdateAdminPrivacyPolicy",
+      "kind": "json",
+      "source": "validated",
+      "location": {
+        "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+      },
+      "schemaSymbol": "adminPrivacyPolicyUpdateRequestSchema",
+      "schemaModule": "@imsweb/contracts/privacy-policy",
+      "schemaLocation": {
+        "file": "apps/api/src/domains/content/privacy-policy/routes.ts"
+      },
+      "policy": "reject",
+      "syntaxPolicy": "reject"
+    },
+    {
+      "method": "PUT",
       "path": "/api/admin/producer-map",
       "handlerSymbol": "handleUpdateProducerMap",
       "kind": "json",
@@ -27248,6 +27368,14 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/privacy-policy",
+      "handlerSymbol": "handleGetAdminPrivacyPolicy",
+      "file": "apps/api/src/domains/content/privacy-policy/handlers/get-admin-privacy-policy.ts",
+      "kind": "json",
+      "expression": "{ content : content ?? { ... defaultPrivacyPolicyDraft ( ) , updatedAt : null } , revision } satisfies AdminPrivacyPolicySnapshot"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/producer-map",
       "handlerSymbol": "handleGetAdminProducerMap",
       "file": "apps/api/src/domains/content/producer-map/handlers/get-admin-producer-map.ts",
@@ -28453,6 +28581,14 @@
       "file": "apps/api/src/domains/identity/platform-account-security/sessions/handlers/list-sessions.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "GET",
+      "path": "/api/privacy-policy",
+      "handlerSymbol": "handleGetPrivacyPolicy",
+      "file": "apps/api/src/domains/content/privacy-policy/handlers/get-privacy-policy.ts",
+      "kind": "json",
+      "expression": "{ policy } satisfies PrivacyPolicyPublicContentResponse"
     },
     {
       "method": "GET",
@@ -32181,6 +32317,22 @@
       "file": "apps/api/src/domains/admin/platform-users/handlers/update-platform-user-status.ts",
       "kind": "json",
       "expression": "payload"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/privacy-policy",
+      "handlerSymbol": "handleUpdateAdminPrivacyPolicy",
+      "file": "apps/api/src/domains/content/privacy-policy/handlers/update-admin-privacy-policy.ts",
+      "kind": "json",
+      "expression": "{ success : true , ... result } satisfies PrivacyPolicyUpdateSuccessResponse"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/privacy-policy",
+      "handlerSymbol": "handleUpdateAdminPrivacyPolicy",
+      "file": "apps/api/src/domains/content/privacy-policy/handlers/update-admin-privacy-policy.ts",
+      "kind": "json",
+      "expression": "{ error : status > = 500 ? \"\\u9690\\u79C1\\u6761\\u6B3E\\u4FDD\\u5B58\\u5931\\u8D25\" : messageFromError ( error ) } satisfies PrivacyPolicyErrorResponse"
     },
     {
       "method": "PUT",

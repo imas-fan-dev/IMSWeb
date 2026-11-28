@@ -430,6 +430,14 @@ export const resources = {
         displayNameRequired: "请输入显示名称。",
         displayNameLong: "显示名称不能超过 80 个字符。",
         passwordMismatch: "两次输入的密码不一致。",
+        privacy: {
+          consentLabel: "我已阅读并同意",
+          required: "请先阅读并同意隐私条款。",
+          dialogDescription: "登录前请阅读并确认以下条款。",
+          updatedAt: "最后更新：{{date}}",
+          dialogClose: "关闭",
+          dialogAccept: "我已阅读并同意",
+        },
         verification: {
           code: "邮箱验证码",
           codeHint: "请输入邮件中的 6 位数字验证码。",

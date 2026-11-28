@@ -615,6 +615,7 @@ const domainSections = new Map([
             "chronicle",
             "editorial",
             "about",
+            "privacy-policy",
             "producer-map",
             "community-content",
             "live-schedule",
@@ -663,6 +664,7 @@ function domainDirectory(domain) {
 const validatedRequestDomains = new Set([
     "birthdays",
     "about",
+    "privacy-policy",
     "admin-accounts",
     "audit",
     "backoffice-auth",

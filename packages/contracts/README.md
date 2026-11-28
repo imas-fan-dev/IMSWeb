@@ -23,6 +23,7 @@ src/
   namecards.ts           # 名片公开/投稿/管理员队列
   admin.ts               # 后台会话与管理员账号
   about.ts / producer-map.ts / homepage-links.ts / site-packages.ts / media.ts
+  privacy-policy.ts      # 登录页隐私条款与行为准则（公开读取／后台编辑）
   information.ts / news.ts / chronicle.ts / events.ts / live.ts / system.ts
   platform/              # 多文件大业务：文件夹分级
     index.ts             # 会话/资料/OAuth 发现/注册验证
@@ -138,6 +139,7 @@ the committed map).
 | `@imsweb/contracts/information` | `information` | schema |
 | `@imsweb/contracts/chronicle` | `chronicle` | schema |
 | `@imsweb/contracts/about` | `about` | schema |
+| `@imsweb/contracts/privacy-policy` | `privacyPolicy` | schema |
 | `@imsweb/contracts/producer-map` | `producerMap` | schema |
 | `@imsweb/contracts/homepage-links` | `homepageLinks` | schema |
 | `@imsweb/contracts/site-packages` | `sitePackages` | schema |
