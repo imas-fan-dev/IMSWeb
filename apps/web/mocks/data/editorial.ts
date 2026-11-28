@@ -66,6 +66,8 @@ export function makeEditorialSpotlightItem(
     image_url: "/uploads/editorial/1/cover.webp",
     category: "activity",
     sort_order: 0,
+    has_body: true,
+    source_url: null,
     cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
     ...overrides,
   }

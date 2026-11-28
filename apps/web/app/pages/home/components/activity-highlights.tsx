@@ -2,6 +2,7 @@ import { useRequest } from "alova/client"
 import { ArrowRightIcon } from "lucide-react"
 
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { eventLinkTarget } from "~/components/editorial/event-link"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
@@ -18,13 +19,17 @@ export function ActivityHighlights() {
     }
   )
   onError(() => undefined)
-  const items = data.items.map((item) => ({
-    category: item.category === "activity" ? "活动资讯" : "同人活动",
-    title: item.title,
-    href: `/events/${item.id}`,
-    image: item.image_url ?? "",
-    coverTransform: item.cover_transform,
-  }))
+  const items = data.items.map((item) => {
+    const linkTarget = eventLinkTarget(item)
+    return {
+      category: item.category === "activity" ? "活动资讯" : "同人活动",
+      title: item.title,
+      href: linkTarget.href,
+      external: linkTarget.external,
+      image: item.image_url ?? "",
+      coverTransform: item.cover_transform,
+    }
+  })
 
   return (
     <section
@@ -80,6 +85,8 @@ export function ActivityHighlights() {
                 />
                 <NavigationLink
                   href={item.href}
+                  target={item.external ? "_blank" : undefined}
+                  rel={item.external ? "noreferrer" : undefined}
                   className="flex min-h-20 items-center gap-3 px-4 py-3 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
                   <span className="min-w-0 flex-1">

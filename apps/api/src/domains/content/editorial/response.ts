@@ -17,6 +17,7 @@ import type {
     // pi-lens-ignore: ts:2305
     EditorialErrorResponse as EditorialContractErrorResponse
 } from '@imsweb/contracts/editorial';
+import { storedDocumentHasPublicContent } from '@/utils/validation/document-has-public-content';
 
 export type EditorialArticleResponse = EditorialArticle;
 export type EditorialArticleListResponse = EditorialArticleList;
@@ -284,6 +285,8 @@ export function toEditorialSpotlightItemResponse(
         image_url: nullableText(row.image_url, 'image_url'),
         category: row.category === 'fan' ? 'fan' : 'activity',
         sort_order: counter(row.sort_order, 'sort_order'),
+        has_body: storedDocumentHasPublicContent(row.body_json),
+        source_url: nullableText(row.source_url, 'source_url'),
         cover_transform: coverTransform(row)
     };
 }

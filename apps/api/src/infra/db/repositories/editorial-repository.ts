@@ -273,6 +273,7 @@ export class SqlEditorialRepository implements EditorialRepository {
     listPublicSpotlightEntries(): Promise<Record<string, unknown>[]> {
         return queryAll(this.database,
             `SELECT e.id, a.title, COALESCE(a.cover_url, e.image_url) AS image_url,
+                    a.body_json, e.source_url,
                     s.category, s.sort_order,
                     jsonb_build_object(
                         'focalX', a.cover_focal_x,

@@ -164,6 +164,32 @@ describe("home supporting sections", () => {
     expect(screen.getAllByRole("link", { name: /雨云|云计算/ })).toHaveLength(3)
   })
 
+  it("opens a bodyless spotlight item at its source URL", async () => {
+    stubInformation([
+      {
+        id: 36,
+        category: "activity",
+        title: "只有来源链接的活动",
+        image_url: "/uploads/articles/source-only.webp",
+        sort_order: 0,
+        has_body: false,
+        source_url: "https://example.test/original",
+        cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
+      },
+    ])
+    render(<HomeSections />)
+
+    const activityLink = await screen.findByRole("link", {
+      name: /只有来源链接的活动/,
+    })
+    expect(activityLink).toHaveAttribute(
+      "href",
+      "https://example.test/original"
+    )
+    expect(activityLink).toHaveAttribute("target", "_blank")
+    expect(activityLink).toHaveAttribute("rel", "noreferrer")
+  })
+
   it("shows an empty state instead of code-backed activity fallback data", async () => {
     stubInformation([])
     render(<HomeSections />)
