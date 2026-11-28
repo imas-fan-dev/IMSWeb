@@ -11,6 +11,7 @@ import {
   wallInsightsSchema,
 } from "@imsweb/contracts/namecards"
 import { NAMECARD_EXCHANGE_CARD_LIMIT } from "@imsweb/contracts/namecards/runtime"
+import { privacyPolicyPublicResponseSchema } from "@imsweb/contracts/privacy-policy"
 import {
   apiPath,
   exchangeMyCardsLayoutPath,
@@ -112,6 +113,22 @@ function installWallInsightsProbe(dispatcher: ApiDispatcher) {
         viewer: null,
       },
     }),
+  })
+}
+
+/**
+ * 登录与注册页一进就会读公开条款；未配置时 API 返回内置默认文本。给一个
+ * “未启用条款”的中性兜底，免得每个经过登录页的 spec 都要自己登记；需要
+ * 验证勾选拦截的 spec 会登记同名端点覆盖它。
+ */
+function installPrivacyPolicyProbe(dispatcher: ApiDispatcher) {
+  dispatcher.expect({
+    method: "GET",
+    path: apiPath("/privacy-policy"),
+    responses: { 200: privacyPolicyPublicResponseSchema },
+    times: { min: 0, max: 1_000 },
+    fallback: true,
+    handle: () => ({ status: 200, json: { policy: null } }),
   })
 }
 
@@ -226,6 +243,7 @@ export const test = base.extend<
       await dispatcher.install(context)
       await installInboxStreamProbe(context, baseURL, apiOrigins)
       installInboxProbe(dispatcher, inboxNotifications)
+      installPrivacyPolicyProbe(dispatcher)
       installSeriesProbe(dispatcher)
       installCharactersProbe(dispatcher)
       installWallInsightsProbe(dispatcher)

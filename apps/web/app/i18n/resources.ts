@@ -1055,6 +1055,15 @@ export const resources = {
         displayNameRequired: "Enter a display name.",
         displayNameLong: "Display name cannot exceed 80 characters.",
         passwordMismatch: "The passwords do not match.",
+        privacy: {
+          consentLabel: "I have read and agree to",
+          required: "Read and accept the privacy terms first.",
+          dialogDescription:
+            "Review and accept the following terms before signing in.",
+          updatedAt: "Last updated: {{date}}",
+          dialogClose: "Close",
+          dialogAccept: "I have read and agree",
+        },
         verification: {
           code: "Email verification code",
           codeHint: "Enter the 6-digit code from the email.",

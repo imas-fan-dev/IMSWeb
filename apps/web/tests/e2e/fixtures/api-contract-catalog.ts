@@ -145,6 +145,10 @@ import {
   homepageLinksSchema,
 } from "@imsweb/contracts/homepage-links"
 import {
+  privacyPolicyErrorResponseSchema,
+  privacyPolicyPublicResponseSchema,
+} from "@imsweb/contracts/privacy-policy"
+import {
   adminNamecardHttpErrorSchema,
   adminNamecardListQuerySchema,
   adminNamecardDeleteRequestSchema,
@@ -379,6 +383,13 @@ export function resolveApiContract(
       responses: {
         200: homepageLinksSchema,
         500: homepageLinkErrorResponseSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/privacy-policy")
+    return {
+      responses: {
+        200: privacyPolicyPublicResponseSchema,
+        500: privacyPolicyErrorResponseSchema,
       },
     }
   if (method === "GET" && path === "/api/birthdays")
