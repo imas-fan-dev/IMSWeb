@@ -16,12 +16,49 @@ function event(
     contact: null,
     image_url,
     created_at: null,
+    has_body: true,
     cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 },
     ...overrides,
   }
 }
 
 describe("EventRow", () => {
+  it("opens a body-less external source directly from the list", () => {
+    render(
+      <MemoryRouter>
+        <EventRow
+          event={event(null, {
+            has_body: false,
+            source_url: "https://example.test/original",
+          })}
+        />
+      </MemoryRouter>
+    )
+
+    const link = screen.getByRole("link", { name: /夏日活动/ })
+    expect(link).toHaveAttribute("href", "https://example.test/original")
+    expect(link).toHaveAttribute("target", "_blank")
+    expect(link).toHaveAttribute("rel", "noreferrer")
+  })
+
+  it("keeps the detail route when a body is present", () => {
+    render(
+      <MemoryRouter>
+        <EventRow
+          event={event(null, {
+            has_body: true,
+            source_url: "https://example.test/original",
+          })}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("link", { name: /夏日活动/ })).toHaveAttribute(
+      "href",
+      "/events/1"
+    )
+  })
+
   it("uses the normalized root-relative poster URL", () => {
     const { container } = render(
       <MemoryRouter>

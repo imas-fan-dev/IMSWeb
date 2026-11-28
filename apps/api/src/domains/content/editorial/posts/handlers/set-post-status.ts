@@ -1,6 +1,5 @@
 import type { ArticleStatus } from '@/ports/repositories';
 import {
-    documentHasPublicContent,
     statusResponse
 } from '@/domains/content/editorial/contracts/article-view';
 import {
@@ -13,6 +12,7 @@ import type {
     EditorialStatusResponse
 } from '@/domains/content/editorial/response';
 import { editorialRepository } from '@/middleware/hono-context';
+import { documentHasPublicContent } from '@/utils/validation/document-has-public-content';
 
 /**
  * 发布、撤回、归档共用一条流程：先取当前行，再按乐观锁改状态。

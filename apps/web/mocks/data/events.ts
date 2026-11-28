@@ -16,6 +16,7 @@ export function makeEventListItem(
     image_url: "/uploads/events/summer/poster.webp",
     created_at: "2026-01-01T00:00:00+08:00",
     summary: "一起看 live",
+    has_body: true,
     kind: "event",
     source_url: null,
     start_at: "2026-07-24T13:00:00+08:00",

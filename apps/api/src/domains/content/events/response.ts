@@ -1,6 +1,7 @@
 import type { SnapshotPageInfo, SuccessFlag, ErrorResponse } from '@imsweb/contracts/common';
 import type { EditorialArticle } from '@imsweb/contracts/editorial';
 import type { CreateEventResponse as CreateEventContractResponse, EventLegacyPage, EventListItem, EventPage } from '@imsweb/contracts/events';
+import { documentHasPublicContent } from '@/utils/validation/document-has-public-content';
 
 export type EventResponse = EventListItem;
 export type EditorialEventResponse = EditorialArticle;
@@ -100,6 +101,15 @@ function eventKind(value: unknown): 'event' | 'notice' | null {
     throw new Error('Event repository returned an invalid kind');
 }
 
+function bodyHasPublicContent(value: unknown): boolean {
+    if (typeof value !== 'string') return documentHasPublicContent(value);
+    try {
+        return documentHasPublicContent(JSON.parse(value));
+    } catch {
+        return false;
+    }
+}
+
 function articleStatus(value: unknown): 'draft' | 'published' | 'archived' {
     const status = nullableText(value, 'status') || 'published';
     if (status === 'draft' || status === 'published' || status === 'archived') return status;
@@ -117,6 +127,7 @@ export function toEventListResponse(value: unknown): EventResponse {
     return {
         ...toEventResponse(event),
         summary: nullableText(event.summary, 'summary') || '',
+        has_body: bodyHasPublicContent(event.body_json),
         kind: eventKind(event.kind),
         source_url: nullableText(event.source_url, 'source_url'),
         start_at: eventTimestamp(event.start_at),

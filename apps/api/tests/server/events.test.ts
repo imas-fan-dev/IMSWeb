@@ -9,6 +9,7 @@ import { decodeEventCursor, encodeEventCursor } from '@/domains/content/events/e
 import { toEditorialEventResponse } from '@/domains/content/events/response';
 import { PostgresqlSchemaStrategy } from '@/infra/db/postgresql/schema-strategy';
 import { SqlEventRepository } from '@/infra/db/repositories/event-repository';
+import { executeSql, queryOne } from '@/infra/db/sql/query';
 import { HmacBackofficeTokenService } from '@/infra/security/hmac/token-service';
 import type { IdempotencyClaim, IdempotencyResponse, IdempotencyStore } from '@/ports/cache';
 import type { ParsedUpload, UploadParser } from '@/ports/http';
@@ -44,6 +45,7 @@ import { describe, onTestFinished, test } from 'vitest';
     interface EventFixture {
         request(pathname: string, init?: RequestInit): Promise<Response>;
         insert(title: string): Promise<number>;
+        attachPublishedBody(id: number, body: Record<string, unknown>): Promise<void>;
         setUpload(value: ParsedUpload): void;
         opToken: string;
         editorToken: string;
@@ -220,6 +222,28 @@ import { describe, onTestFinished, test } from 'vitest';
                     imageUrl: '/uploads/events/new.webp'
                 });
             },
+            async attachPublishedBody(id, body) {
+                const event = await queryOne<{ title: string }>(
+                    connection,
+                    'SELECT title FROM events WHERE id=?',
+                    [id]
+                );
+                if (!event) throw new Error('Event fixture is missing');
+                const article = await queryOne<{ id: number }>(
+                    connection,
+                    `INSERT INTO articles
+                     (content_type, title, body_json, body_html, status, published_at)
+                     VALUES ('event', ?, ?, '', 'published', CURRENT_TIMESTAMP)
+                     RETURNING id`,
+                    [event.title, JSON.stringify(body)]
+                );
+                if (!article) throw new Error('Article insert did not return an ID');
+                await executeSql(
+                    connection,
+                    'UPDATE events SET article_id=? WHERE id=?',
+                    [article.id, id]
+                );
+            },
             find: (id) => repository.findEvent(id),
             references: (imageUrl) => repository.countEventMediaReferences(imageUrl),
             update: (id, input, expectedImageUrl) =>
@@ -369,6 +393,48 @@ import { describe, onTestFinished, test } from 'vitest';
                 eventLegacyPageSchema
             );
             assert.equal(legacyBody.list[0]?.title, legacyTitle);
+        });
+
+        postgresTest('event list responses report whether a linked article has a visible body', async () => {
+            const fixture = await createFixture(4);
+            await fixture.attachPublishedBody(1, {
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: '   ' }] }]
+            });
+            await fixture.attachPublishedBody(2, {
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: '正文' }] }]
+            });
+            await fixture.attachPublishedBody(3, {
+                type: 'doc',
+                content: [{ type: 'image', attrs: { src: '/uploads/events/3.webp' } }]
+            });
+
+            const cursorBody = await assertRawJsonConforms(
+                await fixture.request('/api/events?limit=20'),
+                200,
+                eventPageSchema
+            );
+            const cursorBodies = new Map(
+                cursorBody.items.map((item) => [item.id, item.has_body])
+            );
+            assert.equal(cursorBodies.get(1), false);
+            assert.equal(cursorBodies.get(2), true);
+            assert.equal(cursorBodies.get(3), true);
+            assert.equal(cursorBodies.get(4), false);
+
+            const legacyBody = await assertRawJsonConforms(
+                await fixture.request('/api/events'),
+                200,
+                eventLegacyPageSchema
+            );
+            const legacyBodies = new Map(
+                legacyBody.list.map((item) => [item.id, item.has_body])
+            );
+            assert.deepEqual(
+                [...legacyBodies.entries()].sort(([left], [right]) => Number(left) - Number(right)),
+                [[1, false], [2, true], [3, true], [4, false]]
+            );
         });
 
         postgresTest('events mounted JSON routes preserve shared schemas and project query and multipart extras', async () => {

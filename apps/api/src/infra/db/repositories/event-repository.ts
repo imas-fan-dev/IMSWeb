@@ -104,7 +104,7 @@ export class SqlEventRepository implements EventRepository {
             `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                     COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                     e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    a.body_json, e.start_at, e.end_at, e.venue_name, e.event_status,
                     jsonb_build_object(
                         'focalX', COALESCE(a.cover_focal_x, 0.5),
                         'focalY', COALESCE(a.cover_focal_y, 0.5),
@@ -140,7 +140,7 @@ export class SqlEventRepository implements EventRepository {
                 `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                         COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                         e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                        e.start_at, e.end_at, e.venue_name, e.event_status,
+                        a.body_json, e.start_at, e.end_at, e.venue_name, e.event_status,
                         jsonb_build_object(
                             'focalX', COALESCE(a.cover_focal_x, 0.5),
                             'focalY', COALESCE(a.cover_focal_y, 0.5),
@@ -158,7 +158,7 @@ export class SqlEventRepository implements EventRepository {
             `SELECT e.id, COALESCE(a.title, e.title) AS title, e.name, e.contact,
                     COALESCE(a.cover_url, e.image_url) AS image_url, e.created_at,
                     e.kind, e.source_url, COALESCE(a.summary, '') AS summary,
-                    e.start_at, e.end_at, e.venue_name, e.event_status,
+                    a.body_json, e.start_at, e.end_at, e.venue_name, e.event_status,
                     jsonb_build_object(
                         'focalX', COALESCE(a.cover_focal_x, 0.5),
                         'focalY', COALESCE(a.cover_focal_y, 0.5),

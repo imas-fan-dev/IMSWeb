@@ -1,6 +1,7 @@
 import { ArrowUpRightIcon, CalendarDaysIcon, ImageIcon } from "lucide-react"
 
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { eventLinkTarget } from "~/components/editorial/event-link"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { CoverImagePreview } from "~/components/shared/cover-image-preview"
 import { Skeleton } from "~/components/ui/skeleton"
@@ -36,6 +37,7 @@ export function HomeFeedSkeleton() {
 
 export function HomeEventRow({ event }: { event: HomeEvent }) {
   const imageUrl = resolveSafeMediaUrl(event.image_url)
+  const linkTarget = eventLinkTarget(event)
   const publisher = event.name?.trim()
   const date = formatDate(event.created_at)
   const byline = publisher ? `${publisher} · ${date}` : date
@@ -55,7 +57,9 @@ export function HomeEventRow({ event }: { event: HomeEvent }) {
         )}
       </span>
       <NavigationLink
-        href={`/events/${event.id}`}
+        href={linkTarget.href}
+        target={linkTarget.external ? "_blank" : undefined}
+        rel={linkTarget.external ? "noreferrer" : undefined}
         className="min-h-11 min-w-0 rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <span

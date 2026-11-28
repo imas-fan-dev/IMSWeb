@@ -6,6 +6,7 @@ import {
 } from "lucide-react"
 
 import { editorialCoverStyle } from "~/components/editorial/editorial-cover"
+import { eventLinkTarget } from "~/components/editorial/event-link"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Skeleton } from "~/components/ui/skeleton"
 import { IS_APP_TARGET } from "~/lib/app-target"
@@ -56,11 +57,14 @@ export function EventRow({ event }: { event: EventListItem }) {
   // plain string, so this render boundary only rejects unsafe URL schemes.
   const imageUrl = safeImageUrl(event.image_url)
   const href = contactUrl(event.contact)
+  const linkTarget = eventLinkTarget(event)
   const publisher = event.name?.trim()
 
   return (
     <NavigationLink
-      href={`/events/${encodeURIComponent(event.id)}`}
+      href={linkTarget.href}
+      target={linkTarget.external ? "_blank" : undefined}
+      rel={linkTarget.external ? "noreferrer" : undefined}
       className="group block rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <article className="relative grid h-36 grid-cols-[6.5rem_minmax(0,1fr)] gap-2 overflow-hidden border-b p-3 transition-colors duration-200 group-hover:bg-muted/30 group-active:bg-muted/45 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
