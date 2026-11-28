@@ -226,6 +226,35 @@ test.describe('Editorial', () => {
         );
     });
 
+    test('public spotlight responses expose body presence and source URL for direct links', async () => {
+        const app = createApp(editorialRepositoryStub({
+            listPublicSpotlightEntries: async () => [{
+                id: 7,
+                title: '只有来源的帖子',
+                image_url: null,
+                body_json: { type: 'doc', content: [] },
+                source_url: 'https://example.test/original',
+                category: 'activity',
+                sort_order: 0,
+                cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 }
+            }]
+        }));
+        const response = await app.request('/api/community-posts/spotlight');
+
+        assert.equal(response.status, 200);
+        const body = await contractJson(response, editorialSpotlightSchema);
+        assert.deepEqual(body.items, [{
+            id: 7,
+            title: '只有来源的帖子',
+            image_url: null,
+            category: 'activity',
+            sort_order: 0,
+            has_body: false,
+            source_url: 'https://example.test/original',
+            cover_transform: { focalX: 0.5, focalY: 0.5, zoom: 1 }
+        }]);
+    });
+
     test('mounted reads, assets, and spotlight responses preserve their raw JSON', async () => {
         const app = createApp(editorialRepositoryStub({
             listArticleAssets: async () => [{

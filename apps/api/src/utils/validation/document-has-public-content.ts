@@ -7,3 +7,13 @@ export function documentHasPublicContent(value: unknown): boolean {
     if (record.type === 'text' && typeof record.text === 'string' && record.text.trim()) return true;
     return Object.values(record).some(documentHasPublicContent);
 }
+
+/** JSONB columns may arrive parsed, or as JSON text from older database drivers. */
+export function storedDocumentHasPublicContent(value: unknown): boolean {
+    if (typeof value !== 'string') return documentHasPublicContent(value);
+    try {
+        return documentHasPublicContent(JSON.parse(value));
+    } catch {
+        return false;
+    }
+}
