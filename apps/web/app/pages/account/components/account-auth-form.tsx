@@ -25,7 +25,7 @@ import { platformOAuthButtonStyle } from "~/components/platform/platform-oauth-b
 import { PlatformOAuthProviderIcon } from "~/components/platform/platform-oauth-provider-icon"
 import { usePlatformSession } from "~/components/platform/platform-session-provider"
 import { PageShell } from "~/components/shared/page-shell"
-import type { PlatformOAuthProvider } from "~/lib/api"
+import type { PlatformOAuthProvider, PrivacyPolicyContent } from "~/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Button, buttonVariants } from "~/components/ui/button"
 import {
@@ -37,6 +37,7 @@ import {
 import { Input } from "~/components/ui/input"
 import {
   getPlatformOAuthProviders,
+  getPrivacyPolicy,
   isApiError,
   loginPlatform,
   platformLoginInputSchema,
@@ -53,6 +54,7 @@ import { useNavigation } from "~/lib/navigation/use-navigation"
 import { cn } from "~/lib/utils"
 import { accountAuthPath, accountReturnTo } from "../account-auth-return"
 import { PlatformOAuthAppSection } from "./platform-oauth-app-section"
+import { PrivacyPolicyConsent } from "./privacy-policy-consent"
 import {
   platformOAuthReasonKey,
   type PlatformOAuthAppErrorKey,
@@ -137,6 +139,10 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
   const [oauthProvidersStatus, setOauthProvidersStatus] =
     useState<PlatformOAuthProviderStatus>("idle")
   const [oauthProvidersAttempt, setOauthProvidersAttempt] = useState(0)
+  const [privacyPolicy, setPrivacyPolicy] =
+    useState<PrivacyPolicyContent | null>(null)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [privacyError, setPrivacyError] = useState("")
   // Read once from the launch URL; the effect below drops the parameter so a
   // refresh cannot repeat the message.
   const [oauthFailureKey] = useState<PlatformOAuthAppErrorKey | null>(() => {
@@ -212,6 +218,23 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
       active = false
     }
   }, [isReset, oauthProvidersAttempt])
+
+  useEffect(() => {
+    let active = true
+    void getPrivacyPolicy()
+      .send()
+      .then((response) => {
+        if (active) setPrivacyPolicy(response.policy)
+      })
+      .catch(() => {
+        // A missing policy must not block sign-in; the API simply renders the
+        // consent box only when a published policy is available.
+        if (active) setPrivacyPolicy(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   // The API sends failed round trips back with `?oauth=<reason>`. The message
   // is captured on first render; here the parameter is cleared so a refresh
@@ -419,6 +442,10 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
     setRequestError("")
     const submission = validate()
     if (!submission) return
+    if (!isReset && privacyPolicy && !privacyAccepted) {
+      setPrivacyError(t("platformAuth.privacy.required"))
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -941,6 +968,18 @@ export function AccountAuthForm({ mode }: AccountAuthFormProps) {
                   </Field>
                 ) : null}
               </FieldGroup>
+
+              {!isReset && privacyPolicy ? (
+                <PrivacyPolicyConsent
+                  policy={privacyPolicy}
+                  accepted={privacyAccepted}
+                  onAcceptedChange={(accepted) => {
+                    setPrivacyAccepted(accepted)
+                    if (accepted) setPrivacyError("")
+                  }}
+                  error={privacyError}
+                />
+              ) : null}
 
               <Button
                 type="submit"

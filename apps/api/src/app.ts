@@ -39,6 +39,7 @@ import { registerAdminNamecardUnitRoutes } from "@/domains/admin/namecard-units/
 import { registerAdminNamecardTagRoutes } from "@/domains/admin/namecard-tags/routes";
 import { registerAdminCatalogRoutes } from "@/domains/admin/catalog/routes";
 import { registerAboutRoutes } from "@/domains/content/about/routes";
+import { registerPrivacyPolicyRoutes } from "@/domains/content/privacy-policy/routes";
 import { registerBackofficeAuthRoutes } from "@/domains/admin/backoffice-auth/routes";
 import { registerBrandAssetRoutes } from "@/domains/content/brand-assets/routes";
 import { registerChronicleRoutes } from "@/domains/content/chronicle/routes";
@@ -276,6 +277,7 @@ export function createHonoApp<
     ));
 
     registerAboutRoutes(app);
+    registerPrivacyPolicyRoutes(app);
     registerProducerMapRoutes(app);
     registerCommunityContentRoutes(app);
     registerBrandAssetRoutes(app);

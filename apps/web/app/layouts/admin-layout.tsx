@@ -23,6 +23,7 @@ import {
   PanelLeftOpenIcon,
   RefreshCwIcon,
   Settings2Icon,
+  ShieldCheckIcon,
   ShieldXIcon,
   UserRoundIcon,
   UsersRoundIcon,
@@ -120,6 +121,13 @@ const navigation: Array<{
     label: "关于本站",
     description: "站点介绍与贡献名单",
     icon: InfoIcon,
+    accent: "bg-primary",
+  },
+  {
+    to: "/admin/privacy-policy",
+    label: "隐私条款",
+    description: "登录页条款与同意确认框",
+    icon: ShieldCheckIcon,
     accent: "bg-primary",
   },
   {

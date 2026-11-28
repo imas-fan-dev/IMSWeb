@@ -13,6 +13,7 @@ import AccountPasswordResetPage from "~/pages/account/reset/account-password-res
 const apiMocks = vi.hoisted(() => ({
   loginInput: vi.fn(),
   loginSend: vi.fn(),
+  privacyPolicySend: vi.fn(),
   registerInput: vi.fn(),
   registerSend: vi.fn(),
   passwordResetVerificationInput: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("~/lib/api", async (importOriginal) => {
     getPlatformOAuthProviders: () => ({
       send: vi.fn().mockResolvedValue({ providers: [] }),
     }),
+    getPrivacyPolicy: () => ({ send: apiMocks.privacyPolicySend }),
     loginPlatform: (input: unknown) => {
       apiMocks.loginInput(input)
       return { send: apiMocks.loginSend }
@@ -136,6 +138,7 @@ describe("Platform account auth pages", () => {
     vi.clearAllMocks()
     window.sessionStorage.clear()
     sessionMocks.usePlatformSession.mockReturnValue(anonymousState())
+    apiMocks.privacyPolicySend.mockResolvedValue({ policy: null })
     await i18n.changeLanguage("zh-CN")
   })
 
@@ -395,6 +398,37 @@ describe("Platform account auth pages", () => {
     expect(
       await screen.findByText("网络连接失败，请检查连接后重试。")
     ).toBeVisible()
+  })
+
+  it("requires accepting the published privacy policy before login", async () => {
+    apiMocks.privacyPolicySend.mockResolvedValue({
+      policy: {
+        enabled: true,
+        title: "隐私条款",
+        body: "我们仅收集提供服务所必需的数据。",
+        updatedAt: null,
+      },
+    })
+    renderPage("login")
+    const user = await fillLogin()
+
+    expect(
+      await screen.findByRole("checkbox", { name: "我已阅读并同意" })
+    ).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "登录" }))
+    expect(screen.getByText("请先阅读并同意隐私条款。")).toBeVisible()
+    expect(apiMocks.loginSend).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: "《隐私条款》" }))
+    expect(
+      await screen.findByText("我们仅收集提供服务所必需的数据。")
+    ).toBeVisible()
+    await user.click(
+      screen.getByRole("button", { name: "我已阅读并同意" })
+    )
+    await user.click(screen.getByRole("button", { name: "登录" }))
+
+    expect(apiMocks.loginSend).toHaveBeenCalledTimes(1)
   })
 
   it("allows migrated PBKDF2 passwords above the bcrypt byte limit", async () => {

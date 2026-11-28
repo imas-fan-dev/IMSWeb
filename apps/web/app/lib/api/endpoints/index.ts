@@ -1,6 +1,7 @@
 export * from "./admin"
 export * from "./catalog"
 export * from "./about"
+export * from "./privacy-policy"
 export * from "./chronicle"
 export * from "./community"
 export * from "./editorial"

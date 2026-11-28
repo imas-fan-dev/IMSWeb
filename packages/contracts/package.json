@@ -287,6 +287,16 @@
         "default": "./dist/cjs/about.js"
       }
     },
+    "./privacy-policy": {
+      "import": {
+        "types": "./dist/esm/privacy-policy.d.ts",
+        "default": "./dist/esm/privacy-policy.js"
+      },
+      "require": {
+        "types": "./dist/cjs/privacy-policy.d.ts",
+        "default": "./dist/cjs/privacy-policy.js"
+      }
+    },
     "./community-content": {
       "import": {
         "types": "./dist/esm/community-content.d.ts",
