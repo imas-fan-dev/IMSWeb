@@ -447,9 +447,15 @@ test("workflow dependencies expose compiled browsers after build and Preview con
   assert.ok(!preview.includes("run: pnpm run test"));
   assert.ok(!preview.includes("services:"));
   assert.ok(
-    preview.indexOf("Verify candidate immediately before publication") <
+    preview.indexOf("Verify candidate freshness before shared build resources") <
       preview.indexOf("id: publish-image"),
   );
+  assert.equal(
+    preview.split("node .candidate-verifier/scripts/ci/verified-candidate.mjs").length - 1,
+    2,
+  );
+  assert.ok(!preview.includes("  resolve-image:"));
+  assert.match(preview, /PUBLISHED_DIGEST/);
   assert.match(preview, /no-cache: true/);
 });
 

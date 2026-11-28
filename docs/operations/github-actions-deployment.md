@@ -60,29 +60,29 @@ run id 与 attempt，因为同一 run 的重跑不得覆盖首次尝试的证据
 否则失败时上传的是空目录。留证据的目的是定位当次失败；长期发布记录属于 PR、issue 或 release
 条目，不靠提高 artifact 保留天数解决。
 
-CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版本，API 镜像的
+CI 和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版本，API 镜像的
 `ARG NODE_VERSION` 必须与它一致；基础设施测试会检查这项约束。各 workspace 的
 `engines.node` 仍表示最低兼容版本，不是 CI 或生产运行时的版本选择器。
 
 Tag 必须使用 `vMAJOR.MINOR.PATCH`，例如 `v1.4.0`，并指向 `origin/main` 已包含的 commit。
-Tag push 会运行 `pnpm run check` 和 `pnpm run test`、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，
-最后按 registry 返回的 `sha256` digest 部署。镜像同时记录 release Tag 和完整 commit SHA；
-部署前要求两个镜像标签解析到同一个 digest。
+Tag push 不会重复 `pnpm run check` 和 `pnpm run test`：它先确认该 commit 在 `main` 上的 CI push
+run 已完成且聚合检查 `Validate repository` 成功，再构建 `apps/api/Dockerfile`、把镜像推送到
+GHCR、生成 provenance，最后按构建返回的 `sha256` digest 部署。同一 commit 的检查、测试和迁移
+契约只在 CI 验证一次，发布记录直接关联该 CI run。
 
 根检查和根测试不包含 Web/App Playwright。浏览器套件由 `ci.yml` 的独立 lane 执行，
 Firefox 和广泛布局由 `ui-extended.yml` 执行。稳定 Tag 工作流不会额外校验候选提交的这些 CI
 结果；发布记录应单独关联目标提交的浏览器验证证据，不能把 Tag 工作流成功解释为浏览器验收完成。
 
 手动触发不会重新构建镜像。操作者输入已有 Tag，并确认该版本与当前生产数据兼容；工作流只解析
-这个 Tag 与 commit 标签共同指向的已有 digest。这样同一 release 不会因重新构建产生不同
-制品。解析后还会使用 `gh attestation verify` 校验 SLSA provenance，要求签名者是本仓库的
+该 Tag 对应的 digest，再使用 `gh attestation verify` 校验 SLSA provenance，要求签名者是本仓库的
 `.github/workflows/deploy.yml`、源 ref 是该 Tag、源 digest 是对应 commit，且构建不来自
-self-hosted runner。
+self-hosted runner。这样同一 release 不会因重新构建产生不同制品。
 
-所有外部 Actions 固定到完整 commit SHA。Workflow 的默认权限是只读；只有发布镜像的 job
-获得 `packages: write`、`attestations: write` 和 `id-token: write`，部署 job 只有
-`contents: read` 和 `packages: read`。部署 job 使用 GitHub 为本次运行自动生成的短期
-`GITHUB_TOKEN` 拉取镜像，不需要创建或保存长期 GHCR PAT。
+所有外部 Actions 固定到完整 commit SHA。Workflow 的默认权限是只读；发布镜像的 job 额外获得
+`actions: read`、`packages: write`、`attestations: write` 和 `id-token: write`，部署 job 只有
+`contents: read`、`packages: read` 和 `attestations: read`。部署 job 使用 GitHub 为本次运行
+自动生成的短期 `GITHUB_TOKEN` 拉取镜像，不需要创建或保存长期 GHCR PAT。
 
 Docker 的 Buildx、Registry Login 和 Build/Push Actions 分别使用 v4、v4 和 v7 主版本；这些
 版本声明使用 Node.js 24 Action runtime，并继续固定到完整 release commit SHA。它们要求
@@ -92,9 +92,10 @@ Preview 使用 `scripts/ci/verified-candidate.mjs` 核对受信任 CI workflow I
 仓库、release head/tree、run attempt 和每个必需 validation job 的成功结果；缺失、失败、取消、
 跳过、fork 或错误 SHA 均不能授权发布。验证不等待 publication 自身，publication 失败后仍可
 使用已成功的验证证据恢复。Preview 不重复运行整套 `pnpm check` 和 `pnpm test`；Docker 执行
-干净构建，再发布镜像、生成 provenance 并执行 `gh attestation verify`。手动运行不重建同一 commit，
-只解析 commit 标签对应的已有 digest 并验证同一 provenance。共享资源、发布和部署前重新核对
-新鲜度。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
+干净构建，再发布镜像、生成 provenance 并执行 `gh attestation verify`。候选证据只在准备阶段和
+花费共享构建资源之前核对两次：之后镜像标签按 commit 绑定且不可变，部署前的新鲜度由
+`git ls-remote` 检查兜底，重复调用同一个 GitHub API 审计不再提供额外保证。手动运行不重建同一 commit，
+只解析 commit 标签对应的已有 digest 并验证同一 provenance。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
 再次读取 `release/v1.1` 远端 head，旧 commit 已过期时记录为跳过，避免较慢的旧 Workflow 覆盖
 新 preview。
 
@@ -299,7 +300,8 @@ git push origin v1.0.0
 Workflow 会按以下顺序执行：
 
 1. 验证 Tag、commit 和 `main` 包含关系；
-2. 安装 frozen dependencies，运行检查和测试；
+2. 确认该 commit 在 `main` 上的 CI run 中 `Validate repository` 聚合检查已成功，不重复安装依赖
+   或运行检查和测试；
 3. 构建一次镜像，推送 Tag/SHA 标签并取得 digest；
 4. 进入 `production` Environment 和 `imsweb-production` concurrency group；
 5. 从目标 Tag 检出 `deploy/compose.yaml` 与部署脚本，并从当前 Workflow commit 单独检出认证
@@ -327,7 +329,7 @@ Workflow 会按以下顺序执行：
 ```
 
 Workflow 不在生产机执行 `git pull`，也不在生产机重新构建镜像。相同 Tag 的手动重新部署只有在
-release metadata、Compose 文件、Tag digest 和 commit digest 全部一致时才会继续。
+release metadata、Compose 文件和 Tag digest 全部一致时才会继续。
 已有部署会先使用 `current` release 的 Compose 配置启动并备份 PostgreSQL；候选发布显式运行
 migration，然后使用 `--no-deps` 依次重建邮件 Worker 和 API。部署脚本通过 Compose 取得所有
 Worker 容器 ID，并逐个要求 `running healthy`，不会用任意一个健康副本代表整个服务。

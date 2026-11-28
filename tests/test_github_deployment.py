@@ -184,16 +184,19 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
     def test_snapshot_test_jobs_select_postgresql_18_clients_before_testing(self):
         setup_command = "run: bash scripts/ci/setup-postgres-client.sh"
-        for workflow_path, job_name, test_step in (
-            (CI_WORKFLOW, "api", "name: Test API owner"),
-            (DEPLOY_WORKFLOW, "publish", "name: Run static and architecture checks"),
-        ):
-            workflow = workflow_path.read_text(encoding="utf-8")
-            job = workflow.split(f"\n  {job_name}:\n", 1)[1]
-            job = re.split(r"\n  [a-z][a-z0-9-]*:\n", job, maxsplit=1)[0]
-            self.assertIn("image: postgres:18.4-alpine", job)
-            self.assertIn(setup_command, job)
-            self.assertLess(job.index(setup_command), job.index(test_step))
+        ci = CI_WORKFLOW.read_text(encoding="utf-8")
+        job = ci.split("\n  api:\n", 1)[1]
+        job = re.split(r"\n  [a-z][a-z0-9-]*:\n", job, maxsplit=1)[0]
+        test_step = "name: Test API owner"
+        self.assertIn("image: postgres:18.4-alpine", job)
+        self.assertIn(setup_command, job)
+        self.assertLess(job.index(setup_command), job.index(test_step))
+
+        # Tag publication reuses the CI evidence for the same commit, so it must
+        # not start a database or re-run the suite it already validated.
+        deployment = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertNotIn(setup_command, deployment)
+        self.assertNotIn("image: postgres:18.4-alpine", deployment)
 
         setup = (PROJECT_ROOT / "scripts/ci/setup-postgres-client.sh").read_text(
             encoding="utf-8"
@@ -488,8 +491,10 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             'image_name="ghcr.io/${REPOSITORY,,}-api"',
             "IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}",
             NODE_SETUP_ACTION,
-            PNPM_SETUP_ACTION,
             DOCKER_BUILD_PUSH_ACTION,
+            "Verify release commit passed CI on main",
+            "gh api \"repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs",
+            "select(.name == \"Validate repository\")",
             "actions/attest-build-provenance@",
             "gh attestation verify",
             "GH_TOKEN: ${{ github.token }}",
@@ -517,8 +522,15 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(token, deployment)
 
-        self.assertEqual(deployment.count("node-version-file: .nvmrc"), 2)
-        self.assertEqual(deployment.count(NODE_SETUP_ACTION), 2)
+        self.assertEqual(deployment.count("node-version-file: .nvmrc"), 1)
+        self.assertEqual(deployment.count(NODE_SETUP_ACTION), 1)
+        # The tag gate reuses CI evidence instead of repeating the full suite.
+        self.assertNotIn("run: pnpm run check", deployment)
+        self.assertNotIn("run: pnpm run test", deployment)
+        self.assertNotIn("services:", deployment)
+        self.assertNotIn("pnpm install", deployment)
+        self.assertIn("PUBLISHED_DIGEST", deployment)
+        self.assertIn("timeout-minutes: 45", deployment)
 
         expected_docker_actions = [
             DOCKER_SETUP_BUILDX_ACTION,
@@ -535,8 +547,13 @@ class GitHubWorkflowContractTests(unittest.TestCase):
 
         deploy_job = deployment.split("\n  deploy:\n", maxsplit=1)[1]
         self.assertIn("      packages: read", deploy_job)
+        self.assertIn("      attestations: read", deploy_job)
         self.assertIn("needs.prepare.result == 'success'", deploy_job)
-        self.assertIn("needs.resolve-image.result == 'success'", deploy_job)
+        self.assertIn(
+            "(github.event_name == 'workflow_dispatch' || needs.publish.result == 'success')",
+            deploy_job,
+        )
+        self.assertNotIn("resolve-image", deployment)
 
         authenticated_deployment = AUTH_DEPLOY_SCRIPT.read_text(encoding="utf-8")
         for token in (
@@ -573,8 +590,7 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             'image_name="ghcr.io/${REPOSITORY,,}-api"',
             "name: Publish validated preview image\n    if: github.event_name == 'push'",
             "Verify complete trusted candidate validation",
-            "Verify candidate immediately before publication",
-            "Verify current complete candidate before deployment resources",
+            "Verify candidate freshness before shared build resources",
             "no-cache: true",
             "node .candidate-verifier/scripts/ci/verified-candidate.mjs",
             NODE_SETUP_ACTION,
@@ -584,8 +600,8 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "preview-sha-${{ needs.prepare.outputs.release_sha }}",
             "actions/attest-build-provenance@",
             "gh attestation verify",
+            "Resolve and verify immutable preview image",
             "github.event_name == 'workflow_dispatch' || needs.publish.result == 'success'",
-            '[[ -n "$PUBLISHED_DIGEST" && "$digest" != "$PUBLISHED_DIGEST" ]]',
             ".github/workflows/deploy-preview.yml",
             '--source-ref "refs/heads/${SOURCE_BRANCH}"',
             "name: preview",
@@ -627,6 +643,16 @@ class GitHubWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("secrets.AWS_SECRET_ACCESS_KEY", preview)
         self.assertNotIn("secrets.GHCR_TOKEN", preview)
         self.assertNotIn("deploy-compose-release.sh", preview)
+        self.assertNotIn("resolve-image", preview)
+        # Candidate evidence is verified once when the run is prepared and once
+        # before spending shared build resources; publication and deployment no
+        # longer repeat the same GitHub API audit.
+        self.assertEqual(
+            preview.count(
+                "node .candidate-verifier/scripts/ci/verified-candidate.mjs"
+            ),
+            2,
+        )
 
         deploy_job = preview.split("\n  deploy:\n", maxsplit=1)[1]
         deploy_header = deploy_job.split("\n    steps:\n", maxsplit=1)[0]
@@ -636,10 +662,11 @@ class GitHubWorkflowContractTests(unittest.TestCase):
             "if: >-\n"
             "      !cancelled() &&\n"
             "      needs.prepare.result == 'success' &&\n"
-            "      needs.resolve-image.result == 'success'",
+            "      (github.event_name == 'workflow_dispatch' || needs.publish.result == 'success')",
             deploy_header,
         )
         self.assertIn("      packages: read", deploy_job)
+        self.assertIn("      attestations: read", deploy_job)
         self.assertIn("environment:\n      name: preview", deploy_job)
         self.assertIn("steps.freshness.outputs.deploy == 'true'", deploy_job)
 
